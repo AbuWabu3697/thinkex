@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Mail, Trash2, Loader2, Copy, Check, Link2, Files } from "lucide-react";
+import { Mail, Trash2, Loader2, Share2, Copy, Check, Link2, Files } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -56,7 +56,6 @@ interface FrequentCollaborator {
 interface ShareWorkspaceDialogProps {
   workspace: WorkspaceWithState | null;
   workspaceIds?: string[]; // For bulk selection
-  allowBulkInvite?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -64,7 +63,6 @@ interface ShareWorkspaceDialogProps {
 export default function ShareWorkspaceDialog({
   workspace,
   workspaceIds,
-  allowBulkInvite = false,
   open,
   onOpenChange,
 }: ShareWorkspaceDialogProps) {
@@ -94,15 +92,17 @@ export default function ShareWorkspaceDialog({
   const isBulk = !!workspaceIds && workspaceIds.length > 1;
   const targetIds = isBulk ? workspaceIds! : (workspace ? [workspace.id] : []);
 
-  // Determine permissions
+  // Determine permissions (simplified for bulk: assume logic handled in loop or backend returns error)
   const isOwner = workspace?.userId === session?.user?.id;
 
-  const canInvite = !isAnonymous && (isBulk ? allowBulkInvite : isOwner);
+  // Find current user in collaborators list (if not owner)
+  const currentUserCollaborator = collaborators.find(c => c.userId === session?.user?.id);
+
+  // Can invite: Owner OR Editor (In bulk mode, we assume user can try, and API will reject if not allowed)
+  const canInvite = !isAnonymous && (isBulk || isOwner || currentUserCollaborator?.permissionLevel === 'editor');
 
   // Can manage (remove/change permission): Only Owner
   const canManage = !isAnonymous && isOwner;
-  const canShareCopy = !isAnonymous && !isBulk && !!workspace;
-  const canCreateCollaborativeLink = !isBulk && canInvite;
 
   useEffect(() => {
     if (workspace && open && !isBulk) {
@@ -123,7 +123,7 @@ export default function ShareWorkspaceDialog({
   }, [workspace, open, isBulk, isAnonymous]);
 
   useEffect(() => {
-    if (workspace && open && canCreateCollaborativeLink) {
+    if (workspace && open && !isBulk && canInvite) {
       setIsLoadingShareLink(true);
       setShareLinkUrl("");
       fetch(`/api/workspaces/${workspace.id}/share-link`, { method: "POST" })
@@ -136,7 +136,7 @@ export default function ShareWorkspaceDialog({
     } else {
       setShareLinkUrl("");
     }
-  }, [workspace, open, canCreateCollaborativeLink]);
+  }, [workspace, open, isBulk, canInvite]);
 
   const loadCollaborators = async () => {
     if (!workspace || isBulk) return;
@@ -321,7 +321,7 @@ export default function ShareWorkspaceDialog({
       } else {
         toast.error("Failed to revoke invite");
       }
-    } catch {
+    } catch (e) {
       toast.error("Failed to revoke invite");
     } finally {
       setIsRevoking(null);
@@ -468,9 +468,7 @@ export default function ShareWorkspaceDialog({
               </div>
               {!canInvite && (
                 <p className="text-xs text-red-400">
-                  {isBulk
-                    ? "You must own every selected workspace to invite others."
-                    : "You must be the workspace owner to invite others."}
+                  You must be an editor or owner to invite others.
                 </p>
               )}
 
@@ -635,48 +633,41 @@ export default function ShareWorkspaceDialog({
           </div>
         </div>
 
-        {!isBulk && (canCreateCollaborativeLink || canShareCopy) && (() => {
+        {!isBulk && canInvite && (() => {
           const deepCopyUrl = workspace
             ? `${typeof window !== "undefined" ? window.location.origin : ""}/share-copy/${workspace.id}`
             : "";
-          const activeMode = canCreateCollaborativeLink ? linkMode : "deepcopy";
-          const activeUrl = activeMode === "collaborate" ? shareLinkUrl : deepCopyUrl;
-          const isActiveLoading = activeMode === "collaborate" && isLoadingShareLink;
+          const activeUrl = linkMode === "collaborate" ? shareLinkUrl : deepCopyUrl;
+          const isActiveLoading = linkMode === "collaborate" && isLoadingShareLink;
 
           return (
             <DialogFooter className="flex-col gap-3 pt-4 border-t">
               <div className="flex flex-col gap-3 w-full">
-                {canCreateCollaborativeLink ? (
-                  <div className="flex rounded-lg bg-muted p-1 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => { setLinkMode("collaborate"); setCopied(false); }}
-                      className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${linkMode === "collaborate"
-                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                      Collaborative
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setLinkMode("deepcopy"); setCopied(false); }}
-                      className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${linkMode === "deepcopy"
-                        ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <Files className="h-3.5 w-3.5" />
-                      Share as Copy
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Files className="h-4 w-4" />
+                {/* Segmented toggle */}
+                <div className="flex rounded-lg bg-muted p-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setLinkMode("collaborate"); setCopied(false); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${linkMode === "collaborate"
+                      ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                      : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Collaborative
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLinkMode("deepcopy"); setCopied(false); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${linkMode === "deepcopy"
+                      ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                      : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    <Files className="h-3.5 w-3.5" />
                     Share as Copy
-                  </div>
-                )}
+                  </button>
+                </div>
 
                 {/* Link + Copy */}
                 <div className="flex gap-2">
@@ -702,7 +693,7 @@ export default function ShareWorkspaceDialog({
 
                 {/* Description */}
                 <p className="text-xs text-muted-foreground">
-                  {activeMode === "collaborate"
+                  {linkMode === "collaborate"
                     ? "Adds them as a collaborator. Expires in 7 days."
                     : "Recipient gets their own independent copy. Does not expire."}
                 </p>

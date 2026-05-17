@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   withErrorHandling,
   requireAuth,
-  verifyWorkspaceOwnership,
+  verifyWorkspaceAccess,
 } from "@/lib/api/workspace-helpers";
 import { db } from "@/lib/db/client";
 import { workspaceShareLinks } from "@/lib/db/schema";
@@ -16,7 +16,7 @@ async function handlePOST(
   const userId = await requireAuth();
   const { id: workspaceId } = await params;
 
-  await verifyWorkspaceOwnership(workspaceId, userId);
+  await verifyWorkspaceAccess(workspaceId, userId, "editor");
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);

@@ -527,55 +527,22 @@ async function handlePOST(req: Request) {
 
         dataStream.merge(result.toUIMessageStream());
 
-        // Log Gateway routing when metadata is ready (BYOK vs system shows up on each hop).
+        // Log Gateway resolved provider when the metadata is ready.
         void Promise.resolve(result.providerMetadata).then(
           (meta: ProviderMetadata | undefined) => {
-            const gw = meta?.gateway as
+            const routing = (meta?.gateway as
               | {
                   routing?: {
                     resolvedProvider?: string;
                     finalProvider?: string;
-                    planningReasoning?: string;
                   };
-                  modelAttempts?: Array<{
-                    canonicalSlug?: string;
-                    providerAttempts?: Array<{
-                      provider?: string;
-                      credentialType?: string;
-                      success?: boolean;
-                      error?: unknown;
-                      providerTimeout?: boolean;
-                      configuredTimeoutMs?: number;
-                    }>;
-                  }>;
                 }
-              | undefined;
-            const routing = gw?.routing;
-            const resolvedProvider =
+              | undefined)?.routing;
+            const provider =
               routing?.resolvedProvider ?? routing?.finalProvider;
-            const attempts = gw?.modelAttempts?.map((ma) => ({
-              model: ma.canonicalSlug,
-              hops: ma.providerAttempts?.map((pa) => ({
-                provider: pa.provider,
-                credentialType: pa.credentialType,
-                success: pa.success,
-                providerTimeout: pa.providerTimeout,
-                configuredTimeoutMs: pa.configuredTimeoutMs,
-                error:
-                  typeof pa.error === "string"
-                    ? pa.error
-                    : pa.providerTimeout
-                      ? "PROVIDER_TIMEOUT"
-                      : undefined,
-              })),
-            }));
-
-            logger.info("🔍 [CHAT-API] Gateway routing detail", {
-              modelId,
-              resolvedProvider,
-              planningReasoning: routing?.planningReasoning,
-              attempts,
-            });
+            if (provider) {
+              logger.info("🔍 [CHAT-API] Gateway resolved provider:", provider);
+            }
           },
         );
 

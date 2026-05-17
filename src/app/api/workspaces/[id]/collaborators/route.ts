@@ -4,7 +4,6 @@ import { Resend } from "resend";
 import { InviteEmailTemplate } from "@/components/email/invite-email";
 import {
   verifyWorkspaceAccess,
-  verifyWorkspaceOwnership,
   withErrorHandling,
   requireAuth,
   requireAuthWithUserInfo,
@@ -141,7 +140,7 @@ async function handlePOST(
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  await verifyWorkspaceOwnership(workspaceId, currentUser.userId);
+  await verifyWorkspaceAccess(workspaceId, currentUser.userId, "editor");
 
   const normalizedEmail = email.trim().toLowerCase();
   const effectivePermissionLevel =
