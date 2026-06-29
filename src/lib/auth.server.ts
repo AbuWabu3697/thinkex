@@ -45,28 +45,6 @@ function getAuthSecret(env: AuthRuntimeEnv) {
 	return secret;
 }
 
-export interface AuthProviderOptions {
-	googleEnabled: boolean;
-	guestEnabled: boolean;
-}
-
-/**
- * Describes which sign-in methods the auth page should offer, based on which
- * secrets are configured. Google needs real OAuth credentials, so when they are
- * absent (typical for local dev / cloud agents without Infisical) we surface the
- * anonymous "Continue as guest" path instead. Guest stays hidden in production
- * once Google is configured so it isn't a visible end-user option.
- */
-export function getAuthProviderOptions(): AuthProviderOptions {
-	const env = getAuthRuntimeEnv();
-	const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-
-	return {
-		googleEnabled,
-		guestEnabled: !isProduction || !googleEnabled,
-	};
-}
-
 async function transferAnonymousUserData(
 	database: Db,
 	input: { anonymousUserId: string; newUserId: string },

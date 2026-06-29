@@ -63,7 +63,7 @@ cp .dev.vars.example .dev.vars   # fill in BETTER_AUTH_SECRET
 pnpm serve:dev
 ```
 
-The app runs at [http://localhost:3000](http://localhost:3000). Only `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required to run; every other secret gates an optional feature. When Google credentials are absent, the auth page offers **Continue as guest**. See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+The app runs at [http://localhost:3000](http://localhost:3000). Only `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required to run; every other secret gates an optional feature. In local dev the auth page also offers **Continue as guest**, so you can sign in without configuring Google OAuth. See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 Common commands:
 

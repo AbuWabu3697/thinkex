@@ -35,14 +35,14 @@ The dev server boots and lets you sign in with just the two variables below. Eve
 
 | Variable | Feature when set | Behavior when unset |
 | --- | --- | --- |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in | Auth page hides Google and offers **Continue as guest** instead |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in | Google sign-in fails; use **Continue as guest** (shown in local dev) |
 | `AI_GATEWAY_API_KEY` | AI chat / title generation (Vercel AI Gateway) | AI calls error when invoked |
 | `FIRECRAWL_API_KEY` | Web search + URL/PDF extraction (Firecrawl) | Those calls error when invoked |
 | `LLAMA_CLOUD_API_KEY` | Document extraction (LlamaParse) | Those calls error when invoked |
 
 ## Signing in without Google
 
-The login UI uses Google when it is configured. When Google credentials are absent — the common case for local dev and cloud agents — the auth page automatically shows a **Continue as guest** button that creates an anonymous session, which is enough to reach `/home` and create a workspace. Guest sign-in is always available in local dev; in production it stays hidden once Google is configured.
+In local dev (and dev-server-based cloud agents) the auth page shows a **Continue as guest** button alongside Google. It creates an anonymous session — enough to reach `/home` and create a workspace — so you can work without configuring Google OAuth. The button is compiled out of production builds (`import.meta.env.DEV`), so it never becomes a visible end-user option there.
 
 Automation can also hit the anonymous endpoint directly against a dev server:
 

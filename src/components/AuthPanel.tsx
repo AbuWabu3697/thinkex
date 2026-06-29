@@ -8,11 +8,7 @@ import { Button } from "#/components/ui/button";
 import { authClient } from "#/lib/auth-client";
 import { signOutCurrentUser } from "#/lib/auth-sign-out";
 import { getErrorMessage } from "#/lib/error-message";
-import {
-	getAuthOptionsQueryOptions,
-	getAuthSessionQueryOptions,
-	refreshAuthSession,
-} from "#/lib/session-query";
+import { getAuthSessionQueryOptions, refreshAuthSession } from "#/lib/session-query";
 
 interface AuthPanelProps {
 	callbackURL: string;
@@ -48,15 +44,14 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const { data: session } = useQuery(getAuthSessionQueryOptions());
-	const { data: authOptions } = useQuery(getAuthOptionsQueryOptions());
 	const [pendingProvider, setPendingProvider] = useState<SignInProvider | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const isAnonymousUser =
 		session?.user && "isAnonymous" in session.user && Boolean(session.user.isAnonymous);
-	// Until the options load, assume Google is available (the common production
-	// case) so we don't flash a guest-only screen; the auth routes prefetch this.
-	const googleEnabled = authOptions?.googleEnabled ?? true;
-	const guestEnabled = authOptions?.guestEnabled ?? false;
+	// Guest (anonymous) sign-in is a local-dev convenience for when Google OAuth
+	// credentials aren't configured. It's compiled out of production builds, so
+	// it never becomes a visible end-user sign-in option there.
+	const guestEnabled = import.meta.env.DEV;
 
 	// Both buttons share one flow: flip the pending provider, run the sign-in,
 	// and surface a provider-specific error if it fails. On success the page
@@ -125,31 +120,29 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 	return (
 		<div className="flex flex-col gap-6" data-slot="auth-panel">
 			<div className="mx-auto grid w-full max-w-xs gap-3">
-				{googleEnabled ? (
-					<Button
-						type="button"
-						onClick={() =>
-							signInWith("google", async () => {
-								await authClient.signIn.social({ provider: "google", callbackURL });
-								await refreshAuthSession(queryClient);
-								await router.invalidate();
-							})
-						}
-						disabled={isPending}
-						className="w-full"
-					>
-						{pendingProvider === "google" ? (
-							<Loader2 className="size-4 animate-spin" />
-						) : (
-							<GoogleIcon className="size-4" />
-						)}
-						Continue with Google
-					</Button>
-				) : null}
+				<Button
+					type="button"
+					onClick={() =>
+						signInWith("google", async () => {
+							await authClient.signIn.social({ provider: "google", callbackURL });
+							await refreshAuthSession(queryClient);
+							await router.invalidate();
+						})
+					}
+					disabled={isPending}
+					className="w-full"
+				>
+					{pendingProvider === "google" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<GoogleIcon className="size-4" />
+					)}
+					Continue with Google
+				</Button>
 				{guestEnabled ? (
 					<Button
 						type="button"
-						variant={googleEnabled ? "outline" : "default"}
+						variant="outline"
 						onClick={() =>
 							signInWith("guest", async () => {
 								const { error } = await authClient.signIn.anonymous();
@@ -174,9 +167,7 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 					<p className="text-center text-xs text-destructive">{errorMessage}</p>
 				) : null}
 				<p className="text-center text-xs text-muted-foreground">
-					{googleEnabled
-						? "No account? We'll create one."
-						: "Guest workspaces stay on this browser until you link an account."}
+					No account? We&apos;ll create one.
 				</p>
 			</div>
 		</div>
