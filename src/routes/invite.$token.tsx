@@ -10,7 +10,7 @@ import {
 } from "#/features/workspaces/invites/workspace-invite-functions";
 import { buildInvitePath } from "#/lib/client-url";
 import { buildPublicMeta } from "#/lib/seo";
-import { getAuthSessionQueryOptions } from "#/lib/session-query";
+import { getAuthOptionsQueryOptions, getAuthSessionQueryOptions } from "#/lib/session-query";
 
 export const Route = createFileRoute("/invite/$token")({
 	loader: async ({ context, params }) => {
@@ -31,6 +31,8 @@ export const Route = createFileRoute("/invite/$token")({
 				},
 			});
 		}
+
+		await context.queryClient.ensureQueryData(getAuthOptionsQueryOptions());
 
 		try {
 			return await getWorkspaceInvitePreviewFn({

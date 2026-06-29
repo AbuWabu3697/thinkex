@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import AuthScreen from "#/components/AuthScreen";
 import { buildPublicMeta } from "#/lib/seo";
-import { getAuthSessionQueryOptions } from "#/lib/session-query";
+import { getAuthOptionsQueryOptions, getAuthSessionQueryOptions } from "#/lib/session-query";
 
 export const Route = createFileRoute("/login")({
 	validateSearch: z.object({
@@ -18,6 +18,8 @@ export const Route = createFileRoute("/login")({
 		if (session) {
 			throw redirect({ to: search.redirect || "/home" });
 		}
+
+		await context.queryClient.ensureQueryData(getAuthOptionsQueryOptions());
 	},
 	head: () => ({
 		meta: buildPublicMeta({

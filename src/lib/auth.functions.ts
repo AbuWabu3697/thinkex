@@ -8,3 +8,11 @@ export const getSession = createServerFn({ method: "GET" }).handler(async () => 
 });
 
 export type AuthSession = Awaited<ReturnType<typeof getSession>>;
+
+export const getAuthOptions = createServerFn({ method: "GET" }).handler(async () => {
+	const { getAuthProviderOptions } = await import("#/lib/auth.server");
+
+	return getAuthProviderOptions();
+});
+
+export type AuthOptions = Awaited<ReturnType<typeof getAuthOptions>>;

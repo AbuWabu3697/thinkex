@@ -8,11 +8,22 @@ import { Button } from "#/components/ui/button";
 import { authClient } from "#/lib/auth-client";
 import { signOutCurrentUser } from "#/lib/auth-sign-out";
 import { getErrorMessage } from "#/lib/error-message";
-import { getAuthSessionQueryOptions, refreshAuthSession } from "#/lib/session-query";
+import {
+	getAuthOptionsQueryOptions,
+	getAuthSessionQueryOptions,
+	refreshAuthSession,
+} from "#/lib/session-query";
 
 interface AuthPanelProps {
 	callbackURL: string;
 }
+
+type SignInProvider = "google" | "guest";
+
+const signInErrorMessages: Record<SignInProvider, string> = {
+	google: "Failed to sign in with Google",
+	guest: "Failed to continue as guest",
+};
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 	return (
@@ -37,10 +48,34 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const { data: session } = useQuery(getAuthSessionQueryOptions());
-	const [isLoading, setIsLoading] = useState(false);
+	const { data: authOptions } = useQuery(getAuthOptionsQueryOptions());
+	const [pendingProvider, setPendingProvider] = useState<SignInProvider | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const isAnonymousUser =
 		session?.user && "isAnonymous" in session.user && Boolean(session.user.isAnonymous);
+	// Until the options load, assume Google is available (the common production
+	// case) so we don't flash a guest-only screen; the auth routes prefetch this.
+	const googleEnabled = authOptions?.googleEnabled ?? true;
+	const guestEnabled = authOptions?.guestEnabled ?? false;
+
+	// Both buttons share one flow: flip the pending provider, run the sign-in,
+	// and surface a provider-specific error if it fails. On success the page
+	// either redirects (Google) or navigates (guest), so the component unmounts.
+	function signInWith(provider: SignInProvider, run: () => Promise<void>) {
+		void (async () => {
+			setPendingProvider(provider);
+			setErrorMessage(null);
+
+			try {
+				await run();
+			} catch (error) {
+				const message = signInErrorMessages[provider];
+				setErrorMessage(message);
+				toast.error(getErrorMessage(error, message));
+				setPendingProvider(null);
+			}
+		})();
+	}
 
 	if (session?.user) {
 		return (
@@ -85,45 +120,63 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 		);
 	}
 
+	const isPending = pendingProvider !== null;
+
 	return (
 		<div className="flex flex-col gap-6" data-slot="auth-panel">
-			<div className="mx-auto grid w-full max-w-xs gap-6">
-				<Button
-					type="button"
-					onClick={() => {
-						void (async () => {
-							setIsLoading(true);
-							setErrorMessage(null);
-
-							try {
-								await authClient.signIn.social({
-									provider: "google",
-									callbackURL,
-								});
+			<div className="mx-auto grid w-full max-w-xs gap-3">
+				{googleEnabled ? (
+					<Button
+						type="button"
+						onClick={() =>
+							signInWith("google", async () => {
+								await authClient.signIn.social({ provider: "google", callbackURL });
 								await refreshAuthSession(queryClient);
 								await router.invalidate();
-							} catch (error) {
-								setErrorMessage("Failed to sign in with Google");
-								toast.error(getErrorMessage(error, "Failed to sign in with Google"));
-								setIsLoading(false);
-							}
-						})();
-					}}
-					disabled={isLoading}
-					className="w-full"
-				>
-					{isLoading ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<GoogleIcon className="size-4" />
-					)}
-					Continue with Google
-				</Button>
+							})
+						}
+						disabled={isPending}
+						className="w-full"
+					>
+						{pendingProvider === "google" ? (
+							<Loader2 className="size-4 animate-spin" />
+						) : (
+							<GoogleIcon className="size-4" />
+						)}
+						Continue with Google
+					</Button>
+				) : null}
+				{guestEnabled ? (
+					<Button
+						type="button"
+						variant={googleEnabled ? "outline" : "default"}
+						onClick={() =>
+							signInWith("guest", async () => {
+								const { error } = await authClient.signIn.anonymous();
+
+								if (error) {
+									throw new Error(error.message ?? signInErrorMessages.guest);
+								}
+
+								await refreshAuthSession(queryClient);
+								await router.invalidate();
+								await navigate({ to: callbackURL });
+							})
+						}
+						disabled={isPending}
+						className="w-full"
+					>
+						{pendingProvider === "guest" ? <Loader2 className="size-4 animate-spin" /> : null}
+						Continue as guest
+					</Button>
+				) : null}
 				{errorMessage ? (
 					<p className="text-center text-xs text-destructive">{errorMessage}</p>
 				) : null}
 				<p className="text-center text-xs text-muted-foreground">
-					No account? We&apos;ll create one.
+					{googleEnabled
+						? "No account? We'll create one."
+						: "Guest workspaces stay on this browser until you link an account."}
 				</p>
 			</div>
 		</div>
