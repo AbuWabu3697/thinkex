@@ -15,7 +15,7 @@
 <p align="center">
   <strong>Open notes, documents, media, and AI chat in one workspace.</strong>
   <br>
-  A shared workspace for study and research with sources in view.
+  The workspace built for how you study, research, and create.
 </p>
 
 <p align="center">
