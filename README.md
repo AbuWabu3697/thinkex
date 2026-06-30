@@ -12,85 +12,83 @@
   <a href="https://discord.gg/dtPnzkqCcG"><img alt="Discord" src="https://shieldcn.dev/badge/Discord-join-5865f2.svg?variant=secondary&size=sm&logo=discord"></a>
 </p>
 
-ThinkEx is a workspace for thinking across notes, documents, media, and AI in one place.
+<p align="center">
+  <strong>Open notes, documents, media, and AI chat in one workspace.</strong>
+</p>
 
-ThinkEx is built around persistent workspaces instead of disposable chat threads. You can lay out sources side by side, organize them spatially, ask questions against specific context, and keep the resulting knowledge inside the workspace instead of losing it in chat history.
+<p align="center">
+  <img alt="ThinkEx workspace with documents, folders, and AI assistant" src="docs/assets/landing-workspace-screenshot.webp" width="900">
+</p>
 
-## Overview
+## What ThinkEx Is For
 
-This repository contains the current ThinkEx web app. It is built with React and TanStack Start and deployed on Cloudflare Workers.
+ThinkEx is for research and study workflows where a plain chat thread is not enough.
 
-At a high level, the app combines:
+Instead of uploading files into a chat and losing the useful parts later, you work in a workspace. Keep PDFs, notes, images, folders, and AI chat visible together. Select the items the AI should use, ask a question, then save the answer back into the workspace.
 
-- a browser-based workspace UI
-- first-class documents and media
-- AI-assisted reasoning inside the workspace
-- collaboration and sharing
-- storage, workflows, and realtime infrastructure on Cloudflare
+The point is simple: your sources, questions, and useful outputs stay in the same place.
 
-## What ThinkEx Does
+## What You Can Do
 
-ThinkEx is aimed at research, synthesis, and knowledge work where context matters.
+- Open PDFs, documents, images, notes, and folders in a workspace.
+- Put sources side by side while you read or compare them.
+- Ask AI about the specific items you choose.
+- Save useful AI outputs back into the workspace.
+- Share a workspace with collaborators.
 
-- Work in persistent workspaces instead of one-off chats.
-- Put notes, PDFs, and other artifacts next to each other.
-- Ask the AI about the exact context you selected.
-- Save outputs back into the workspace as part of the ongoing work.
-- Share workspaces with collaborators.
+## How It Is Different
 
-## Tech Stack
+| Tool type       | Examples                | What they are good at                  | What ThinkEx adds                                         |
+| --------------- | ----------------------- | -------------------------------------- | --------------------------------------------------------- |
+| Chat-first      | ChatGPT, Gemini, Claude | Fast answers                           | The files and answers stay organized after the chat       |
+| Notes-first     | Notion, Obsidian        | Writing and organizing notes           | AI can work with the workspace items you are looking at   |
+| Retrieval-first | NotebookLM              | Asking questions over uploaded sources | You can choose and arrange the working context yourself   |
+| Long-context    | Large model windows     | Sending more text at once              | You do not have to rebuild the same context every session |
 
-- React 19
-- TanStack Start, Router, and Query
-- TypeScript
-- Tailwind CSS
-- Better Auth
-- Drizzle ORM
-- Vite+
-- Tiptap for rich text editing
-- Yjs / PartyServer for collaborative document state
-- EmbedPDF / PDFium for PDF rendering
-- Cloudflare Workers
-- Cloudflare D1
-- Cloudflare R2
-- Cloudflare Durable Objects
-- Cloudflare Workflows
-- Cloudflare Containers
-- Cloudflare Email
+## What's In This Repo
+
+This is the current ThinkEx web app. It uses React, TanStack Start, TypeScript, Tailwind CSS, Better Auth, Drizzle, Tiptap, Yjs/PartyServer, EmbedPDF/PDFium, and Cloudflare Workers.
+
+Most product code lives in [`src/features/workspaces/`](src/features/workspaces/). Runtime and deployment configuration lives in [`wrangler.jsonc`](wrangler.jsonc), with database migrations in [`drizzle/`](drizzle/).
+
+For deeper implementation notes, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 ## Local Development
 
-With Infisical access (core team):
+With Infisical:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Without Infisical (contributors / cloud agents): copy the env template and run the dev server directly.
+Contributors without Infisical access can run with `.dev.vars`:
 
 ```bash
-pnpm install
-cp .dev.vars.example .dev.vars   # fill in BETTER_AUTH_SECRET
+pnpm install --frozen-lockfile
+cp .dev.vars.example .dev.vars
 pnpm serve:dev
 ```
 
-The app runs at [http://localhost:3000](http://localhost:3000). Only `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required to run; every other secret gates an optional feature. In local dev the auth page also offers **Continue as guest**, so you can sign in without configuring Google OAuth. See [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+The app runs at [http://localhost:3000](http://localhost:3000). Only `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required for the core local app; optional secrets unlock features such as AI chat, browsing, and email.
 
-Common commands:
+Useful commands:
 
-- `pnpm dev`
-- `pnpm test`
-- `pnpm check`
-- `pnpm build`
+- `pnpm serve:dev` starts the local dev server with existing environment variables or `.dev.vars`.
+- `pnpm db:migrate:local` applies local D1 migrations before first database use.
+- `pnpm check` runs the fast TypeScript/lint validation.
+- `pnpm verify` runs the full validation suite.
 
-## Deployment Model
+Notes:
 
-The repository currently targets local development, staging, and production. Deployment is handled through GitHub Actions and Wrangler. Database changes flow through Drizzle-generated SQL plus Wrangler D1 migrations. Cloudflare Containers run the Gotenberg-based `OfficePdfConverter` used for office-to-PDF conversion.
+- Node `>=22.18` is required.
+- Docker must be running because the app declares Cloudflare Container bindings.
+- If you are not logged into Cloudflare locally, run with `CLOUDFLARE_VITE_FORCE_LOCAL=true pnpm serve:dev`.
 
-## Repository
+## Contributing
 
-- `src/features/workspaces/` contains most of the product-specific logic.
-- `src/integrations/` contains external service integrations such as PostHog.
-- `drizzle/` contains the current database migration baseline.
-- `wrangler.jsonc` is the main Cloudflare runtime config.
+Issues and pull requests are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), keep changes focused, and run `pnpm verify` before opening a PR when possible.
+
+## License
+
+ThinkEx is licensed under the [AGPL-3.0 License](LICENSE).
