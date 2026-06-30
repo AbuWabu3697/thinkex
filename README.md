@@ -6,6 +6,15 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ThinkEx-OSS/thinkex/actions/workflows/ci.yml"><img alt="CI" src="https://shieldcn.dev/github/ci/ThinkEx-OSS/thinkex.svg?variant=secondary&size=sm"></a>
+  <a href="https://github.com/ThinkEx-OSS/thinkex/actions/workflows/deploy-production.yml"><img alt="Build" src="https://shieldcn.dev/github/workflow-status/ThinkEx-OSS/thinkex/Deploy%20Production.svg?branch=main&label=build&variant=secondary&size=sm"></a>
+  <a href="https://github.com/ThinkEx-OSS/thinkex/stargazers"><img alt="GitHub stars" src="https://shieldcn.dev/github/stars/ThinkEx-OSS/thinkex.svg?variant=secondary&size=sm"></a>
+  <a href="https://discord.gg/dtPnzkqCcG"><img alt="Discord" src="https://shieldcn.dev/badge/Discord-join-5865f2.svg?variant=secondary&size=sm&logo=discord"></a>
+  <a href="https://x.com/trythinkex"><img alt="X" src="https://shieldcn.dev/badge/X-follow-000000.svg?variant=secondary&size=sm&logo=x"></a>
+  <a href="https://www.reddit.com/r/thinkex"><img alt="Reddit" src="https://shieldcn.dev/badge/Reddit-join-ff4500.svg?variant=secondary&size=sm&logo=reddit"></a>
+</p>
+
 ThinkEx is a workspace for thinking across notes, documents, media, and AI in one place.
 
 ThinkEx is built around persistent workspaces instead of disposable chat threads. You can lay out sources side by side, organize them spatially, ask questions against specific context, and keep the resulting knowledge inside the workspace instead of losing it in chat history.
