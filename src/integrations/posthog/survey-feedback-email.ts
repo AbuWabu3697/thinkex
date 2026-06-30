@@ -38,6 +38,17 @@ function readText(value: unknown) {
 	return undefined;
 }
 
+function readFirstResponse(payload: Record<string, unknown>) {
+	const response = payload.response ?? payload.responses;
+
+	if (Array.isArray(response)) {
+		const first = response.find(isRecord);
+		return first ?? {};
+	}
+
+	return isRecord(response) ? response : {};
+}
+
 function escapeHtml(value: string) {
 	return value
 		.replaceAll("&", "&amp;")
@@ -54,7 +65,11 @@ export function parsePostHogSurveyFeedbackPayload(
 		return null;
 	}
 
-	const answer = readText(payload.answer);
+	const event = isRecord(payload.event) ? payload.event : {};
+	const person = isRecord(payload.person) ? payload.person : {};
+	const survey = isRecord(payload.survey) ? payload.survey : {};
+	const firstResponse = readFirstResponse(payload);
+	const answer = readText(payload.answer) ?? readText(firstResponse.answer);
 
 	if (!answer) {
 		return null;
@@ -62,15 +77,15 @@ export function parsePostHogSurveyFeedbackPayload(
 
 	return {
 		answer,
-		question: readText(payload.question),
-		surveyId: readText(payload.survey_id),
-		surveyName: readText(payload.survey_name),
-		surveyUrl: readText(payload.survey_url),
-		personEmail: readText(payload.person_email),
-		personName: readText(payload.person_name),
-		distinctId: readText(payload.distinct_id),
-		currentUrl: readText(payload.current_url),
-		eventName: readText(payload.event),
+		question: readText(payload.question) ?? readText(firstResponse.question),
+		surveyId: readText(payload.survey_id) ?? readText(survey.id),
+		surveyName: readText(payload.survey_name) ?? readText(survey.name),
+		surveyUrl: readText(payload.survey_url) ?? readText(survey.url),
+		personEmail: readText(payload.person_email) ?? readText(person.email),
+		personName: readText(payload.person_name) ?? readText(person.name),
+		distinctId: readText(payload.distinct_id) ?? readText(person.distinct_id),
+		currentUrl: readText(payload.current_url) ?? readText(person.url),
+		eventName: readText(payload.event) ?? readText(event.name),
 		receivedAt,
 	};
 }
