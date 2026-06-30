@@ -14,36 +14,34 @@
 
 <p align="center">
   <strong>Open notes, documents, media, and AI chat in one workspace.</strong>
+  <br>
+  A shared workspace for study and research with sources in view.
 </p>
 
 <p align="center">
   <img alt="ThinkEx workspace with documents, folders, and AI assistant" src="docs/assets/landing-workspace-screenshot.webp" width="900">
 </p>
 
-## What ThinkEx Is For
+## When a Chat Thread Is Not Enough
 
-ThinkEx is for research and study workflows where a plain chat thread is not enough.
+ThinkEx is a workspace for source-heavy study and research.
 
-Instead of uploading files into a chat and losing the useful parts later, you work in a workspace. Keep PDFs, notes, images, folders, and AI chat visible together. Select the items the AI should use, ask a question, then save the answer back into the workspace.
-
-The point is simple: your sources, questions, and useful outputs stay in the same place.
-
-## What You Can Do
+Instead of uploading sources into a chat, you keep the actual materials in view: PDFs, notes, images, folders, and AI chat. Arrange them, pick what the AI should use, and keep the answer tied to the workspace where the work is happening.
 
 - Open PDFs, documents, images, notes, and folders in a workspace.
 - Put sources side by side while you read or compare them.
 - Ask AI about the specific items you choose.
-- Save useful AI outputs back into the workspace.
-- Share a workspace with collaborators.
+- Share a workspace with collaborators (fellow humans).
 
 ## How It Is Different
 
-| Tool type       | Examples                | What they are good at                  | What ThinkEx adds                                         |
-| --------------- | ----------------------- | -------------------------------------- | --------------------------------------------------------- |
-| Chat-first      | ChatGPT, Gemini, Claude | Fast answers                           | The files and answers stay organized after the chat       |
-| Notes-first     | Notion, Obsidian        | Writing and organizing notes           | AI can work with the workspace items you are looking at   |
-| Retrieval-first | NotebookLM              | Asking questions over uploaded sources | You can choose and arrange the working context yourself   |
-| Long-context    | Large model windows     | Sending more text at once              | You do not have to rebuild the same context every session |
+| Need                   | Common tradeoff                                          | ThinkEx                                                  |
+| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| Organize the work      | Sources live across chats, tabs, folders, and note apps  | One workspace holds sources, notes, folders, and AI chat |
+| Work with the source   | Uploaded files become something you query, not arrange   | PDFs, documents, images, and notes stay open and usable  |
+| Control AI context     | Long sessions rely on pasted context or hidden retrieval | You choose the workspace items the AI should use         |
+| Keep place and context | Answers get separated from the source page or document   | Source context stays next to the notes and questions     |
+| Work with other people | Personal chats and local notes are hard to share         | Collaborators use the same organized workspace           |
 
 ## What's In This Repo
 
@@ -62,7 +60,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Contributors without Infisical access can run with `.dev.vars`:
+Without Infisical, you can run with `.dev.vars`:
 
 ```bash
 pnpm install --frozen-lockfile
