@@ -223,7 +223,7 @@ function WorkspaceSettingsDialogContent({
 				) : null}
 			</FieldGroup>
 
-			<DialogFooter className="flex-row! items-center justify-between!">
+			<DialogFooter layout="split">
 				{canDelete ? (
 					<Popover open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
 						<PopoverTrigger
@@ -269,7 +269,7 @@ function WorkspaceSettingsDialogContent({
 				) : (
 					<div />
 				)}
-				<div className="flex flex-row! gap-2">
+				<div className="flex flex-row gap-2">
 					<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>

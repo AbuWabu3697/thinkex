@@ -73,19 +73,26 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
+type DialogFooterLayout = "stack" | "row" | "split";
+
 function DialogFooter({
 	className,
+	layout = "stack",
 	showCloseButton = false,
 	children,
 	...props
 }: React.ComponentProps<"div"> & {
+	layout?: DialogFooterLayout;
 	showCloseButton?: boolean;
 }) {
 	return (
 		<div
 			data-slot="dialog-footer"
 			className={cn(
-				"-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-dialog-footer p-4 sm:flex-row sm:justify-end",
+				"-mx-6 -mb-6 gap-2 rounded-b-xl border-t bg-dialog-footer p-4",
+				layout === "stack" && "flex flex-col-reverse sm:flex-row sm:justify-end",
+				layout === "row" && "flex flex-row items-center justify-end",
+				layout === "split" && "flex flex-row items-center justify-between",
 				className,
 			)}
 			{...props}

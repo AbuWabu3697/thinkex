@@ -155,7 +155,7 @@ export function WorkspaceShareDialog({
 					</div>
 				</div>
 
-				<DialogFooter className="flex-row items-center justify-end">
+				<DialogFooter layout="row">
 					<DropdownMenu>
 						<DropdownMenuTrigger
 							render={

@@ -76,9 +76,9 @@ export default function LandingPage() {
 							</SheetTrigger>
 							<SheetContent
 								side="top"
+								animated={false}
 								aria-label="Site menu"
-								overlayClassName="transition-none! duration-0! data-ending-style:opacity-100! data-starting-style:opacity-100!"
-								className="min-h-[17rem] gap-0 bg-background px-4 pt-16 pb-5 transition-none! duration-0! data-ending-style:translate-y-0! data-ending-style:opacity-100! data-starting-style:translate-y-0! data-starting-style:opacity-100! dark:bg-black"
+								className="min-h-[17rem] gap-0 bg-background px-4 pt-16 pb-5 dark:bg-black"
 							>
 								<Link
 									to="/"

@@ -76,9 +76,16 @@ export function WorkspaceItemTreePickerDialog({
 					)}
 				</ul>
 
-				<DialogFooter className={cn(hasFooterStart && "items-center sm:justify-between")}>
+				<DialogFooter layout={hasFooterStart ? "split" : "stack"}>
 					{hasFooterStart ? <div className="min-w-0">{footerStart}</div> : null}
-					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+					<div
+						className={cn(
+							"flex gap-2",
+							hasFooterStart
+								? "flex-row justify-end"
+								: "flex-col-reverse sm:flex-row sm:justify-end",
+						)}
+					>
 						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
 							Cancel
 						</Button>

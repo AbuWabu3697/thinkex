@@ -67,7 +67,7 @@ export function WorkspaceClipboardIntakeDialog({
 					) : null}
 				</div>
 
-				<DialogFooter className="flex-row justify-end">
+				<DialogFooter layout="row">
 					<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
