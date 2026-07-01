@@ -1,5 +1,12 @@
 import { ChevronDown, Search, Trash2 } from "lucide-react";
-import { type Dispatch, type ReactElement, type SetStateAction, useId, useState } from "react";
+import {
+	type Dispatch,
+	type FormEvent,
+	type ReactElement,
+	type SetStateAction,
+	useId,
+	useState,
+} from "react";
 
 import { Button } from "#/components/ui/button";
 import { ColorSwatchPicker } from "#/components/ui/color-swatch-picker";
@@ -158,6 +165,11 @@ function WorkspaceSettingsDialogContent({
 		});
 	};
 
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		handleSave();
+	};
+
 	const handleDeleteWorkspace = () => {
 		onOpenChange(false);
 		deleteWorkspaceMutation.mutate({
@@ -168,116 +180,118 @@ function WorkspaceSettingsDialogContent({
 
 	return (
 		<DialogContent className="sm:max-w-lg">
-			<DialogHeader>
-				<DialogTitle>Workspace settings</DialogTitle>
-				<DialogDescription>Update this workspace's name, icon, and color.</DialogDescription>
-			</DialogHeader>
+			<form className="grid gap-6" onSubmit={handleSubmit}>
+				<DialogHeader>
+					<DialogTitle>Workspace settings</DialogTitle>
+					<DialogDescription>Update this workspace's name, icon, and color.</DialogDescription>
+				</DialogHeader>
 
-			<FieldGroup className="gap-5">
-				<Field>
-					<Label htmlFor={nameInputId}>Name</Label>
-					<Input
-						id={nameInputId}
-						value={draft.name}
-						onChange={(event) =>
-							setDraft((current) => ({
-								...current,
-								name: event.target.value,
-							}))
-						}
-						maxLength={120}
-						aria-invalid={normalizedName.length === 0}
-					/>
-				</Field>
-
-				<div className="grid gap-3 sm:grid-cols-2">
+				<FieldGroup className="gap-5">
 					<Field>
-						<FieldTitle>Icon</FieldTitle>
-						<WorkspaceIconDropdown
-							open={iconPickerOpen}
-							value={draft.icon}
-							onOpenChange={setIconPickerOpen}
-							onValueChange={(icon) => {
-								setDraft((current) => ({ ...current, icon }));
-								setIconPickerOpen(false);
-							}}
-						/>
-					</Field>
-
-					<Field>
-						<FieldTitle>Color</FieldTitle>
-						<WorkspaceColorDropdown
-							open={colorPickerOpen}
-							value={draft.color}
-							onOpenChange={setColorPickerOpen}
-							onValueChange={(color) => {
-								setDraft((current) => ({ ...current, color }));
-								setColorPickerOpen(false);
-							}}
-						/>
-					</Field>
-				</div>
-
-				{updateError || deleteError ? (
-					<p className="text-destructive text-sm">{deleteError ?? updateError}</p>
-				) : null}
-			</FieldGroup>
-
-			<DialogFooter layout="split">
-				{canDelete ? (
-					<Popover open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
-						<PopoverTrigger
-							render={
-								<Button
-									type="button"
-									variant="ghost"
-									className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-									disabled={deleteWorkspaceMutation.isPending}
-								>
-									<Trash2 className="size-4" />
-									Delete
-								</Button>
+						<Label htmlFor={nameInputId}>Name</Label>
+						<Input
+							id={nameInputId}
+							value={draft.name}
+							onChange={(event) =>
+								setDraft((current) => ({
+									...current,
+									name: event.target.value,
+								}))
 							}
+							maxLength={120}
+							aria-invalid={normalizedName.length === 0}
 						/>
-						<PopoverContent align="start" side="top" className="w-80">
-							<PopoverHeader>
-								<PopoverTitle className="text-destructive">Delete workspace?</PopoverTitle>
-								<PopoverDescription>
-									Permanently deletes "{workspace.name}" and its contents.
-								</PopoverDescription>
-							</PopoverHeader>
-							<div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-								<Button
-									type="button"
-									variant="outline"
-									disabled={deleteWorkspaceMutation.isPending}
-									onClick={() => setIsConfirmingDelete(false)}
-								>
-									Cancel
-								</Button>
-								<Button
-									type="button"
-									variant="destructive"
-									disabled={deleteWorkspaceMutation.isPending}
-									onClick={handleDeleteWorkspace}
-								>
-									Confirm
-								</Button>
-							</div>
-						</PopoverContent>
-					</Popover>
-				) : (
-					<div />
-				)}
-				<div className="flex flex-row gap-2">
-					<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-						Cancel
-					</Button>
-					<Button type="button" disabled={!canSave} onClick={handleSave}>
-						Save
-					</Button>
-				</div>
-			</DialogFooter>
+					</Field>
+
+					<div className="grid gap-3 sm:grid-cols-2">
+						<Field>
+							<FieldTitle>Icon</FieldTitle>
+							<WorkspaceIconDropdown
+								open={iconPickerOpen}
+								value={draft.icon}
+								onOpenChange={setIconPickerOpen}
+								onValueChange={(icon) => {
+									setDraft((current) => ({ ...current, icon }));
+									setIconPickerOpen(false);
+								}}
+							/>
+						</Field>
+
+						<Field>
+							<FieldTitle>Color</FieldTitle>
+							<WorkspaceColorDropdown
+								open={colorPickerOpen}
+								value={draft.color}
+								onOpenChange={setColorPickerOpen}
+								onValueChange={(color) => {
+									setDraft((current) => ({ ...current, color }));
+									setColorPickerOpen(false);
+								}}
+							/>
+						</Field>
+					</div>
+
+					{updateError || deleteError ? (
+						<p className="text-destructive text-sm">{deleteError ?? updateError}</p>
+					) : null}
+				</FieldGroup>
+
+				<DialogFooter layout="split">
+					{canDelete ? (
+						<Popover open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
+							<PopoverTrigger
+								render={
+									<Button
+										type="button"
+										variant="ghost"
+										className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+										disabled={deleteWorkspaceMutation.isPending}
+									>
+										<Trash2 className="size-4" />
+										Delete
+									</Button>
+								}
+							/>
+							<PopoverContent align="start" side="top" className="w-80">
+								<PopoverHeader>
+									<PopoverTitle className="text-destructive">Delete workspace?</PopoverTitle>
+									<PopoverDescription>
+										Permanently deletes "{workspace.name}" and its contents.
+									</PopoverDescription>
+								</PopoverHeader>
+								<div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+									<Button
+										type="button"
+										variant="outline"
+										disabled={deleteWorkspaceMutation.isPending}
+										onClick={() => setIsConfirmingDelete(false)}
+									>
+										Cancel
+									</Button>
+									<Button
+										type="button"
+										variant="destructive"
+										disabled={deleteWorkspaceMutation.isPending}
+										onClick={handleDeleteWorkspace}
+									>
+										Confirm
+									</Button>
+								</div>
+							</PopoverContent>
+						</Popover>
+					) : (
+						<div />
+					)}
+					<div className="flex flex-row gap-2">
+						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={!canSave}>
+							Save
+						</Button>
+					</div>
+				</DialogFooter>
+			</form>
 		</DialogContent>
 	);
 }
