@@ -92,6 +92,9 @@ function summarizeFailedTool(toolName: string, output: unknown, toolInput: unkno
 				getBaseName(getString(outputRecord.path) ?? getPathFromToolInput(toolInput)),
 			)}`;
 		case "workspace_list_items":
+			return failedCount > 0
+				? `Couldn’t list ${formatCount(failedCount, "item")}`
+				: "Couldn’t list workspace";
 		case "workspace_read_items":
 			return failedCount > 0
 				? `Couldn’t read ${formatCount(failedCount, "item")}`
