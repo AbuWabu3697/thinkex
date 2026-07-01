@@ -1,14 +1,13 @@
-import { Camera, Download, EllipsisVertical } from "lucide-react";
+import { Camera, Download } from "lucide-react";
 
 import {
-	DropdownMenu,
-	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
-	DropdownMenuTrigger,
+	DropdownMenuSeparator,
 } from "#/components/ui/dropdown-menu";
 import {
-	WorkspaceToolbarGroup,
-	WorkspaceToolbarIconButton,
+	WorkspaceResponsiveToolbar,
+	WorkspaceToolbarMenuButton,
 	WorkspaceToolbarTextButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
 import { cn } from "#/lib/utils";
@@ -35,7 +34,13 @@ export function WorkspaceFileToolbar({
 	};
 
 	return (
-		<WorkspaceToolbarGroup scrollable>
+		<WorkspaceResponsiveToolbar
+			mobileLabel="File actions"
+			mobileContent={
+				<WorkspaceFileActionsMenuContent capture={capture} onDownload={handleDownload} />
+			}
+			scrollable
+		>
 			{capture ? (
 				<WorkspaceToolbarTextButton
 					className={cn(
@@ -50,22 +55,54 @@ export function WorkspaceFileToolbar({
 					Capture
 				</WorkspaceToolbarTextButton>
 			) : null}
-			<DropdownMenu>
-				<DropdownMenuTrigger render={<WorkspaceToolbarIconButton aria-label="More file actions" />}>
-					<EllipsisVertical />
-				</DropdownMenuTrigger>
-				<DropdownMenuContent className="w-48" align="end">
-					<DropdownMenuItem
-						className="[&_svg:not([class*='size-'])]:size-4"
-						onClick={handleDownload}
-					>
-						<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
-							<Download />
-						</span>
-						Download file
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</WorkspaceToolbarGroup>
+			<WorkspaceFileMoreMenu onDownload={handleDownload} />
+		</WorkspaceResponsiveToolbar>
+	);
+}
+
+function WorkspaceFileMoreMenu({ onDownload }: { onDownload: () => void }) {
+	return (
+		<WorkspaceToolbarMenuButton
+			aria-label="More file actions"
+			contentClassName="w-48"
+			content={<WorkspaceFileActionsMenuContent onDownload={onDownload} />}
+		/>
+	);
+}
+
+function WorkspaceFileActionsMenuContent({
+	capture,
+	onDownload,
+}: {
+	capture?: {
+		isActive: boolean;
+		onToggle: () => void;
+	};
+	onDownload: () => void;
+}) {
+	return (
+		<>
+			{capture ? (
+				<>
+					<DropdownMenuGroup>
+						<DropdownMenuItem onClick={capture.onToggle}>
+							<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
+								<Camera />
+							</span>
+							Capture
+						</DropdownMenuItem>
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
+				</>
+			) : null}
+			<DropdownMenuGroup>
+				<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" onClick={onDownload}>
+					<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
+						<Download />
+					</span>
+					Download file
+				</DropdownMenuItem>
+			</DropdownMenuGroup>
+		</>
 	);
 }

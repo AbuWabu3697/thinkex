@@ -30,7 +30,7 @@ import {
 	isCodeBlock,
 } from "#/features/workspaces/components/document-editor/document-editor-toolbar-actions";
 import {
-	WorkspaceToolbarGroup,
+	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
 
@@ -38,7 +38,12 @@ export function DocumentToolbar({ editor }: { editor: Editor | null }) {
 	const editorState = useDocumentEditorUiState(editor);
 
 	return (
-		<WorkspaceToolbarGroup scrollable>
+		<WorkspaceResponsiveToolbar
+			mobileLabel="Document actions"
+			mobileContent={<DocumentMobileMenuContent editor={editor} editorState={editorState} />}
+			mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
+			scrollable
+		>
 			<BlockTypeMenu editor={editor} editorState={editorState} />
 			<InlineFormatMenu editor={editor} editorState={editorState} />
 			<AlignMenu editor={editor} editorState={editorState} />
@@ -57,7 +62,89 @@ export function DocumentToolbar({ editor }: { editor: Editor | null }) {
 				<Redo2 />
 			</ToolbarButton>
 			<DocumentMoreMenu disabled={!editor} />
-		</WorkspaceToolbarGroup>
+		</WorkspaceResponsiveToolbar>
+	);
+}
+
+function DocumentMobileMenuContent({
+	editor,
+	editorState,
+}: {
+	editor: Editor | null;
+	editorState: DocumentEditorUiState;
+}) {
+	return (
+		<>
+			<DocumentActionGroup
+				actions={documentFontSizeActions}
+				editor={editor}
+				editorState={editorState}
+				label="Text style"
+			/>
+			<DropdownMenuSeparator />
+			<DocumentActionGroup
+				actions={documentBlockActions}
+				editor={editor}
+				editorState={editorState}
+			/>
+			<DropdownMenuSeparator />
+			<DocumentActionGroup
+				actions={documentInlineActions}
+				editor={editor}
+				editorState={editorState}
+				label="Formatting"
+			/>
+			<DropdownMenuSeparator />
+			<DocumentActionGroup
+				actions={documentTextAlignActions}
+				editor={editor}
+				editorState={editorState}
+				label="Alignment"
+			/>
+			<DropdownMenuSeparator />
+			<DropdownMenuGroup>
+				<DocumentHistoryMenuItem
+					disabled={!editorState.canUndo}
+					icon={<Undo2 />}
+					label="Undo"
+					onClick={() => editor?.chain().focus().undo().run()}
+				/>
+				<DocumentHistoryMenuItem
+					disabled={!editorState.canRedo}
+					icon={<Redo2 />}
+					label="Redo"
+					onClick={() => editor?.chain().focus().redo().run()}
+				/>
+			</DropdownMenuGroup>
+			<DropdownMenuSeparator />
+			<DocumentExportMenuGroup />
+		</>
+	);
+}
+
+function DocumentActionGroup({
+	actions,
+	editor,
+	editorState,
+	label,
+}: {
+	actions: DocumentToolbarAction[];
+	editor: Editor | null;
+	editorState: DocumentEditorUiState;
+	label?: string;
+}) {
+	return (
+		<DropdownMenuGroup>
+			{label ? <DropdownMenuLabel>{label}</DropdownMenuLabel> : null}
+			{actions.map((action) => (
+				<DocumentMenuAction
+					key={action.id}
+					action={action}
+					editor={editor}
+					editorState={editorState}
+				/>
+			))}
+		</DropdownMenuGroup>
 	);
 }
 
@@ -214,25 +301,56 @@ function DocumentMoreMenu({ disabled }: { disabled?: boolean }) {
 				<EllipsisVertical />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-48" align="end">
-				<DropdownMenuGroup>
-					<DropdownMenuLabel>Export</DropdownMenuLabel>
-					<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
-						<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
-							<Download />
-						</span>
-						PDF
-						<span className="ml-auto text-xs text-muted-foreground">Soon</span>
-					</DropdownMenuItem>
-					<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
-						<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
-							<FileText />
-						</span>
-						Google Docs
-						<span className="ml-auto text-xs text-muted-foreground">Soon</span>
-					</DropdownMenuItem>
-				</DropdownMenuGroup>
+				<DocumentExportMenuGroup />
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+}
+
+function DocumentExportMenuGroup() {
+	return (
+		<DropdownMenuGroup>
+			<DropdownMenuLabel>Export</DropdownMenuLabel>
+			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
+				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
+					<Download />
+				</span>
+				PDF
+				<span className="ml-auto text-xs text-muted-foreground">Soon</span>
+			</DropdownMenuItem>
+			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
+				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
+					<FileText />
+				</span>
+				Google Docs
+				<span className="ml-auto text-xs text-muted-foreground">Soon</span>
+			</DropdownMenuItem>
+		</DropdownMenuGroup>
+	);
+}
+
+function DocumentHistoryMenuItem({
+	disabled,
+	icon,
+	label,
+	onClick,
+}: {
+	disabled?: boolean;
+	icon: ReactNode;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<DropdownMenuItem
+			className="[&_svg:not([class*='size-'])]:size-4"
+			disabled={disabled}
+			onClick={onClick}
+		>
+			<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
+				{icon}
+			</span>
+			{label}
+		</DropdownMenuItem>
 	);
 }
 

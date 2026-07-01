@@ -30,8 +30,8 @@ import {
 	useScroll,
 } from "@embedpdf/plugin-scroll/react";
 import {
-	SelectionLayer,
 	SelectionPluginPackage,
+	TextSelection,
 	useSelectionCapability,
 } from "@embedpdf/plugin-selection/react";
 import { TilingLayer, TilingPluginPackage } from "@embedpdf/plugin-tiling/react";
@@ -94,6 +94,12 @@ const pdfPlugins: PluginBatchRegistrations = [
 	}),
 ];
 
+type WorkspacePdfInteractions = {
+	fileCapture: boolean;
+	selectionMenu: boolean;
+	textSelection: boolean;
+};
+
 export default function WorkspacePdfViewer({
 	item,
 	toolbarSlotId,
@@ -108,7 +114,6 @@ export default function WorkspacePdfViewer({
 	const [isCaptureActive, setIsCaptureActive] = useState(false);
 	const viewCapabilities = useWorkspaceViewCapabilities();
 	const enableFileCapture = viewCapabilities.fileCapture;
-	const enableSelectionMenu = viewCapabilities.contextMenus;
 	const captureActive = enableFileCapture && isCaptureActive;
 	const exitCapture = useCallback(() => {
 		setIsCaptureActive(false);
@@ -150,8 +155,6 @@ export default function WorkspacePdfViewer({
 								itemId={item.id}
 								onCaptureModeExit={exitCapture}
 								onCaptureModeToggle={toggleCapture}
-								enableFileCapture={enableFileCapture}
-								enableSelectionMenu={enableSelectionMenu}
 								workspaceId={workspaceId}
 							/>
 						) : (
@@ -168,8 +171,6 @@ export default function WorkspacePdfViewer({
 function WorkspacePdfDocumentLoader({
 	activeDocumentId,
 	documentId,
-	enableFileCapture,
-	enableSelectionMenu,
 	fileName,
 	fileUrl,
 	isCaptureActive,
@@ -180,8 +181,6 @@ function WorkspacePdfDocumentLoader({
 }: {
 	activeDocumentId: string | null;
 	documentId: string;
-	enableFileCapture: boolean;
-	enableSelectionMenu: boolean;
 	fileName: string;
 	fileUrl: string;
 	isCaptureActive: boolean;
@@ -264,8 +263,6 @@ function WorkspacePdfDocumentLoader({
 					itemId={itemId}
 					onCaptureModeExit={onCaptureModeExit}
 					onCaptureModeToggle={onCaptureModeToggle}
-					enableFileCapture={enableFileCapture}
-					enableSelectionMenu={enableSelectionMenu}
 					workspaceId={workspaceId}
 					{...props}
 				/>
@@ -277,8 +274,6 @@ function WorkspacePdfDocumentLoader({
 function WorkspacePdfDocumentContent({
 	documentId,
 	documentState,
-	enableFileCapture,
-	enableSelectionMenu,
 	fileName,
 	fileUrl,
 	isCaptureActive,
@@ -292,8 +287,6 @@ function WorkspacePdfDocumentContent({
 }: {
 	documentId: string;
 	documentState: DocumentState;
-	enableFileCapture: boolean;
-	enableSelectionMenu: boolean;
 	fileName: string;
 	fileUrl: string;
 	isCaptureActive: boolean;
@@ -307,6 +300,12 @@ function WorkspacePdfDocumentContent({
 }) {
 	const [selectionPoint, setSelectionPoint] = useState<ClientPoint | null>(null);
 	const { provides: renderCapability } = useRenderCapability();
+	const viewCapabilities = useWorkspaceViewCapabilities();
+	const interactions: WorkspacePdfInteractions = {
+		fileCapture: viewCapabilities.fileCapture,
+		selectionMenu: viewCapabilities.pdfTextSelection && viewCapabilities.contextMenus,
+		textSelection: viewCapabilities.pdfTextSelection,
+	};
 
 	const handleCapture = ({ blob, pageIndex }: WorkspacePdfCaptureResult) => {
 		stageCaptureAttachmentToComposerWithFeedback(
@@ -343,7 +342,7 @@ function WorkspacePdfDocumentContent({
 				workspaceId={workspaceId}
 			/>
 			<WorkspacePdfSelectionShortcuts documentId={documentId} />
-			{enableFileCapture ? (
+			{interactions.fileCapture ? (
 				<>
 					<WorkspaceCaptureShortcuts
 						isActive={isCaptureActive}
@@ -374,8 +373,7 @@ function WorkspacePdfDocumentContent({
 							pageLayout={pageLayout}
 							renderCapability={renderCapability}
 							selectionPoint={selectionPoint}
-							enableFileCapture={enableFileCapture}
-							enableSelectionMenu={enableSelectionMenu}
+							interactions={interactions}
 							workspaceId={workspaceId}
 						/>
 					)}
@@ -389,8 +387,7 @@ function WorkspacePdfDocumentContent({
 function WorkspacePdfPage({
 	documentId,
 	documentState,
-	enableFileCapture,
-	enableSelectionMenu,
+	interactions,
 	isCaptureActive,
 	itemId,
 	onCapture,
@@ -401,8 +398,7 @@ function WorkspacePdfPage({
 }: {
 	documentId: string;
 	documentState: DocumentState;
-	enableFileCapture: boolean;
-	enableSelectionMenu: boolean;
+	interactions: WorkspacePdfInteractions;
 	isCaptureActive: boolean;
 	itemId: string;
 	onCapture: (capture: WorkspacePdfCaptureResult) => void;
@@ -412,60 +408,70 @@ function WorkspacePdfPage({
 	workspaceId: string;
 }) {
 	const page = documentState.document?.pages[pageLayout.pageIndex];
+	const pageLayers = (
+		<>
+			<RenderLayer
+				className="block select-none"
+				documentId={documentId}
+				pageIndex={pageLayout.pageIndex}
+				style={{ pointerEvents: "none" }}
+			/>
+			<TilingLayer
+				className="absolute inset-0"
+				documentId={documentId}
+				pageIndex={pageLayout.pageIndex}
+				style={{ pointerEvents: "none" }}
+			/>
+			{interactions.textSelection ? (
+				<TextSelection
+					documentId={documentId}
+					pageIndex={pageLayout.pageIndex}
+					selectionMenu={
+						interactions.selectionMenu
+							? (props) => (
+									<WorkspacePdfAskSelectionMenu
+										{...props}
+										documentId={documentId}
+										itemId={itemId}
+										selectionPoint={selectionPoint}
+										workspaceId={workspaceId}
+									/>
+								)
+							: undefined
+					}
+					background="var(--selection)"
+				/>
+			) : null}
+			<AnnotationLayer
+				className="absolute inset-0"
+				documentId={documentId}
+				pageIndex={pageLayout.pageIndex}
+			/>
+			{interactions.fileCapture && page ? (
+				<WorkspacePdfCapturePageOverlay
+					active={isCaptureActive}
+					documentState={documentState}
+					onCapture={onCapture}
+					page={page}
+					pageLayout={pageLayout}
+					renderCapability={renderCapability}
+				/>
+			) : null}
+		</>
+	);
+	const needsPagePointerInteraction = interactions.textSelection || interactions.fileCapture;
 
 	return (
 		<div className="absolute inset-0 overflow-hidden bg-background">
 			<Rotate documentId={documentId} pageIndex={pageLayout.pageIndex}>
 				<div className="absolute inset-0">
-					<PagePointerProvider documentId={documentId} pageIndex={pageLayout.pageIndex}>
-						<RenderLayer
-							className="block select-none"
-							documentId={documentId}
-							pageIndex={pageLayout.pageIndex}
-							style={{ pointerEvents: "none" }}
-						/>
-						<TilingLayer
-							className="absolute inset-0"
-							documentId={documentId}
-							pageIndex={pageLayout.pageIndex}
-							style={{ pointerEvents: "none" }}
-						/>
-						<SelectionLayer
-							documentId={documentId}
-							pageIndex={pageLayout.pageIndex}
-							selectionMenu={
-								enableSelectionMenu
-									? (props) => (
-											<WorkspacePdfAskSelectionMenu
-												{...props}
-												documentId={documentId}
-												itemId={itemId}
-												selectionPoint={selectionPoint}
-												workspaceId={workspaceId}
-											/>
-										)
-									: undefined
-							}
-							textStyle={{
-								background: "var(--selection)",
-							}}
-						/>
-						<AnnotationLayer
-							className="absolute inset-0"
-							documentId={documentId}
-							pageIndex={pageLayout.pageIndex}
-						/>
-						{enableFileCapture && page ? (
-							<WorkspacePdfCapturePageOverlay
-								active={isCaptureActive}
-								documentState={documentState}
-								onCapture={onCapture}
-								page={page}
-								pageLayout={pageLayout}
-								renderCapability={renderCapability}
-							/>
-						) : null}
-					</PagePointerProvider>
+					{needsPagePointerInteraction ? (
+						<PagePointerProvider documentId={documentId} pageIndex={pageLayout.pageIndex}>
+							{pageLayers}
+						</PagePointerProvider>
+					) : (
+						<div className="relative h-full w-full">{pageLayers}</div>
+					)}
 				</div>
 			</Rotate>
 		</div>

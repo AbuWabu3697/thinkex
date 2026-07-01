@@ -1,6 +1,12 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { EllipsisVertical } from "lucide-react";
 
 import { Button } from "#/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "#/components/ui/dropdown-menu";
 import {
 	workspaceToolbarGroupClassName,
 	workspaceToolbarIconButtonClass,
@@ -61,4 +67,60 @@ function WorkspaceToolbarTextButton({
 	);
 }
 
-export { WorkspaceToolbarGroup, WorkspaceToolbarIconButton, WorkspaceToolbarTextButton };
+function WorkspaceResponsiveToolbar({
+	children,
+	mobileContent,
+	mobileContentClassName,
+	mobileLabel,
+	scrollable = false,
+}: {
+	children: ReactNode;
+	mobileContent: ReactNode;
+	mobileContentClassName?: string;
+	mobileLabel: string;
+	scrollable?: boolean;
+}) {
+	return (
+		<>
+			<WorkspaceToolbarGroup className="sm:hidden">
+				<WorkspaceToolbarMenuButton
+					aria-label={mobileLabel}
+					content={mobileContent}
+					contentClassName={mobileContentClassName}
+				/>
+			</WorkspaceToolbarGroup>
+			<WorkspaceToolbarGroup scrollable={scrollable} className="hidden sm:flex">
+				{children}
+			</WorkspaceToolbarGroup>
+		</>
+	);
+}
+
+function WorkspaceToolbarMenuButton({
+	"aria-label": ariaLabel,
+	content,
+	contentClassName = "w-56",
+}: {
+	"aria-label": string;
+	content: ReactNode;
+	contentClassName?: string;
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger render={<WorkspaceToolbarIconButton aria-label={ariaLabel} />}>
+				<EllipsisVertical />
+			</DropdownMenuTrigger>
+			<DropdownMenuContent className={contentClassName} align="end">
+				{content}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
+export {
+	WorkspaceResponsiveToolbar,
+	WorkspaceToolbarGroup,
+	WorkspaceToolbarIconButton,
+	WorkspaceToolbarMenuButton,
+	WorkspaceToolbarTextButton,
+};
