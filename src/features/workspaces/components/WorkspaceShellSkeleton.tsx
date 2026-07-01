@@ -11,7 +11,10 @@ import {
 	getWorkspaceMobileChatSurfaceMode,
 	type WorkspaceMobileChatSurfaceMode,
 } from "#/features/workspaces/model/workspace-ui";
-import { workspaceToolbarButtonSizeClass } from "#/features/workspaces/components/workspace-toolbar-styles";
+import {
+	workspaceToolbarButtonSizeClass,
+	workspaceToolbarTextButtonClass,
+} from "#/features/workspaces/components/workspace-toolbar-styles";
 import type { WorkspaceAiChatSurfaceMode } from "#/features/workspaces/state/workspace-ui-store";
 import { cn } from "#/lib/utils";
 
@@ -84,9 +87,14 @@ function WorkspaceMobileShellSkeleton({
 				<>
 					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
 					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-full")} />
-					<div className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-muted-foreground text-sm shadow-xs">
+					<div
+						className={cn(
+							"inline-flex items-center justify-center rounded-md border border-border bg-background shadow-xs",
+							workspaceToolbarTextButtonClass,
+						)}
+					>
 						<MessageSquare className="size-4" aria-hidden="true" />
-						<Skeleton className="h-3.5 w-8 rounded-sm" />
+						<Skeleton className="h-4 w-8 rounded-sm" />
 					</div>
 				</>
 			}
@@ -120,7 +128,10 @@ function WorkspaceMobileContextBarSkeleton() {
 				<Skeleton className="size-3.5 rounded-sm" />
 				<Skeleton className="h-4 w-28 rounded-sm" />
 			</div>
-			<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
+			<div className="flex shrink-0 items-center gap-1">
+				<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
+				<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
+			</div>
 		</div>
 	);
 }

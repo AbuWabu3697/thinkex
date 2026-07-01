@@ -35,6 +35,7 @@ export function AiChatMessageResponse({
 			className={className}
 			components={{ ...streamdownComponents, ...components }}
 			isAnimating={isStreaming}
+			linkSafety={{ enabled: false }}
 			mode="streaming"
 			plugins={streamdownPlugins}
 			{...props}
