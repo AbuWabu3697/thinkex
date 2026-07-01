@@ -44,6 +44,7 @@ export function getFinishedToolReceipt(input: {
 		case "workspace_edit_item":
 			return summarizeWorkspaceEdit(input.output, input.toolInput);
 		case "workspace_list_items":
+			return summarizeWorkspaceList(input.output);
 		case "workspace_read_items":
 			return summarizeWorkspaceRead(input.output);
 		case "web_search":
@@ -186,6 +187,18 @@ function summarizeWorkspaceEdit(output: unknown, toolInput: unknown): AiChatTool
 			: `Updated ${quoteName(getBaseName(getString(record.path)))}`;
 
 	return completed(appendFailureCount(summary, failedCount));
+}
+
+function summarizeWorkspaceList(output: unknown): AiChatToolReceipt {
+	const record = asRecord(output);
+	const items = getArray(record.items);
+	const failedCount = getArray(record.failed).length;
+
+	if (items.length === 0 && failedCount > 0) {
+		return failed(`Couldn’t list ${formatCount(failedCount, "item")}`);
+	}
+
+	return completed(appendFailureCount(`Listed ${formatCount(items.length, "item")}`, failedCount));
 }
 
 function summarizeWorkspaceRead(output: unknown): AiChatToolReceipt {

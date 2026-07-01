@@ -33,7 +33,7 @@ export function AiChatMessageResponse({
 	return (
 		<Streamdown
 			animated={streamdownAnimation}
-			className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+			className={cn("w-full max-w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
 			components={{ ...streamdownComponents, ...components }}
 			isAnimating={isStreaming}
 			mode="streaming"
