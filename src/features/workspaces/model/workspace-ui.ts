@@ -5,6 +5,11 @@ import type {
 	WorkspaceUiSession,
 } from "#/features/workspaces/state/workspace-ui-store";
 
+export type WorkspaceMobileChatSurfaceMode = Extract<
+	WorkspaceAiChatSurfaceMode,
+	"hidden" | "fullscreen"
+>;
+
 type RestorableWorkspacePresentation = Exclude<WorkspacePresentation, { mode: "maximized" }>;
 
 export const standardPresentation: RestorableWorkspacePresentation = {
@@ -34,6 +39,12 @@ export function getWorkspaceUiSession(session: WorkspaceUiSession | undefined) {
 		chatSurfaceMode,
 		presentation,
 	};
+}
+
+export function getWorkspaceMobileChatSurfaceMode(
+	chatSurfaceMode: WorkspaceAiChatSurfaceMode,
+): WorkspaceMobileChatSurfaceMode {
+	return chatSurfaceMode === "fullscreen" ? "fullscreen" : "hidden";
 }
 
 export function normalizeWorkspaceUiSession(

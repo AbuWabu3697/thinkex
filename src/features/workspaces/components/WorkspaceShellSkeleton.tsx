@@ -1,13 +1,16 @@
-import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 
-import ThinkExLogo from "#/components/ThinkExLogo";
 import { Skeleton } from "#/components/ui/skeleton";
 import AiChatThreadSkeleton from "#/features/workspaces/components/ai-chat/AiChatThreadSkeleton";
 import WorkspaceCardSkeleton from "#/features/workspaces/components/WorkspaceCardSkeleton";
 import WorkspaceChatLayout from "#/features/workspaces/components/WorkspaceChatLayout";
-import WorkspaceFrame from "#/features/workspaces/components/WorkspaceFrame";
-import { defaultWorkspaceUiSession } from "#/features/workspaces/model/workspace-ui";
+import WorkspaceHeaderChrome from "#/features/workspaces/components/WorkspaceHeaderChrome";
+import WorkspaceMobileFrame from "#/features/workspaces/components/WorkspaceMobileFrame";
+import {
+	defaultWorkspaceUiSession,
+	getWorkspaceMobileChatSurfaceMode,
+	type WorkspaceMobileChatSurfaceMode,
+} from "#/features/workspaces/model/workspace-ui";
 import { workspaceToolbarButtonSizeClass } from "#/features/workspaces/components/workspace-toolbar-styles";
 import type { WorkspaceAiChatSurfaceMode } from "#/features/workspaces/state/workspace-ui-store";
 import { cn } from "#/lib/utils";
@@ -29,7 +32,7 @@ interface WorkspaceShellSkeletonProps {
 export default function WorkspaceShellSkeleton({
 	chatSurfaceMode = defaultWorkspaceUiSession.chatSurfaceMode,
 }: WorkspaceShellSkeletonProps) {
-	const mobileChatSurfaceMode = chatSurfaceMode === "docked" ? "hidden" : chatSurfaceMode;
+	const mobileChatSurfaceMode = getWorkspaceMobileChatSurfaceMode(chatSurfaceMode);
 
 	return (
 		<>
@@ -48,86 +51,56 @@ export default function WorkspaceShellSkeleton({
 	);
 }
 
+export function WorkspaceSkeletonChrome() {
+	return (
+		<WorkspaceHeaderChrome
+			actions={
+				<>
+					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
+					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-full")} />
+				</>
+			}
+			actionsLabel="Workspace loading actions"
+			center={
+				<div className="flex min-w-0 flex-1 items-center gap-1 px-1">
+					<Skeleton className="h-8 w-32 rounded-md" />
+					<Skeleton className="h-4 w-px shrink-0 rounded-none" />
+					<Skeleton className="h-8 w-28 rounded-md" />
+				</div>
+			}
+			contextBar={<WorkspaceContextBarSkeleton />}
+		/>
+	);
+}
+
 function WorkspaceMobileShellSkeleton({
 	chatSurfaceMode,
 }: {
-	chatSurfaceMode: WorkspaceAiChatSurfaceMode;
+	chatSurfaceMode: WorkspaceMobileChatSurfaceMode;
 }) {
-	const isChatOpen = chatSurfaceMode !== "hidden";
-
 	return (
-		<div data-app-shell className="relative h-dvh overflow-hidden bg-background text-foreground">
-			<WorkspaceFrame
-				chrome={<WorkspaceMobileSkeletonChrome />}
-				content={<WorkspaceMobileSkeletonContent />}
-			/>
-			{isChatOpen ? (
-				<div className="fixed inset-0 z-50 h-dvh w-dvw bg-background">
-					<WorkspaceSkeletonAiChatPanel />
-				</div>
-			) : null}
-		</div>
-	);
-}
-
-export function WorkspaceSkeletonChrome() {
-	return (
-		<header className="sticky top-0 z-40 bg-muted">
-			<div className="flex h-12 w-full items-stretch justify-between gap-3 px-4">
-				<div className="flex min-w-0 flex-1 items-stretch gap-4">
-					<Link
-						to="/home"
-						preload="intent"
-						className="flex shrink-0 items-center gap-3 rounded-md text-foreground no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<ThinkExLogo size={28} />
-						<span className="text-xl font-semibold tracking-tight sm:text-2xl">ThinkEx</span>
-					</Link>
-					<div className="flex min-w-0 flex-1 items-center gap-1 px-1">
-						<Skeleton className="h-8 w-32 rounded-md" />
-						<Skeleton className="h-4 w-px shrink-0 rounded-none" />
-						<Skeleton className="h-8 w-28 rounded-md" />
-					</div>
-				</div>
-				<div className="flex shrink-0 items-center gap-2">
-					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
-					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-full")} />
-				</div>
-			</div>
-			<WorkspaceContextBarSkeleton />
-		</header>
-	);
-}
-
-function WorkspaceMobileSkeletonChrome() {
-	return (
-		<header className="sticky top-0 z-40 bg-muted">
-			<div className="flex h-12 w-full items-stretch justify-between gap-3 px-4">
-				<Link
-					to="/home"
-					preload="intent"
-					className="flex shrink-0 items-center rounded-md text-foreground no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					aria-label="Back to workspaces"
-				>
-					<ThinkExLogo size={28} />
-				</Link>
-				<div className="flex shrink-0 items-center gap-2">
+		<WorkspaceMobileFrame
+			actions={
+				<>
 					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-md")} />
 					<Skeleton className={cn(workspaceToolbarButtonSizeClass, "rounded-full")} />
 					<div className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-muted-foreground text-sm shadow-xs">
 						<MessageSquare className="size-4" aria-hidden="true" />
 						<Skeleton className="h-3.5 w-8 rounded-sm" />
 					</div>
-				</div>
-			</div>
-			<WorkspaceMobileContextBarSkeleton />
-		</header>
+				</>
+			}
+			chatPanel={<WorkspaceSkeletonAiChatPanel />}
+			chatSurfaceMode={chatSurfaceMode}
+			contextBar={<WorkspaceMobileContextBarSkeleton />}
+			content={<WorkspaceMobileSkeletonContent />}
+		/>
 	);
 }
 
 function WorkspaceContextBarSkeleton() {
 	return (
-		<div className="flex h-11 items-center justify-between gap-3 bg-background px-4 text-sm">
+		<div className="flex h-12 items-center justify-between gap-3 bg-background px-4 text-sm sm:h-11">
 			<div className="flex min-w-0 items-center gap-1.5">
 				<Skeleton className="size-3.5 rounded-sm" />
 				<Skeleton className="h-4 w-36 rounded-sm" />
@@ -142,7 +115,7 @@ function WorkspaceContextBarSkeleton() {
 
 function WorkspaceMobileContextBarSkeleton() {
 	return (
-		<div className="flex h-11 items-center justify-between gap-3 bg-background px-4 text-sm">
+		<div className="flex h-12 items-center justify-between gap-3 bg-background px-4 text-sm sm:h-11">
 			<div className="flex min-w-0 items-center gap-1.5">
 				<Skeleton className="size-3.5 rounded-sm" />
 				<Skeleton className="h-4 w-28 rounded-sm" />

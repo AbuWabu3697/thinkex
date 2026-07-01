@@ -26,7 +26,7 @@ export default function AppShell({
 			className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
 		>
 			<header className="z-40 shrink-0 bg-muted">
-				<div className="relative flex h-12 w-full items-center gap-3 px-4">
+				<div className="relative flex h-14 w-full items-center gap-3 px-4 sm:h-12">
 					<div className="relative z-10 flex min-w-0 shrink-0 items-center gap-3 text-foreground">
 						<Link
 							to="/home"
@@ -52,7 +52,7 @@ export default function AppShell({
 					</div>
 
 					<nav
-						className="relative z-10 ml-auto flex shrink-0 items-center justify-end gap-1"
+						className="relative z-10 ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-1"
 						aria-label="Site"
 					>
 						{siteControls}

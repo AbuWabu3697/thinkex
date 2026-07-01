@@ -7,16 +7,25 @@ export type WorkspaceViewportMode = "desktop" | "mobile";
 export interface WorkspaceViewCapabilities {
 	contextMenus: boolean;
 	fileCapture: boolean;
+	itemCardPreviews: boolean;
+	pdfTextSelection: boolean;
+	workspaceMarqueeSelection: boolean;
 }
 
 const desktopWorkspaceViewCapabilities: WorkspaceViewCapabilities = {
 	contextMenus: true,
 	fileCapture: true,
+	itemCardPreviews: true,
+	pdfTextSelection: true,
+	workspaceMarqueeSelection: true,
 };
 
 const mobileWorkspaceViewCapabilities: WorkspaceViewCapabilities = {
 	contextMenus: false,
 	fileCapture: false,
+	itemCardPreviews: false,
+	pdfTextSelection: false,
+	workspaceMarqueeSelection: false,
 };
 
 const WorkspaceViewCapabilitiesContext = createContext<WorkspaceViewCapabilities>(

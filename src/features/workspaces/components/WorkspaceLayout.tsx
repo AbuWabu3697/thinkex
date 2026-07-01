@@ -26,6 +26,7 @@ import type { WorkspaceItemType, WorkspaceSummary } from "#/features/workspaces/
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { isWorkspaceItemView } from "#/features/workspaces/model/view";
 import { workspaceItemRequiresHeavyViewerRuntime } from "#/features/workspaces/model/workspace-file";
+import { getWorkspaceMobileChatSurfaceMode } from "#/features/workspaces/model/workspace-ui";
 import { useWorkspaceNavigation } from "#/features/workspaces/navigation/useWorkspaceNavigation";
 import { useWorkspaceRealtime } from "#/features/workspaces/realtime/use-workspace-presence";
 import { useWorkspacePersistedStoresHydrated } from "#/features/workspaces/state/persisted-store-hydration";
@@ -119,7 +120,7 @@ export function WorkspaceShell({
 	const { capabilities: viewCapabilities, viewportMode } = useWorkspaceViewPolicy();
 	const selectedItemIds = useWorkspaceSelectionItemIds(workspace.id);
 	const { chatSurfaceMode, presentation } = normalizedUiSession;
-	const mobileChatSurfaceMode = chatSurfaceMode === "docked" ? "hidden" : chatSurfaceMode;
+	const mobileChatSurfaceMode = getWorkspaceMobileChatSurfaceMode(chatSurfaceMode);
 	const hasHeavyViewerRuntimeItems = scopedItems.some(workspaceItemRequiresHeavyViewerRuntime);
 	const createWorkspaceItem = (input: { type: WorkspaceItemType; parentId: string | null }) => {
 		if (!getWorkspaceMemberCapabilities(workspace.membershipRole).canMutateContent) {
@@ -209,16 +210,14 @@ export function WorkspaceShell({
 
 	const presentationContent =
 		viewportMode === "mobile" ? (
-			<WorkspaceItemToolbarProvider>
-				<WorkspaceMobileLayout
-					workspace={workspace}
-					contextBar={contextBar}
-					content={standardTabPanes}
-					chatSurfaceMode={mobileChatSurfaceMode}
-					onOpenChat={() => setChatSurfaceMode(workspace.id, "fullscreen")}
-					chatPanel={<AiChatPanel context={aiContextScope} />}
-				/>
-			</WorkspaceItemToolbarProvider>
+			<WorkspaceMobileLayout
+				workspace={workspace}
+				contextBar={contextBar}
+				content={standardTabPanes}
+				chatSurfaceMode={mobileChatSurfaceMode}
+				onOpenChat={() => setChatSurfaceMode(workspace.id, "fullscreen")}
+				chatPanel={<AiChatPanel context={aiContextScope} />}
+			/>
 		) : presentation.mode === "maximized" ? (
 			<WorkspaceMaximizedPresentation>
 				<WorkspacePaneRenderer
@@ -231,45 +230,43 @@ export function WorkspaceShell({
 				/>
 			</WorkspaceMaximizedPresentation>
 		) : (
-			<WorkspaceItemToolbarProvider>
-				<WorkspaceChatLayout
-					chatSurfaceMode={chatSurfaceMode}
-					onDockedChatCollapse={() => setChatSurfaceMode(workspace.id, "hidden")}
-					chrome={
-						<WorkspaceTopBar
+			<WorkspaceChatLayout
+				chatSurfaceMode={chatSurfaceMode}
+				onDockedChatCollapse={() => setChatSurfaceMode(workspace.id, "hidden")}
+				chrome={
+					<WorkspaceTopBar
+						workspace={workspace}
+						itemsById={itemsById}
+						tabs={session.tabs}
+						activeTab={activeTab}
+						contextBar={contextBar}
+						presence={realtime}
+						onActivateTab={activateWorkspaceTab}
+						onCloseTab={closeWorkspaceTab}
+						onCloseOtherTabs={closeOtherWorkspaceTabs}
+						onCloseTabsToRight={closeWorkspaceTabsToRight}
+						onCreateRootTab={createWorkspaceTab}
+						onCreateRootTabAfter={createWorkspaceTabAfter}
+						onDuplicateTab={duplicateWorkspaceTab}
+					/>
+				}
+				content={
+					presentation.mode === "split" ? (
+						<WorkspaceSplitPresentation
+							aiContextScope={aiContextScope}
+							panes={presentation.panes}
+							direction={presentation.direction}
+							scopedItems={scopedItems}
 							workspace={workspace}
-							itemsById={itemsById}
-							tabs={session.tabs}
-							activeTab={activeTab}
-							contextBar={contextBar}
-							presence={realtime}
-							onActivateTab={activateWorkspaceTab}
-							onCloseTab={closeWorkspaceTab}
-							onCloseOtherTabs={closeOtherWorkspaceTabs}
-							onCloseTabsToRight={closeWorkspaceTabsToRight}
-							onCreateRootTab={createWorkspaceTab}
-							onCreateRootTabAfter={createWorkspaceTabAfter}
-							onDuplicateTab={duplicateWorkspaceTab}
+							onCreateItem={createWorkspaceItem}
+							onOpenItem={openItem}
 						/>
-					}
-					content={
-						presentation.mode === "split" ? (
-							<WorkspaceSplitPresentation
-								aiContextScope={aiContextScope}
-								panes={presentation.panes}
-								direction={presentation.direction}
-								scopedItems={scopedItems}
-								workspace={workspace}
-								onCreateItem={createWorkspaceItem}
-								onOpenItem={openItem}
-							/>
-						) : (
-							standardTabPanes
-						)
-					}
-					chatPanel={<AiChatPanel context={aiContextScope} />}
-				/>
-			</WorkspaceItemToolbarProvider>
+					) : (
+						standardTabPanes
+					)
+				}
+				chatPanel={<AiChatPanel context={aiContextScope} />}
+			/>
 		);
 
 	const workspaceInteractionContent = (
@@ -282,7 +279,7 @@ export function WorkspaceShell({
 					onWorkspaceDragCommand={dispatchWorkspaceDragCommand}
 				>
 					<WorkspaceViewCapabilitiesProvider capabilities={viewCapabilities}>
-						{presentationContent}
+						<WorkspaceItemToolbarProvider>{presentationContent}</WorkspaceItemToolbarProvider>
 					</WorkspaceViewCapabilitiesProvider>
 				</WorkspaceDragProvider>
 			</WorkspaceFileIntakeProvider>

@@ -28,7 +28,7 @@ import { isPostHogFeedbackEnabled } from "#/integrations/posthog/config";
 import { getAuthSessionQueryOptions } from "#/lib/session-query";
 
 const userMenuTriggerClassName =
-	"size-8 rounded-full p-0 hover:bg-muted focus-visible:ring-2 active:not-aria-[haspopup]:translate-y-0 dark:hover:bg-input/50";
+	"size-10 rounded-full p-0 hover:bg-muted focus-visible:ring-2 active:not-aria-[haspopup]:translate-y-0 sm:size-8 dark:hover:bg-input/50";
 
 const themeOptions = [
 	{
@@ -69,7 +69,7 @@ export default function UserProfileDropdown() {
 	};
 
 	if (isPending) {
-		return <Skeleton className="size-8 shrink-0 rounded-full" />;
+		return <Skeleton className="size-10 shrink-0 rounded-full sm:size-8" />;
 	}
 
 	if (session?.user) {
