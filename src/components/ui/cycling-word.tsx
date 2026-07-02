@@ -102,6 +102,7 @@ export function CyclingWord({ words, className }: CyclingWordProps) {
 	const animate = !reduceMotion;
 
 	const [index, setIndex] = useState(0);
+	const [hasAdvanced, setHasAdvanced] = useState(false);
 	// Brief horizontal nudge fired on each advance (auto or click).
 	const [pulse, setPulse] = useState(false);
 	const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,6 +110,7 @@ export function CyclingWord({ words, className }: CyclingWordProps) {
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const advance = useCallback(() => {
+		setHasAdvanced(true);
 		setIndex((i) => (i + 1) % words.length);
 		setPulse(true);
 		if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -137,7 +139,7 @@ export function CyclingWord({ words, className }: CyclingWordProps) {
 	}, [advance, restartTimer]);
 
 	const word = words[index];
-	const { head, colors, endCursor } = useSweep(word, animate);
+	const { head, colors, endCursor } = useSweep(word, animate && hasAdvanced);
 	const longest = words.reduce((a, b) => (b.length > a.length ? b : a), "");
 	const letters = [...word];
 
