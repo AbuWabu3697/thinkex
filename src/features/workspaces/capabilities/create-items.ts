@@ -1,7 +1,8 @@
 import {
-	getWorkspaceKernelAiPageContext,
-	resolveWorkspaceKernelAiPath,
-} from "#/features/workspaces/ai/workspace-kernel-ai-common";
+	getWorkspaceCapabilityPageContext,
+	resolveWorkspaceCapabilityPath,
+} from "#/features/workspaces/capabilities/common";
+import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
 import { parseMarkdownToTiptapDocumentProjection } from "#/features/workspaces/documents/document-markdown";
 import { stringifyTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
@@ -16,36 +17,34 @@ import {
 } from "#/features/workspaces/kernel/workspace-kernel-paths";
 import { WorkspaceKernelNameConflictError } from "#/features/workspaces/kernel/workspace-kernel-store";
 
-export interface CreateWorkspaceKernelAiItemInput {
+export interface CreateWorkspaceCapabilityItemInput {
 	type: "document" | "folder";
 	path: string;
 	initialContent?: string;
 }
 
-export interface CreateWorkspaceKernelAiItemsInput {
-	items: CreateWorkspaceKernelAiItemInput[];
-	userId: string;
-	workspaceId: string;
+export interface CreateWorkspaceCapabilityItemsInput {
+	items: CreateWorkspaceCapabilityItemInput[];
 }
 
-export interface CreateWorkspaceKernelAiFailure {
-	code: CreateWorkspaceKernelAiFailureCode;
+export interface CreateWorkspaceCapabilityFailure {
+	code: CreateWorkspaceCapabilityFailureCode;
 	index: number;
 	path: string;
 }
 
-export interface CreateWorkspaceKernelAiCreatedItem {
+export interface CreateWorkspaceCapabilityCreatedItem {
 	path: string;
 	type: "document" | "folder";
 	warnings?: string[];
 }
 
-export interface CreateWorkspaceKernelAiItemsResult {
-	items: CreateWorkspaceKernelAiCreatedItem[];
-	failed: CreateWorkspaceKernelAiFailure[];
+export interface CreateWorkspaceCapabilityItemsResult {
+	items: CreateWorkspaceCapabilityCreatedItem[];
+	failed: CreateWorkspaceCapabilityFailure[];
 }
 
-type WorkspaceKernelAiCreatePathResolution =
+type WorkspaceCapabilityCreatePathResolution =
 	| {
 			code: "cannot_create_root" | "path_not_absolute" | "path_not_canonical";
 			path: string;
@@ -58,7 +57,7 @@ type WorkspaceKernelAiCreatePathResolution =
 			status: "ready";
 	  };
 
-type CreateWorkspaceKernelAiFailureCode =
+type CreateWorkspaceCapabilityFailureCode =
 	| "cannot_create_root"
 	| "invalid_initial_content"
 	| "path_already_exists"
@@ -67,20 +66,20 @@ type CreateWorkspaceKernelAiFailureCode =
 	| "path_not_folder"
 	| "path_not_found";
 
-export async function createWorkspaceKernelAiItems(
-	input: CreateWorkspaceKernelAiItemsInput,
-): Promise<CreateWorkspaceKernelAiItemsResult> {
-	const context = await getWorkspaceKernelAiPageContext({
+export async function createWorkspaceCapabilityItems(
+	capabilityContext: WorkspaceCapabilityContext,
+	input: CreateWorkspaceCapabilityItemsInput,
+): Promise<CreateWorkspaceCapabilityItemsResult> {
+	const workspaceContext = await getWorkspaceCapabilityPageContext({
 		access: "mutate",
-		userId: input.userId,
-		workspaceId: input.workspaceId,
+		context: capabilityContext,
 	});
-	const items: CreateWorkspaceKernelAiCreatedItem[] = [];
-	const failed: CreateWorkspaceKernelAiFailure[] = [];
+	const items: CreateWorkspaceCapabilityCreatedItem[] = [];
+	const failed: CreateWorkspaceCapabilityFailure[] = [];
 	const createdItemsByPath = new Map<string, { id: string; type: WorkspaceItemSummary["type"] }>();
 
 	for (const [index, itemInput] of input.items.entries()) {
-		const path = resolveWorkspaceKernelAiCreatePath(itemInput.path);
+		const path = resolveWorkspaceCapabilityCreatePath(itemInput.path);
 
 		if (path.status === "failed") {
 			failed.push({
@@ -91,10 +90,10 @@ export async function createWorkspaceKernelAiItems(
 			continue;
 		}
 
-		const parent = resolveWorkspaceKernelAiCreateParent({
+		const parent = resolveWorkspaceCapabilityCreateParent({
 			createdItemsByPath,
 			parentPath: path.parentPath,
-			tree: context.tree,
+			tree: workspaceContext.tree,
 		});
 
 		if (parent.status === "failed") {
@@ -106,7 +105,7 @@ export async function createWorkspaceKernelAiItems(
 			continue;
 		}
 
-		const initialContent = getWorkspaceKernelAiCreateInitialContent(itemInput);
+		const initialContent = getWorkspaceCapabilityCreateInitialContent(itemInput);
 
 		if (initialContent.status === "failed") {
 			failed.push({
@@ -120,13 +119,13 @@ export async function createWorkspaceKernelAiItems(
 		let command: Awaited<ReturnType<WorkspaceKernelClient["createItem"]>>;
 
 		try {
-			command = await context.kernel.createItem({
+			command = await workspaceContext.kernel.createItem({
 				parentId: parent.parentId,
 				type: itemInput.type,
 				name: path.name,
 				onNameConflict: "error",
 				initialContent: initialContent.content,
-				actorUserId: input.userId,
+				actorUserId: capabilityContext.actor.userId,
 				clientMutationId: null,
 			});
 		} catch (error) {
@@ -167,7 +166,7 @@ export async function createWorkspaceKernelAiItems(
 	};
 }
 
-function resolveWorkspaceKernelAiCreateParent(input: {
+function resolveWorkspaceCapabilityCreateParent(input: {
 	createdItemsByPath: ReadonlyMap<string, { id: string; type: WorkspaceItemSummary["type"] }>;
 	parentPath: string;
 	tree: WorkspaceKernelTree;
@@ -206,7 +205,7 @@ function resolveWorkspaceKernelAiCreateParent(input: {
 		};
 	}
 
-	const parent = resolveWorkspaceKernelAiPath({
+	const parent = resolveWorkspaceCapabilityPath({
 		path: input.parentPath,
 		tree: input.tree,
 	});
@@ -240,7 +239,9 @@ function resolveWorkspaceKernelAiCreateParent(input: {
 	};
 }
 
-function resolveWorkspaceKernelAiCreatePath(path: string): WorkspaceKernelAiCreatePathResolution {
+function resolveWorkspaceCapabilityCreatePath(
+	path: string,
+): WorkspaceCapabilityCreatePathResolution {
 	try {
 		const normalizedPath = normalizeWorkspacePath(path);
 
@@ -283,7 +284,7 @@ function resolveWorkspaceKernelAiCreatePath(path: string): WorkspaceKernelAiCrea
 	}
 }
 
-function getWorkspaceKernelAiCreateInitialContent(input: CreateWorkspaceKernelAiItemInput):
+function getWorkspaceCapabilityCreateInitialContent(input: CreateWorkspaceCapabilityItemInput):
 	| {
 			content?: string;
 			status: "ready";

@@ -1,52 +1,51 @@
 import { getDocumentSessionFromEnv } from "#/features/workspaces/document-session-access";
 import {
-	getWorkspaceKernelAiPageContext,
-	resolveWorkspaceKernelAiExistingItemPath,
-} from "#/features/workspaces/ai/workspace-kernel-ai-common";
+	getWorkspaceCapabilityPageContext,
+	resolveWorkspaceCapabilityExistingItemPath,
+} from "#/features/workspaces/capabilities/common";
+import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 import type { DocumentSessionApplyMarkdownEditsResult } from "#/features/workspaces/documents/document-session";
 import type { DocumentMarkdownEdit } from "#/features/workspaces/documents/document-markdown-edits";
 
-type EditWorkspaceKernelAiFailureCode =
+type EditWorkspaceCapabilityFailureCode =
 	| "cannot_edit_root"
 	| "path_not_absolute"
 	| "path_not_found"
 	| "unsupported_item_type";
 
-export interface EditWorkspaceKernelAiItemInput {
+export interface EditWorkspaceCapabilityItemInput {
 	edits: DocumentMarkdownEdit[];
 	path: string;
-	userId: string;
-	workspaceId: string;
 }
 
-type EditWorkspaceKernelAiFailure = DocumentSessionApplyMarkdownEditsResult["failures"][number];
+type EditWorkspaceCapabilityFailure = DocumentSessionApplyMarkdownEditsResult["failures"][number];
 
-export interface EditWorkspaceKernelAiItemResult {
+export interface EditWorkspaceCapabilityItemResult {
 	applied: number;
-	failed: EditWorkspaceKernelAiFailure[];
+	failed: EditWorkspaceCapabilityFailure[];
 	path: string;
 	warnings: string[];
 }
 
-export async function editWorkspaceKernelAiItem(
-	input: EditWorkspaceKernelAiItemInput,
-): Promise<EditWorkspaceKernelAiItemResult> {
-	const context = await getWorkspaceKernelAiPageContext({
+export async function editWorkspaceCapabilityItem(
+	capabilityContext: WorkspaceCapabilityContext,
+	input: EditWorkspaceCapabilityItemInput,
+): Promise<EditWorkspaceCapabilityItemResult> {
+	const workspaceContext = await getWorkspaceCapabilityPageContext({
 		access: "mutate",
-		userId: input.userId,
-		workspaceId: input.workspaceId,
+		context: capabilityContext,
 	});
-	const resolution = resolveWorkspaceKernelAiExistingItemPath({
+	const resolution = resolveWorkspaceCapabilityExistingItemPath({
 		path: input.path,
 		rootFailureCode: "cannot_edit_root",
-		tree: context.tree,
+		tree: workspaceContext.tree,
 	});
 
 	if (resolution.status === "failed") {
 		return {
 			path: resolution.failure.path,
 			warnings: [],
-			...failedWorkspaceAiEditResult(resolution.failure.code, input.edits.length),
+			...failedWorkspaceCapabilityEditResult(resolution.failure.code, input.edits.length),
 		};
 	}
 
@@ -54,13 +53,13 @@ export async function editWorkspaceKernelAiItem(
 		return {
 			path: resolution.path,
 			warnings: [],
-			...failedWorkspaceAiEditResult("unsupported_item_type", input.edits.length),
+			...failedWorkspaceCapabilityEditResult("unsupported_item_type", input.edits.length),
 		};
 	}
 
 	const documentSession = await getDocumentSession({
 		itemId: resolution.item.id,
-		workspaceId: input.workspaceId,
+		workspaceId: capabilityContext.workspaceId,
 	});
 
 	const result = await documentSession.applyMarkdownEdits({
@@ -81,10 +80,10 @@ async function getDocumentSession(input: { itemId: string; workspaceId: string }
 	return getDocumentSessionFromEnv(env, input);
 }
 
-function failedWorkspaceAiEditResult(
-	code: EditWorkspaceKernelAiFailureCode,
+function failedWorkspaceCapabilityEditResult(
+	code: EditWorkspaceCapabilityFailureCode,
 	editCount: number,
-): Pick<EditWorkspaceKernelAiItemResult, "applied" | "failed"> {
+): Pick<EditWorkspaceCapabilityItemResult, "applied" | "failed"> {
 	return {
 		applied: 0,
 		failed: Array.from({ length: editCount }, (_, index) => ({

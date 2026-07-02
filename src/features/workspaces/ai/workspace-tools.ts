@@ -3,15 +3,20 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
-import { createWorkspaceKernelAiItems } from "#/features/workspaces/ai/workspace-kernel-ai-create";
-import { deleteWorkspaceKernelAiItems } from "#/features/workspaces/ai/workspace-kernel-ai-delete";
-import { editWorkspaceKernelAiItem } from "#/features/workspaces/ai/workspace-kernel-ai-edit";
-import { moveWorkspaceKernelAiItems } from "#/features/workspaces/ai/workspace-kernel-ai-move";
-import { readWorkspaceKernelAiItems } from "#/features/workspaces/ai/workspace-kernel-ai-read";
-import { renameWorkspaceKernelAiItem } from "#/features/workspaces/ai/workspace-kernel-ai-rename";
+import {
+	createWorkspaceCapabilityContext,
+	type WorkspaceCapabilityContext,
+	workspaceCapabilityScopes,
+} from "#/features/workspaces/capabilities/workspace-capability-context";
+import { createWorkspaceCapabilityItems } from "#/features/workspaces/capabilities/create-items";
+import { deleteWorkspaceCapabilityItems } from "#/features/workspaces/capabilities/delete-items";
+import { editWorkspaceCapabilityItem } from "#/features/workspaces/capabilities/edit-item";
+import { listWorkspaceCapabilityItems } from "#/features/workspaces/capabilities/list-items";
+import { moveWorkspaceCapabilityItems } from "#/features/workspaces/capabilities/move-items";
+import { readWorkspaceCapabilityItems } from "#/features/workspaces/capabilities/read-items";
+import { renameWorkspaceCapabilityItem } from "#/features/workspaces/capabilities/rename-item";
 import { workspaceItemTypeSchema } from "#/features/workspaces/contracts";
 import { documentMarkdownEditSchema } from "#/features/workspaces/documents/document-markdown-edits";
-import { listWorkspaceKernelItems } from "#/features/workspaces/kernel/workspace-kernel-access";
 
 const workspaceDocumentMarkdownMathInstruction =
 	"For document Markdown math, use `$...$` for inline math and `$$...$$` on separate lines for block math. Escape literal currency dollar signs as `\\$`.";
@@ -335,7 +340,7 @@ type WorkspaceThreadToolConfig<
 	description: string;
 	execute: (
 		args: z.output<TInputSchema>,
-		thread: AIThreadContext,
+		context: WorkspaceCapabilityContext,
 	) => Promise<z.output<TOutputSchema>>;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	inputExamples: Array<{ input: z.input<TInputSchema> }>;
@@ -354,9 +359,11 @@ function createWorkspaceThreadTool<
 		outputSchema: input.outputSchema,
 		strict: true,
 		execute: async (args) => {
+			const thread = await requireThreadContext(input.getThreadContext);
+
 			return await input.execute(
 				args as z.output<TInputSchema>,
-				await requireThreadContext(input.getThreadContext),
+				createThreadWorkspaceCapabilityContext(thread),
 			);
 		},
 	});
@@ -380,10 +387,8 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceListItemsInputSchema,
 			inputExamples: workspaceListItemsInputExamples,
 			outputSchema: workspaceListItemsOutputSchema,
-			execute: async ({ limit, path, recursive }, thread) => {
-				return await listWorkspaceKernelItems({
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
+			execute: async ({ limit, path, recursive }, context) => {
+				return await listWorkspaceCapabilityItems(context, {
 					path,
 					recursive,
 					limit,
@@ -396,11 +401,9 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceReadItemsInputSchema,
 			inputExamples: workspaceReadItemsInputExamples,
 			outputSchema: workspaceReadItemsOutputSchema,
-			execute: async ({ pages, paths }, thread) => {
-				return await readWorkspaceKernelAiItems({
+			execute: async ({ pages, paths }, context) => {
+				return await readWorkspaceCapabilityItems(context, {
 					pages,
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
 					paths,
 				});
 			},
@@ -411,12 +414,10 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceRenameItemInputSchema,
 			inputExamples: workspaceRenameItemInputExamples,
 			outputSchema: workspaceRenameItemOutputSchema,
-			execute: async ({ name, path }, thread) => {
-				return await renameWorkspaceKernelAiItem({
+			execute: async ({ name, path }, context) => {
+				return await renameWorkspaceCapabilityItem(context, {
 					name,
 					path,
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
 				});
 			},
 		}),
@@ -426,12 +427,10 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceMoveItemsInputSchema,
 			inputExamples: workspaceMoveItemsInputExamples,
 			outputSchema: workspaceMoveItemsOutputSchema,
-			execute: async ({ destinationPath, paths }, thread) => {
-				return await moveWorkspaceKernelAiItems({
+			execute: async ({ destinationPath, paths }, context) => {
+				return await moveWorkspaceCapabilityItems(context, {
 					destinationPath,
 					paths,
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
 				});
 			},
 		}),
@@ -440,11 +439,9 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceCreateItemsInputSchema,
 			inputExamples: workspaceCreateItemsInputExamples,
 			outputSchema: workspaceCreateItemsOutputSchema,
-			execute: async ({ items }, thread) => {
-				return await createWorkspaceKernelAiItems({
+			execute: async ({ items }, context) => {
+				return await createWorkspaceCapabilityItems(context, {
 					items,
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
 				});
 			},
 		}),
@@ -453,11 +450,9 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceDeleteItemsInputSchema,
 			inputExamples: workspaceDeleteItemsInputExamples,
 			outputSchema: workspaceDeleteItemsOutputSchema,
-			execute: async ({ paths }, thread) => {
-				return await deleteWorkspaceKernelAiItems({
+			execute: async ({ paths }, context) => {
+				return await deleteWorkspaceCapabilityItems(context, {
 					paths,
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
 				});
 			},
 		}),
@@ -466,10 +461,8 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceEditItemInputSchema,
 			inputExamples: workspaceEditItemInputExamples,
 			outputSchema: workspaceEditItemOutputSchema,
-			execute: async ({ path, edits }, thread) => {
-				return await editWorkspaceKernelAiItem({
-					workspaceId: thread.workspaceId,
-					userId: thread.userId,
+			execute: async ({ path, edits }, context) => {
+				return await editWorkspaceCapabilityItem(context, {
 					path,
 					edits,
 				});
@@ -486,4 +479,12 @@ async function requireThreadContext(getThreadContext: () => Promise<AIThreadCont
 	}
 
 	return thread;
+}
+
+function createThreadWorkspaceCapabilityContext(thread: AIThreadContext) {
+	return createWorkspaceCapabilityContext({
+		scopes: workspaceCapabilityScopes,
+		userId: thread.userId,
+		workspaceId: thread.workspaceId,
+	});
 }

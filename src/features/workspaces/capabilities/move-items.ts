@@ -1,8 +1,9 @@
 import {
-	getWorkspaceKernelAiPageContext,
-	resolveWorkspaceKernelAiExistingItemPath,
-	resolveWorkspaceKernelAiPath,
-} from "#/features/workspaces/ai/workspace-kernel-ai-common";
+	getWorkspaceCapabilityPageContext,
+	resolveWorkspaceCapabilityExistingItemPath,
+	resolveWorkspaceCapabilityPath,
+} from "#/features/workspaces/capabilities/common";
+import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
 import {
 	getParentWorkspacePath,
@@ -11,14 +12,12 @@ import {
 } from "#/features/workspaces/kernel/workspace-kernel-paths";
 import { WorkspaceKernelNameConflictError } from "#/features/workspaces/kernel/workspace-kernel-store";
 
-export interface MoveWorkspaceKernelAiItemsInput {
+export interface MoveWorkspaceCapabilityItemsInput {
 	destinationPath: string;
 	paths: string[];
-	userId: string;
-	workspaceId: string;
 }
 
-interface MoveWorkspaceKernelAiDestinationFailure {
+interface MoveWorkspaceCapabilityDestinationFailure {
 	code:
 		| "destination_path_not_absolute"
 		| "destination_path_not_folder"
@@ -26,7 +25,7 @@ interface MoveWorkspaceKernelAiDestinationFailure {
 	path: string;
 }
 
-export interface MoveWorkspaceKernelAiFailure {
+export interface MoveWorkspaceCapabilityFailure {
 	code:
 		| "already_in_destination"
 		| "cannot_move_into_descendant"
@@ -41,28 +40,28 @@ export interface MoveWorkspaceKernelAiFailure {
 	path: string;
 }
 
-export interface MoveWorkspaceKernelAiMovedItem {
+export interface MoveWorkspaceCapabilityMovedItem {
 	path: string;
 	previousPath: string;
 	type: WorkspaceItemSummary["type"];
 }
 
-export interface MoveWorkspaceKernelAiItemsResult {
-	failed: MoveWorkspaceKernelAiFailure[];
-	items: MoveWorkspaceKernelAiMovedItem[];
+export interface MoveWorkspaceCapabilityItemsResult {
+	failed: MoveWorkspaceCapabilityFailure[];
+	items: MoveWorkspaceCapabilityMovedItem[];
 }
 
-export async function moveWorkspaceKernelAiItems(
-	input: MoveWorkspaceKernelAiItemsInput,
-): Promise<MoveWorkspaceKernelAiItemsResult> {
-	const context = await getWorkspaceKernelAiPageContext({
+export async function moveWorkspaceCapabilityItems(
+	capabilityContext: WorkspaceCapabilityContext,
+	input: MoveWorkspaceCapabilityItemsInput,
+): Promise<MoveWorkspaceCapabilityItemsResult> {
+	const workspaceContext = await getWorkspaceCapabilityPageContext({
 		access: "mutate",
-		userId: input.userId,
-		workspaceId: input.workspaceId,
+		context: capabilityContext,
 	});
-	const destination = resolveWorkspaceKernelAiMoveDestination({
+	const destination = resolveWorkspaceCapabilityMoveDestination({
 		path: input.destinationPath,
-		tree: context.tree,
+		tree: workspaceContext.tree,
 	});
 
 	if (destination.status === "failed") {
@@ -77,7 +76,7 @@ export async function moveWorkspaceKernelAiItems(
 		};
 	}
 
-	const failed: MoveWorkspaceKernelAiFailure[] = [];
+	const failed: MoveWorkspaceCapabilityFailure[] = [];
 	const resolvedItems: Array<{
 		index: number;
 		item: WorkspaceItemSummary;
@@ -85,10 +84,10 @@ export async function moveWorkspaceKernelAiItems(
 	}> = [];
 
 	for (const [index, path] of input.paths.entries()) {
-		const resolution = resolveWorkspaceKernelAiExistingItemPath({
+		const resolution = resolveWorkspaceCapabilityExistingItemPath({
 			path,
 			rootFailureCode: "cannot_move_root",
-			tree: context.tree,
+			tree: workspaceContext.tree,
 		});
 
 		if (resolution.status === "failed") {
@@ -135,16 +134,16 @@ export async function moveWorkspaceKernelAiItems(
 		};
 	}
 
-	const items: MoveWorkspaceKernelAiMovedItem[] = [];
+	const items: MoveWorkspaceCapabilityMovedItem[] = [];
 	const pendingItems = [...resolvedItems];
 
 	while (pendingItems.length > 0) {
 		try {
-			const command = await context.kernel.moveItems({
+			const command = await workspaceContext.kernel.moveItems({
 				items: pendingItems.map((resolved) => ({ itemId: resolved.item.id })),
 				parentId: destination.parentId,
 				onNameConflict: "error",
-				actorUserId: input.userId,
+				actorUserId: capabilityContext.actor.userId,
 				clientMutationId: null,
 			});
 			const pendingItemsById = new Map<string, (typeof pendingItems)[number]>();
@@ -199,12 +198,12 @@ export async function moveWorkspaceKernelAiItems(
 	};
 }
 
-function resolveWorkspaceKernelAiMoveDestination(input: {
+function resolveWorkspaceCapabilityMoveDestination(input: {
 	path: string;
 	tree: WorkspaceKernelTree;
 }):
 	| {
-			failure: MoveWorkspaceKernelAiDestinationFailure;
+			failure: MoveWorkspaceCapabilityDestinationFailure;
 			status: "failed";
 	  }
 	| {
@@ -212,7 +211,7 @@ function resolveWorkspaceKernelAiMoveDestination(input: {
 			path: string;
 			status: "destination";
 	  } {
-	const resolution = resolveWorkspaceKernelAiPath(input);
+	const resolution = resolveWorkspaceCapabilityPath(input);
 
 	if (resolution.status === "invalid_path") {
 		return {

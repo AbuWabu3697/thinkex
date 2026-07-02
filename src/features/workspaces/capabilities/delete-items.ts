@@ -1,50 +1,49 @@
 import {
-	getWorkspaceKernelAiPageContext,
-	resolveWorkspaceKernelAiExistingItemPath,
-} from "#/features/workspaces/ai/workspace-kernel-ai-common";
+	getWorkspaceCapabilityPageContext,
+	resolveWorkspaceCapabilityExistingItemPath,
+} from "#/features/workspaces/capabilities/common";
+import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
 
-export interface DeleteWorkspaceKernelAiItemsInput {
+export interface DeleteWorkspaceCapabilityItemsInput {
 	paths: string[];
-	userId: string;
-	workspaceId: string;
 }
 
-export interface DeleteWorkspaceKernelAiFailure {
+export interface DeleteWorkspaceCapabilityFailure {
 	code: "cannot_delete_root" | "path_not_absolute" | "path_not_found";
 	index: number;
 	path: string;
 }
 
-export interface DeleteWorkspaceKernelAiDeletedItem {
+export interface DeleteWorkspaceCapabilityDeletedItem {
 	path: string;
 	type: WorkspaceItemSummary["type"];
 }
 
-export interface DeleteWorkspaceKernelAiItemsResult {
-	items: DeleteWorkspaceKernelAiDeletedItem[];
-	failed: DeleteWorkspaceKernelAiFailure[];
+export interface DeleteWorkspaceCapabilityItemsResult {
+	items: DeleteWorkspaceCapabilityDeletedItem[];
+	failed: DeleteWorkspaceCapabilityFailure[];
 }
 
-export async function deleteWorkspaceKernelAiItems(
-	input: DeleteWorkspaceKernelAiItemsInput,
-): Promise<DeleteWorkspaceKernelAiItemsResult> {
-	const context = await getWorkspaceKernelAiPageContext({
+export async function deleteWorkspaceCapabilityItems(
+	capabilityContext: WorkspaceCapabilityContext,
+	input: DeleteWorkspaceCapabilityItemsInput,
+): Promise<DeleteWorkspaceCapabilityItemsResult> {
+	const workspaceContext = await getWorkspaceCapabilityPageContext({
 		access: "mutate",
-		userId: input.userId,
-		workspaceId: input.workspaceId,
+		context: capabilityContext,
 	});
-	const failed: DeleteWorkspaceKernelAiFailure[] = [];
+	const failed: DeleteWorkspaceCapabilityFailure[] = [];
 	const resolvedItems: Array<{
 		item: WorkspaceItemSummary;
 		path: string;
 	}> = [];
 
 	for (const [index, path] of input.paths.entries()) {
-		const resolution = resolveWorkspaceKernelAiExistingItemPath({
+		const resolution = resolveWorkspaceCapabilityExistingItemPath({
 			path,
 			rootFailureCode: "cannot_delete_root",
-			tree: context.tree,
+			tree: workspaceContext.tree,
 		});
 
 		if (resolution.status === "failed") {
@@ -69,9 +68,9 @@ export async function deleteWorkspaceKernelAiItems(
 		};
 	}
 
-	const command = await context.kernel.deleteItems({
+	const command = await workspaceContext.kernel.deleteItems({
 		itemIds: resolvedItems.map((resolved) => resolved.item.id),
-		actorUserId: input.userId,
+		actorUserId: capabilityContext.actor.userId,
 		clientMutationId: null,
 	});
 	const resolvedItemsById = new Map<string, (typeof resolvedItems)[number]>();
