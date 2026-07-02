@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
 import {
 	createWorkspaceCapabilityContext,
+	type WorkspaceCapabilityScope,
 	type WorkspaceCapabilityContext,
 	workspaceCapabilityScopes,
 } from "#/features/workspaces/capabilities/workspace-capability-context";
@@ -20,6 +21,8 @@ import { documentMarkdownEditSchema } from "#/features/workspaces/documents/docu
 
 const workspaceDocumentMarkdownMathInstruction =
 	"For document Markdown math, use `$...$` for inline math and `$$...$$` on separate lines for block math. Escape literal currency dollar signs as `\\$`.";
+const workspaceReadCapabilityScopes: readonly WorkspaceCapabilityScope[] = ["workspace:read"];
+const workspaceMutateCapabilityScopes = workspaceCapabilityScopes;
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();
 
@@ -346,6 +349,7 @@ type WorkspaceThreadToolConfig<
 	inputExamples: Array<{ input: z.input<TInputSchema> }>;
 	inputSchema: TInputSchema;
 	outputSchema: TOutputSchema;
+	scopes: readonly WorkspaceCapabilityScope[];
 };
 
 function createWorkspaceThreadTool<
@@ -363,7 +367,7 @@ function createWorkspaceThreadTool<
 
 			return await input.execute(
 				args as z.output<TInputSchema>,
-				createThreadWorkspaceCapabilityContext(thread),
+				createThreadWorkspaceCapabilityContext(thread, input.scopes),
 			);
 		},
 	});
@@ -387,6 +391,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceListItemsInputSchema,
 			inputExamples: workspaceListItemsInputExamples,
 			outputSchema: workspaceListItemsOutputSchema,
+			scopes: workspaceReadCapabilityScopes,
 			execute: async ({ limit, path, recursive }, context) => {
 				return await listWorkspaceCapabilityItems(context, {
 					path,
@@ -401,6 +406,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceReadItemsInputSchema,
 			inputExamples: workspaceReadItemsInputExamples,
 			outputSchema: workspaceReadItemsOutputSchema,
+			scopes: workspaceReadCapabilityScopes,
 			execute: async ({ pages, paths }, context) => {
 				return await readWorkspaceCapabilityItems(context, {
 					pages,
@@ -414,6 +420,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceRenameItemInputSchema,
 			inputExamples: workspaceRenameItemInputExamples,
 			outputSchema: workspaceRenameItemOutputSchema,
+			scopes: workspaceMutateCapabilityScopes,
 			execute: async ({ name, path }, context) => {
 				return await renameWorkspaceCapabilityItem(context, {
 					name,
@@ -427,6 +434,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceMoveItemsInputSchema,
 			inputExamples: workspaceMoveItemsInputExamples,
 			outputSchema: workspaceMoveItemsOutputSchema,
+			scopes: workspaceMutateCapabilityScopes,
 			execute: async ({ destinationPath, paths }, context) => {
 				return await moveWorkspaceCapabilityItems(context, {
 					destinationPath,
@@ -439,6 +447,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceCreateItemsInputSchema,
 			inputExamples: workspaceCreateItemsInputExamples,
 			outputSchema: workspaceCreateItemsOutputSchema,
+			scopes: workspaceMutateCapabilityScopes,
 			execute: async ({ items }, context) => {
 				return await createWorkspaceCapabilityItems(context, {
 					items,
@@ -450,6 +459,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceDeleteItemsInputSchema,
 			inputExamples: workspaceDeleteItemsInputExamples,
 			outputSchema: workspaceDeleteItemsOutputSchema,
+			scopes: workspaceMutateCapabilityScopes,
 			execute: async ({ paths }, context) => {
 				return await deleteWorkspaceCapabilityItems(context, {
 					paths,
@@ -461,6 +471,7 @@ export function createAIThreadWorkspaceTools(input: {
 			inputSchema: workspaceEditItemInputSchema,
 			inputExamples: workspaceEditItemInputExamples,
 			outputSchema: workspaceEditItemOutputSchema,
+			scopes: workspaceMutateCapabilityScopes,
 			execute: async ({ path, edits }, context) => {
 				return await editWorkspaceCapabilityItem(context, {
 					path,
@@ -481,9 +492,12 @@ async function requireThreadContext(getThreadContext: () => Promise<AIThreadCont
 	return thread;
 }
 
-function createThreadWorkspaceCapabilityContext(thread: AIThreadContext) {
+function createThreadWorkspaceCapabilityContext(
+	thread: AIThreadContext,
+	scopes: readonly WorkspaceCapabilityScope[],
+): WorkspaceCapabilityContext {
 	return createWorkspaceCapabilityContext({
-		scopes: workspaceCapabilityScopes,
+		scopes,
 		userId: thread.userId,
 		workspaceId: thread.workspaceId,
 	});

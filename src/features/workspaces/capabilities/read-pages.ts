@@ -21,8 +21,21 @@ export function readWorkspaceCapabilityProjectionPages(
 		pages?: string;
 	},
 ): { content: string; pages: WorkspaceCapabilityReadPages } {
-	const maxPageNumber = pages.reduce((max, page) => Math.max(max, page.pageNumber), 0);
 	const requested = input.pages?.trim() || "1";
+	if (pages.length === 0) {
+		const selectedPageNumbers = parseWorkspaceCapabilityPageRange(requested, 1);
+
+		return {
+			content: "",
+			pages: {
+				requested,
+				returned: selectedPageNumbers,
+				total: 1,
+			},
+		};
+	}
+
+	const maxPageNumber = pages.reduce((max, page) => Math.max(max, page.pageNumber), 0);
 	const selectedPageNumbers = parseWorkspaceCapabilityPageRange(requested, maxPageNumber);
 	const selectedPages = selectedPageNumbers.map((pageNumber) => {
 		const page = pages.find((candidate) => candidate.pageNumber === pageNumber);
