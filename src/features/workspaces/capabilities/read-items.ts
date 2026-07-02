@@ -1,72 +1,72 @@
 import {
-	getWorkspaceKernelAiPageContext,
-	resolveWorkspaceKernelAiPath,
-} from "#/features/workspaces/ai/workspace-kernel-ai-common";
+	getWorkspaceCapabilityPageContext,
+	resolveWorkspaceCapabilityPath,
+} from "#/features/workspaces/capabilities/common";
 import {
-	readWorkspaceAiProjectionPages,
-	WorkspaceKernelAiPageError,
-	type WorkspaceKernelAiReadPages,
-} from "#/features/workspaces/ai/workspace-kernel-ai-pdf-pages";
+	parseWorkspaceCapabilityPageRange,
+	readWorkspaceCapabilityProjectionPages,
+	WorkspaceCapabilityPageError,
+	type WorkspaceCapabilityReadPages,
+} from "#/features/workspaces/capabilities/read-pages";
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
 import { serializeTiptapDocumentToMarkdown } from "#/features/workspaces/documents/document-markdown";
 import { parseMarkdownPagesProjection } from "#/features/workspaces/extraction/page-markdown-projection";
 import { parseTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 import type { WorkspaceKernelClient } from "#/features/workspaces/kernel/workspace-kernel-access";
 import { resolveWorkspaceFileTypeFromItem } from "#/features/workspaces/model/workspace-file";
+import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 
-export interface ReadWorkspaceKernelAiItemsInput {
+export interface ReadWorkspaceCapabilityItemsInput {
 	pages?: string;
 	paths: string[];
-	userId: string;
-	workspaceId: string;
 }
 
-export interface WorkspaceKernelAiReadItem {
+export interface WorkspaceCapabilityReadItem {
 	content?: string;
-	pages?: WorkspaceKernelAiReadPages;
+	pages?: WorkspaceCapabilityReadPages;
 	path: string;
 	status: "failed" | "pending" | "ready" | "unsupported";
 	type: "document" | "file" | "flashcard" | "quiz";
 }
 
-export interface WorkspaceKernelAiReadItemsResult {
-	items: WorkspaceKernelAiReadItem[];
-	failed: WorkspaceKernelAiReadFailure[];
+export interface WorkspaceCapabilityReadItemsResult {
+	items: WorkspaceCapabilityReadItem[];
+	failed: WorkspaceCapabilityReadFailure[];
 }
 
-const AI_READ_MARKDOWN_LINES_PER_PAGE = 1000;
-const MAX_AI_READ_LINE_LENGTH = 2000;
-const TRUNCATED_LINE_SUFFIX = `... (line truncated to ${MAX_AI_READ_LINE_LENGTH} chars)`;
+const WORKSPACE_READ_MARKDOWN_LINES_PER_PAGE = 1000;
+const MAX_WORKSPACE_READ_LINE_LENGTH = 2000;
+const TRUNCATED_LINE_SUFFIX = `... (line truncated to ${MAX_WORKSPACE_READ_LINE_LENGTH} chars)`;
 
-type WorkspaceKernelAiReadFailureCode =
+type WorkspaceCapabilityReadFailureCode =
 	| "page_range_out_of_range"
 	| "path_is_folder"
 	| "path_not_absolute"
 	| "path_not_found";
 
-interface WorkspaceKernelAiReadFailure {
-	code: WorkspaceKernelAiReadFailureCode;
+interface WorkspaceCapabilityReadFailure {
+	code: WorkspaceCapabilityReadFailureCode;
 	index: number;
 	path: string;
 }
 
-export async function readWorkspaceKernelAiItems(
-	input: ReadWorkspaceKernelAiItemsInput,
-): Promise<WorkspaceKernelAiReadItemsResult> {
-	const context = await getWorkspaceKernelAiPageContext({
+export async function readWorkspaceCapabilityItems(
+	capabilityContext: WorkspaceCapabilityContext,
+	input: ReadWorkspaceCapabilityItemsInput,
+): Promise<WorkspaceCapabilityReadItemsResult> {
+	const workspaceContext = await getWorkspaceCapabilityPageContext({
 		access: "read",
-		userId: input.userId,
-		workspaceId: input.workspaceId,
+		context: capabilityContext,
 	});
-	const result: WorkspaceKernelAiReadItemsResult = {
+	const result: WorkspaceCapabilityReadItemsResult = {
 		items: [],
 		failed: [],
 	};
 
 	for (const [index, path] of input.paths.entries()) {
-		const resolution = resolveWorkspaceKernelAiPath({
+		const resolution = resolveWorkspaceCapabilityPath({
 			path,
-			tree: context.tree,
+			tree: workspaceContext.tree,
 		});
 
 		if (resolution.status === "invalid_path") {
@@ -107,15 +107,15 @@ export async function readWorkspaceKernelAiItems(
 
 		try {
 			result.items.push(
-				await readWorkspaceKernelAiItem({
+				await readWorkspaceCapabilityItem({
 					item: resolution.item,
-					kernel: context.kernel,
+					kernel: workspaceContext.kernel,
 					pages: input.pages,
 					path: resolution.path,
 				}),
 			);
 		} catch (error) {
-			if (error instanceof WorkspaceKernelAiPageError) {
+			if (error instanceof WorkspaceCapabilityPageError) {
 				result.failed.push({
 					code: error.code,
 					index,
@@ -131,12 +131,12 @@ export async function readWorkspaceKernelAiItems(
 	return result;
 }
 
-async function readWorkspaceKernelAiItem(input: {
+async function readWorkspaceCapabilityItem(input: {
 	item: WorkspaceItemSummary;
 	kernel: WorkspaceKernelClient;
 	pages?: string;
 	path: string;
-}): Promise<WorkspaceKernelAiReadItem> {
+}): Promise<WorkspaceCapabilityReadItem> {
 	const { item } = input;
 
 	if (item.type === "folder") {
@@ -146,7 +146,7 @@ async function readWorkspaceKernelAiItem(input: {
 	if (item.type === "document") {
 		const { content } = await input.kernel.readItem({ itemId: item.id });
 		const markdown = serializeTiptapDocumentToMarkdown(parseTiptapDocumentJson(content));
-		const page = readWorkspaceAiMarkdownPages(markdown, { pages: input.pages });
+		const page = readWorkspaceCapabilityMarkdownPages(markdown, { pages: input.pages });
 
 		return {
 			content: page.content,
@@ -158,7 +158,7 @@ async function readWorkspaceKernelAiItem(input: {
 	}
 
 	if (item.type === "file") {
-		return await readWorkspaceKernelAiFileItem(input);
+		return await readWorkspaceCapabilityFileItem(input);
 	}
 
 	return {
@@ -168,21 +168,21 @@ async function readWorkspaceKernelAiItem(input: {
 	};
 }
 
-async function readWorkspaceKernelAiFileItem(input: {
+async function readWorkspaceCapabilityFileItem(input: {
 	item: WorkspaceItemSummary;
 	kernel: WorkspaceKernelClient;
 	pages?: string;
 	path: string;
-}): Promise<WorkspaceKernelAiReadItem> {
+}): Promise<WorkspaceCapabilityReadItem> {
 	const { item } = input;
 	const fileType = resolveWorkspaceFileTypeFromItem(item);
 
 	if (!fileType) {
-		return createWorkspaceKernelAiFileStatusItem(input.path, "unsupported");
+		return createWorkspaceCapabilityFileStatusItem(input.path, "unsupported");
 	}
 
 	if (fileType.aiReadStrategy !== "markdown_extraction") {
-		return createWorkspaceKernelAiFileStatusItem(input.path, "unsupported");
+		return createWorkspaceCapabilityFileStatusItem(input.path, "unsupported");
 	}
 
 	const pagesProjection = await input.kernel.readFileProjection({
@@ -195,18 +195,18 @@ async function readWorkspaceKernelAiFileItem(input: {
 		pagesProjection?.status === "processing" ||
 		pagesProjection?.status === "not_started"
 	) {
-		return createWorkspaceKernelAiFileStatusItem(input.path, "pending");
+		return createWorkspaceCapabilityFileStatusItem(input.path, "pending");
 	}
 
 	if (!pagesProjection) {
-		return createWorkspaceKernelAiFileStatusItem(input.path, "pending");
+		return createWorkspaceCapabilityFileStatusItem(input.path, "pending");
 	}
 
 	if (pagesProjection.status !== "ready" || pagesProjection.content === null) {
-		return createWorkspaceKernelAiFileStatusItem(input.path, "failed");
+		return createWorkspaceCapabilityFileStatusItem(input.path, "failed");
 	}
 
-	const pageRead = readWorkspaceAiProjectionPages(
+	const pageRead = readWorkspaceCapabilityProjectionPages(
 		parseMarkdownPagesProjection(pagesProjection.content),
 		{
 			pages: input.pages,
@@ -222,10 +222,10 @@ async function readWorkspaceKernelAiFileItem(input: {
 	};
 }
 
-function createWorkspaceKernelAiFileStatusItem(
+function createWorkspaceCapabilityFileStatusItem(
 	path: string,
-	status: WorkspaceKernelAiReadItem["status"],
-): WorkspaceKernelAiReadItem {
+	status: WorkspaceCapabilityReadItem["status"],
+): WorkspaceCapabilityReadItem {
 	return {
 		path,
 		status,
@@ -233,23 +233,23 @@ function createWorkspaceKernelAiFileStatusItem(
 	};
 }
 
-function readWorkspaceAiMarkdownPages(
+function readWorkspaceCapabilityMarkdownPages(
 	content: string,
 	input: { pages?: string },
-): { content: string; pages: WorkspaceKernelAiReadPages } {
+): { content: string; pages: WorkspaceCapabilityReadPages } {
 	const lines = content === "" ? [] : content.split(/\r?\n/);
-	const totalPages = Math.max(1, Math.ceil(lines.length / AI_READ_MARKDOWN_LINES_PER_PAGE));
+	const totalPages = Math.max(1, Math.ceil(lines.length / WORKSPACE_READ_MARKDOWN_LINES_PER_PAGE));
 	const requested = input.pages?.trim() || "1";
-	const selectedPageNumbers = parseWorkspaceAiPageRange(requested, totalPages);
+	const selectedPageNumbers = parseWorkspaceCapabilityPageRange(requested, totalPages);
 
 	const selectedLines: string[] = [];
 
 	for (const pageNumber of selectedPageNumbers) {
-		const startIndex = (pageNumber - 1) * AI_READ_MARKDOWN_LINES_PER_PAGE;
-		const pageLines = lines.slice(startIndex, startIndex + AI_READ_MARKDOWN_LINES_PER_PAGE);
+		const startIndex = (pageNumber - 1) * WORKSPACE_READ_MARKDOWN_LINES_PER_PAGE;
+		const pageLines = lines.slice(startIndex, startIndex + WORKSPACE_READ_MARKDOWN_LINES_PER_PAGE);
 
 		for (const rawLine of pageLines) {
-			const line = truncateWorkspaceAiMarkdownLine(rawLine);
+			const line = truncateWorkspaceCapabilityMarkdownLine(rawLine);
 			selectedLines.push(line.value);
 		}
 	}
@@ -264,49 +264,13 @@ function readWorkspaceAiMarkdownPages(
 	};
 }
 
-function parseWorkspaceAiPageRange(value: string, totalPages: number) {
-	const selected = new Set<number>();
-	const parts = value.split(",");
-
-	for (const rawPart of parts) {
-		const part = rawPart.trim();
-
-		if (!part) {
-			continue;
-		}
-
-		const rangeMatch = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part);
-
-		if (!rangeMatch) {
-			throw new WorkspaceKernelAiPageError("page_range_out_of_range");
-		}
-
-		const start = Number(rangeMatch[1]);
-		const end = Number(rangeMatch[2] ?? rangeMatch[1]);
-
-		if (start < 1 || end < start || end > totalPages) {
-			throw new WorkspaceKernelAiPageError("page_range_out_of_range");
-		}
-
-		for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
-			selected.add(pageNumber);
-		}
-	}
-
-	if (selected.size === 0) {
-		throw new WorkspaceKernelAiPageError("page_range_out_of_range");
-	}
-
-	return Array.from(selected).sort((left, right) => left - right);
-}
-
-function truncateWorkspaceAiMarkdownLine(line: string) {
-	if (line.length <= MAX_AI_READ_LINE_LENGTH) {
+function truncateWorkspaceCapabilityMarkdownLine(line: string) {
+	if (line.length <= MAX_WORKSPACE_READ_LINE_LENGTH) {
 		return { truncated: false, value: line };
 	}
 
 	return {
 		truncated: true,
-		value: line.slice(0, MAX_AI_READ_LINE_LENGTH) + TRUNCATED_LINE_SUFFIX,
+		value: line.slice(0, MAX_WORKSPACE_READ_LINE_LENGTH) + TRUNCATED_LINE_SUFFIX,
 	};
 }

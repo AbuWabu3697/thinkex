@@ -24,22 +24,21 @@
 
 ThinkEx is a workspace for source-heavy study and research.
 
-Instead of uploading sources into a chat, you keep the actual materials in view: PDFs, notes, images, folders, and AI chat. Arrange them, pick what the AI should use, and keep the answer tied to the workspace where the work is happening.
+Instead of uploading sources into a chat, you keep the actual materials in view: PDFs, docs, images, folders, and AI chat. Arrange them, pick what the AI should use, and keep the answer tied to the workspace where the work is happening.
 
-- Open PDFs, documents, images, notes, and folders in a workspace.
+- Open PDFs, documents, images, and folders in a workspace.
 - Put sources side by side while you read or compare them.
 - Ask AI about the specific items you choose.
 - Share a workspace with collaborators (fellow humans).
 
 ## How It Is Different
 
-| Need                   | Common tradeoff                                          | ThinkEx                                                  |
-| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
-| Organize the work      | Sources live across chats, tabs, folders, and note apps  | One workspace holds sources, notes, folders, and AI chat |
-| Work with the source   | Uploaded files become something you query, not arrange   | PDFs, documents, images, and notes stay open and usable  |
-| Control AI context     | Long sessions rely on pasted context or hidden retrieval | You choose the workspace items the AI should use         |
-| Keep place and context | Answers get separated from the source page or document   | Source context stays next to the notes and questions     |
-| Work with other people | Personal chats and local notes are hard to share         | Collaborators use the same organized workspace           |
+| Compared with           | What they are good at                    | Where ThinkEx differs                                     |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------- |
+| ChatGPT, Claude, Gemini | Fast AI conversations                    | Chat is part of the workspace, next to sources and docs   |
+| NotebookLM              | Asking questions over uploaded sources   | Sources stay open, arrangeable, editable, and shareable   |
+| Obsidian                | Markdown files and local knowledge bases | PDFs, images, docs, AI chat, and sharing are first-class  |
+| Google Drive, Dropbox   | Storing and sharing files                | Files become source material with docs and AI beside them |
 
 ## What's In This Repo
 
@@ -47,7 +46,7 @@ This is the current ThinkEx web app. It uses React, TanStack Start, TypeScript, 
 
 Most product code lives in [`src/features/workspaces/`](src/features/workspaces/). Runtime and deployment configuration lives in [`wrangler.jsonc`](wrangler.jsonc), with database migrations in [`drizzle/`](drizzle/).
 
-For deeper implementation notes, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+For deeper implementation details, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 ## Local Development
 
@@ -75,7 +74,7 @@ Useful commands:
 - `pnpm check` runs the fast TypeScript/lint validation.
 - `pnpm verify` runs the full validation suite.
 
-Notes:
+Local caveats:
 
 - Node `>=22.18` is required.
 - Docker must be running because the app declares Cloudflare Container bindings.
