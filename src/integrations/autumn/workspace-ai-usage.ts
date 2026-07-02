@@ -1,5 +1,8 @@
 import { Autumn } from "autumn-js";
+import { eq } from "drizzle-orm";
 
+import { user } from "#/db/schema";
+import { createDbContext } from "#/db/server";
 import {
 	getWorkspaceAiChatModelById,
 	type WorkspaceAiChatModelId,
@@ -14,6 +17,23 @@ export const WORKSPACE_AI_MESSAGE_FEATURE_IDS = {
 interface AutumnRuntimeEnv {
 	AUTUMN_SECRET_KEY?: string;
 }
+
+interface AutumnCustomerFields {
+	email?: string;
+	metadata: {
+		account_type?: "anonymous" | "registered";
+		email_verified?: boolean;
+		source: "thinkex";
+		user_created_at?: string;
+	};
+	name?: string;
+}
+
+const DEFAULT_AUTUMN_CUSTOMER_FIELDS = {
+	metadata: {
+		source: "thinkex",
+	},
+} as const satisfies AutumnCustomerFields;
 
 export interface TrackWorkspaceAiMessageUsageInput {
 	env: Cloudflare.Env;
@@ -70,11 +90,11 @@ export async function trackWorkspaceAiMessageUsage(input: TrackWorkspaceAiMessag
 			workspaceId: input.workspaceId,
 		});
 
+		const customerFields = await getAutumnCustomerFields(input.userId);
+
 		await autumn.customers.getOrCreate({
 			customerId: input.userId,
-			metadata: {
-				source: "thinkex",
-			},
+			...customerFields,
 		});
 
 		const response = await autumn.track({
@@ -127,4 +147,56 @@ function getAutumnClient(env: Cloudflare.Env) {
 	return new Autumn({
 		secretKey,
 	});
+}
+
+async function getAutumnCustomerFields(userId: string): Promise<AutumnCustomerFields> {
+	let dbContext: Awaited<ReturnType<typeof createDbContext>> | undefined;
+
+	try {
+		dbContext = await createDbContext();
+
+		const [row] = await dbContext.db
+			.select({
+				createdAt: user.createdAt,
+				email: user.email,
+				emailVerified: user.emailVerified,
+				isAnonymous: user.isAnonymous,
+				name: user.name,
+			})
+			.from(user)
+			.where(eq(user.id, userId))
+			.limit(1);
+
+		if (!row) {
+			return DEFAULT_AUTUMN_CUSTOMER_FIELDS;
+		}
+
+		const isAnonymous = Boolean(row.isAnonymous);
+
+		return {
+			...(isAnonymous ? {} : getNamedCustomerFields(row)),
+			metadata: {
+				...DEFAULT_AUTUMN_CUSTOMER_FIELDS.metadata,
+				account_type: isAnonymous ? "anonymous" : "registered",
+				email_verified: row.emailVerified,
+				user_created_at: row.createdAt.toISOString(),
+			},
+		};
+	} catch (error) {
+		console.warn("[Autumn] Failed to load customer fields", {
+			error,
+			userId,
+		});
+
+		return DEFAULT_AUTUMN_CUSTOMER_FIELDS;
+	} finally {
+		await dbContext?.dispose();
+	}
+}
+
+function getNamedCustomerFields(row: { email: string; name: string }) {
+	return {
+		email: row.email.trim() || undefined,
+		name: row.name.trim() || undefined,
+	};
 }
