@@ -3,23 +3,20 @@ import type { ToolSet } from "ai";
 import { tool } from "ai";
 import { z } from "zod";
 
-const codeRunLanguageSchema = z.enum(["python", "javascript", "typescript"]);
+const COMPUTE_LANGUAGE = "python" as const;
 
 const codeRunInputSchema = z.object({
-	language: codeRunLanguageSchema.optional().describe("Language to execute. Defaults to python."),
-	code: z.string().min(1).describe("Code to execute in the private code sandbox."),
+	code: z.string().min(1).describe("Python code to execute in the private code sandbox."),
 });
 
 const codeRunInputExamples = [
 	{
 		input: {
-			language: "python",
 			code: "import math\nmath.pi * 5 ** 2",
 		},
 	},
 	{
 		input: {
-			language: "python",
 			code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3], [1, 4, 9])\nplt.show()",
 		},
 	},
@@ -37,29 +34,26 @@ export function createAIThreadCodeRunTools(input: {
 	return {
 		compute: tool({
 			description:
-				"Execute private Python, JavaScript, or TypeScript code for calculations, data analysis, tables, and charts. Uses the Sandbox default context for the selected language, so variables can persist across compute calls in the same chat thread. The chat UI renders returned image results directly; do not paste base64 image data into the final answer.",
+				"Execute private Python code for calculations, data analysis, tables, and charts. Uses the Sandbox default Python context, so variables can persist across compute calls in the same chat thread. The chat UI renders returned image results directly; do not paste base64 image data into the final answer.",
 			inputSchema: codeRunInputSchema,
 			inputExamples: codeRunInputExamples,
 			strict: true,
 			execute: async (args) => {
-				const { code, language = "python" } = args as CodeRunInput;
+				const { code } = args as CodeRunInput;
 				const sandbox = getSandbox(input.env.CODE_SANDBOX, input.sandboxId);
 				const result = await sandbox.runCode(code, {
-					language,
+					language: COMPUTE_LANGUAGE,
 				});
 
-				return serializeCodeRunResult(result, language);
+				return serializeCodeRunResult(result);
 			},
 		}),
 	};
 }
 
-function serializeCodeRunResult(
-	result: CodeRunResult,
-	language: z.output<typeof codeRunLanguageSchema>,
-) {
+function serializeCodeRunResult(result: CodeRunResult) {
 	return {
-		language,
+		language: COMPUTE_LANGUAGE,
 		execution_count: result.executionCount,
 		logs: result.logs,
 		results: result.results.map(serializeCodeRunResultItem),

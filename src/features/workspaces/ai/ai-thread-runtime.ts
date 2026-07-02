@@ -296,7 +296,7 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		"",
 		stateLine,
 		"- `tools.*` exposes actual ThinkEx workspace, web, research, and time operations.",
-		"- `tools.compute` executes private Python, JavaScript, or TypeScript for calculations, data analysis, and charts.",
+		"- `tools.compute` executes private Python for calculations, data analysis, and charts.",
 		"",
 		"## Workflow",
 		"",
