@@ -12,6 +12,7 @@ import { getAuthSessionQueryOptions, refreshAuthSession } from "#/lib/session-qu
 
 interface AuthPanelProps {
 	callbackURL: string;
+	showLegalNotice?: boolean;
 }
 
 type SignInProvider = "google" | "guest";
@@ -39,7 +40,27 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 	);
 }
 
-export default function AuthPanel({ callbackURL }: AuthPanelProps) {
+export function AuthLegalNotice() {
+	return (
+		<p className="text-center text-xs leading-5 text-muted-foreground">
+			By continuing, you agree to the{" "}
+			<Link to="/terms" className="underline underline-offset-4 hover:text-foreground">
+				Terms
+			</Link>{" "}
+			and acknowledge the{" "}
+			<Link to="/privacy" className="underline underline-offset-4 hover:text-foreground">
+				Privacy Policy
+			</Link>{" "}
+			and{" "}
+			<Link to="/cookies" className="underline underline-offset-4 hover:text-foreground">
+				Cookie Policy
+			</Link>
+			.
+		</p>
+	);
+}
+
+export default function AuthPanel({ callbackURL, showLegalNotice = true }: AuthPanelProps) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -166,9 +187,10 @@ export default function AuthPanel({ callbackURL }: AuthPanelProps) {
 				{errorMessage ? (
 					<p className="text-center text-xs text-destructive">{errorMessage}</p>
 				) : null}
-				<p className="text-center text-xs text-muted-foreground">
+				<p className="text-center text-xs leading-5 text-muted-foreground">
 					No account? We&apos;ll create one.
 				</p>
+				{showLegalNotice ? <AuthLegalNotice /> : null}
 			</div>
 		</div>
 	);

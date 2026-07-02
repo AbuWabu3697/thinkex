@@ -9,8 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as AccountDeletedRouteImport } from './routes/account-deleted'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
@@ -26,14 +29,29 @@ import { Route as ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRouteImpo
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountDeletedRoute = AccountDeletedRouteImport.update({
@@ -115,8 +133,11 @@ const ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account-deleted': typeof AccountDeletedRoute
+  '/cookies': typeof CookiesRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/home': typeof ProtectedHomeRoute
   '/settings': typeof ProtectedSettingsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -132,8 +153,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account-deleted': typeof AccountDeletedRoute
+  '/cookies': typeof CookiesRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/home': typeof ProtectedHomeRoute
   '/settings': typeof ProtectedSettingsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -151,8 +175,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteWithChildren
   '/account-deleted': typeof AccountDeletedRoute
+  '/cookies': typeof CookiesRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/_protected/home': typeof ProtectedHomeRoute
   '/_protected/settings': typeof ProtectedSettingsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -170,8 +197,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account-deleted'
+    | '/cookies'
     | '/login'
+    | '/privacy'
     | '/signup'
+    | '/terms'
     | '/home'
     | '/settings'
     | '/invite/$token'
@@ -187,8 +217,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account-deleted'
+    | '/cookies'
     | '/login'
+    | '/privacy'
     | '/signup'
+    | '/terms'
     | '/home'
     | '/settings'
     | '/invite/$token'
@@ -205,8 +238,11 @@ export interface FileRouteTypes {
     | '/'
     | '/_protected'
     | '/account-deleted'
+    | '/cookies'
     | '/login'
+    | '/privacy'
     | '/signup'
+    | '/terms'
     | '/_protected/home'
     | '/_protected/settings'
     | '/invite/$token'
@@ -224,8 +260,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProtectedRoute: typeof ProtectedRouteWithChildren
   AccountDeletedRoute: typeof AccountDeletedRoute
+  CookiesRoute: typeof CookiesRoute
   LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPosthogSurveyFeedbackRoute: typeof ApiPosthogSurveyFeedbackRoute
@@ -234,6 +273,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -241,11 +287,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account-deleted': {
@@ -391,8 +451,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProtectedRoute: ProtectedRouteWithChildren,
   AccountDeletedRoute: AccountDeletedRoute,
+  CookiesRoute: CookiesRoute,
   LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPosthogSurveyFeedbackRoute: ApiPosthogSurveyFeedbackRoute,
