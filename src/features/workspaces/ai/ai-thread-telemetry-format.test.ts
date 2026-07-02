@@ -9,7 +9,7 @@ import {
 } from "#/features/workspaces/ai/ai-thread-telemetry-format";
 
 describe("AI telemetry formatting", () => {
-	it("formats available tools in the function-tool shape used by observability vendors", () => {
+	it("formats available tools for observability payloads", () => {
 		expect(
 			buildAiTelemetryToolDefinitions({
 				compute: {
@@ -27,7 +27,7 @@ describe("AI telemetry formatting", () => {
 		]);
 	});
 
-	it("adds PostHog-compatible tool calls to generation output choices", () => {
+	it("preserves assistant text and tool calls in generation output", () => {
 		expect(
 			buildAiTelemetryOutputFromStep({
 				text: "I'll check.",
@@ -57,13 +57,11 @@ describe("AI telemetry formatting", () => {
 		]);
 	});
 
-	it("extracts tool names for PostHog's tools aggregation properties", () => {
+	it("extracts tool names and normalized token usage", () => {
 		expect(
 			getAiTelemetryToolCallNames([{ toolName: "compute" }, { name: "web_search" }, { input: {} }]),
 		).toEqual(["compute", "web_search"]);
-	});
 
-	it("normalizes richer usage for PostHog and TCC", () => {
 		const usage = extractAiTelemetryTokenUsage({
 			inputTokens: 100,
 			cachedInputTokens: 40,
