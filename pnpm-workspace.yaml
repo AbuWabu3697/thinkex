@@ -2,7 +2,7 @@ packages:
   - "."
 
 overrides:
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.1
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.2
   vitest: 4.1.9
 
 peerDependencyRules:
@@ -12,21 +12,21 @@ peerDependencyRules:
     "@babel/helper-replace-supers>@babel/core": 7.29.0
     "@babel/plugin-proposal-decorators>@babel/core": 7.29.0
     "@babel/plugin-syntax-decorators>@babel/core": 7.29.0
-    "@cloudflare/think>vite": 0.2.1
-    "@cloudflare/vite-plugin>vite": 0.2.1
-    "@rolldown/plugin-babel>vite": 0.2.1
+    "@cloudflare/think>vite": 0.2.2
+    "@cloudflare/vite-plugin>vite": 0.2.2
+    "@rolldown/plugin-babel>vite": 0.2.2
     "@tailwindcss/typography>tailwindcss": 4.3.1
-    "@tailwindcss/vite>vite": 0.2.1
-    "@tanstack/devtools-vite>vite": 0.2.1
-    "@tanstack/react-start>vite": 0.2.1
-    "@tanstack/router-plugin>vite": 0.2.1
-    "@tanstack/start-plugin-core>vite": 0.2.1
+    "@tailwindcss/vite>vite": 0.2.2
+    "@tanstack/devtools-vite>vite": 0.2.2
+    "@tanstack/react-start>vite": 0.2.2
+    "@tanstack/router-plugin>vite": 0.2.2
+    "@tanstack/start-plugin-core>vite": 0.2.2
     "@tiptap/extension-mathematics>katex": 0.17.0
-    "@vitejs/plugin-react>vite": 0.2.1
-    "@vitest/mocker>vite": 0.2.1
-    "agents>vite": 0.2.1
-    "vitefu>vite": 0.2.1
-    "vitest>vite": 0.2.1
+    "@vitejs/plugin-react>vite": 0.2.2
+    "@vitest/mocker>vite": 0.2.2
+    "agents>vite": 0.2.2
+    "vitefu>vite": 0.2.2
+    "vitest>vite": 0.2.2
     "zod-validation-error>zod": 4.4.3
 
 allowBuilds:
@@ -39,3 +39,15 @@ allowBuilds:
   node-liblzma: true
   sharp: true
   workerd: true
+
+minimumReleaseAgeExclude:
+  - "@voidzero-dev/vite-plus-core@0.2.2"
+  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.2"
+  - "@voidzero-dev/vite-plus-darwin-x64@0.2.2"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.2"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.2"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.2"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.2"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.2"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.2"
+  - vite-plus@0.2.2
