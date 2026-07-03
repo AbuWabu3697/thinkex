@@ -83,43 +83,19 @@ See [`package.json`](package.json), [`wrangler.jsonc`](wrangler.jsonc), and [`do
 Programs and platforms supporting ThinkEx with credits, tools, and infrastructure.
 
 <p align="center">
-  <a href="https://capy.ai/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/capy-wordmark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/capy-wordmark-light.svg">
-      <img alt="Capy" src="docs/assets/supporters/capy-wordmark-light.svg" height="42">
-    </picture></a>
+  <a href="https://capy.ai/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/capy-wordmark-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/capy-wordmark-light.svg"><img alt="Capy" src="docs/assets/supporters/capy-wordmark-light.svg" height="42"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.greptile.com/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/greptile-wordmark-green.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/greptile-wordmark-green.svg">
-      <img alt="Greptile" src="docs/assets/supporters/greptile-wordmark-green.svg" height="42">
-    </picture></a>
+  <a href="https://www.greptile.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/greptile-wordmark-green.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/greptile-wordmark-green.svg"><img alt="Greptile" src="docs/assets/supporters/greptile-wordmark-green.svg" height="42"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.thecontextcompany.com/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/the-context-company-wordmark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/the-context-company-wordmark-light.svg">
-      <img alt="The Context Company" src="docs/assets/supporters/the-context-company-wordmark-light.svg" height="42">
-    </picture></a>
+  <a href="https://www.thecontextcompany.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/the-context-company-wordmark-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/the-context-company-wordmark-light.svg"><img alt="The Context Company" src="docs/assets/supporters/the-context-company-wordmark-light.svg" height="42"></picture></a>
 </p>
 
 <p align="center">
-  <a href="https://posthog.com/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/posthog-wordmark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/posthog-wordmark-light.svg">
-      <img alt="PostHog" src="docs/assets/supporters/posthog-wordmark-light.svg" height="42">
-    </picture></a>
+  <a href="https://posthog.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/posthog-wordmark-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/posthog-wordmark-light.svg"><img alt="PostHog" src="docs/assets/supporters/posthog-wordmark-light.svg" height="42"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://mintlify.com/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/mintlify-wordmark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/mintlify-wordmark-light.svg">
-      <img alt="Mintlify" src="docs/assets/supporters/mintlify-wordmark-light.svg" height="42">
-    </picture></a>
+  <a href="https://mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/mintlify-wordmark-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/mintlify-wordmark-light.svg"><img alt="Mintlify" src="docs/assets/supporters/mintlify-wordmark-light.svg" height="42"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.coderabbit.ai/"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/coderabbit-wordmark-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/coderabbit-wordmark-light.svg">
-      <img alt="CodeRabbit" src="docs/assets/supporters/coderabbit-wordmark-light.svg" height="42">
-    </picture></a>
+  <a href="https://www.coderabbit.ai/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/supporters/coderabbit-wordmark-dark.svg"><source media="(prefers-color-scheme: light)" srcset="docs/assets/supporters/coderabbit-wordmark-light.svg"><img alt="CodeRabbit" src="docs/assets/supporters/coderabbit-wordmark-light.svg" height="42"></picture></a>
 </p>
 
 ## Contributing
