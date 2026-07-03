@@ -4,8 +4,8 @@
 	"description": "A workspace for source-heavy study, research, and creation.",
 	"theme": "mint",
 	"logo": {
-		"light": "/assets/thinkex-filled-ascii-wordmark-light.svg",
-		"dark": "/assets/thinkex-filled-ascii-wordmark-dark.svg",
+		"light": "/assets/thinkex-logo-wordmark-light.svg",
+		"dark": "/assets/thinkex-logo-wordmark-dark.svg",
 		"href": "https://thinkex.app"
 	},
 	"favicon": "/assets/favicon.svg",
@@ -18,19 +18,10 @@
 		"library": "lucide"
 	},
 	"navbar": {
-		"links": [
-			{
-				"label": "App",
-				"href": "https://thinkex.app"
-			},
-			{
-				"type": "discord",
-				"href": "https://discord.gg/dtPnzkqCcG"
-			}
-		],
 		"primary": {
-			"type": "github",
-			"href": "https://github.com/ThinkEx-OSS/thinkex"
+			"type": "button",
+			"label": "Open app",
+			"href": "https://thinkex.app"
 		}
 	},
 	"footer": {
