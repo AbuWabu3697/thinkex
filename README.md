@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/ThinkEx-OSS/thinkex/stargazers"><img alt="GitHub stars" src="https://shieldcn.dev/github/stars/ThinkEx-OSS/thinkex.svg?variant=secondary&size=sm&theme=amber"></a>
-  <a href="https://docs.thinkex.app"><img alt="Docs" src="https://shieldcn.dev/badge/Docs-read-5C8BD6.svg?variant=secondary&size=sm"></a>
+  <a href="https://docs.thinkex.app"><img alt="Docs" src="https://shieldcn.dev/badge/Docs-18E299.svg?variant=secondary&size=sm&logo=book-open"></a>
   <a href="https://x.com/trythinkex"><img alt="X" src="https://shieldcn.dev/badge/X-follow-000000.svg?variant=secondary&size=sm&logo=x"></a>
   <a href="https://discord.gg/dtPnzkqCcG"><img alt="Discord" src="https://shieldcn.dev/badge/Discord-join-5865f2.svg?variant=secondary&size=sm&logo=discord"></a>
 </p>
