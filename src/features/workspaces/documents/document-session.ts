@@ -14,6 +14,7 @@ import {
 import {
 	applyDocumentMarkdownEdits,
 	type DocumentMarkdownEdit,
+	type DocumentMarkdownEditFailureCode,
 	type DocumentMarkdownEditResultStatus,
 } from "#/features/workspaces/documents/document-markdown-edits";
 import {
@@ -46,7 +47,10 @@ export interface DocumentSessionApplyMarkdownEditsInput {
 export interface DocumentSessionApplyMarkdownEditsResult {
 	applied: number;
 	failed: number;
-	failures: { code: string; index: number }[];
+	failures: {
+		code: DocumentMarkdownEditFailureCode | "invalid_document_projection";
+		index: number;
+	}[];
 	status: DocumentMarkdownEditResultStatus;
 	warnings: string[];
 }

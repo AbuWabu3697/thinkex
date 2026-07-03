@@ -1,32 +1,24 @@
+import {
+	assertCapabilityScope,
+	type CapabilityActor,
+	createCapabilityActor,
+	type ScopedCapabilityContext,
+} from "#/features/workspaces/capabilities/capability-context";
+
 export const accountCapabilityScopes = ["workspaces:read"] as const;
 
 export type AccountCapabilityScope = (typeof accountCapabilityScopes)[number];
 
-export interface AccountCapabilityActor {
-	scopes: ReadonlySet<AccountCapabilityScope>;
-	userId: string;
-}
+export type AccountCapabilityActor = CapabilityActor<AccountCapabilityScope>;
 
-export interface AccountCapabilityContext {
-	actor: AccountCapabilityActor;
-}
-
-export class AccountCapabilityScopeError extends Error {
-	constructor(scope: AccountCapabilityScope) {
-		super(`Missing account capability scope: ${scope}`);
-		this.name = "AccountCapabilityScopeError";
-	}
-}
+export type AccountCapabilityContext = ScopedCapabilityContext<AccountCapabilityScope>;
 
 export function createAccountCapabilityContext(input: {
 	scopes: readonly AccountCapabilityScope[];
 	userId: string;
 }): AccountCapabilityContext {
 	return {
-		actor: {
-			scopes: new Set(input.scopes),
-			userId: input.userId,
-		},
+		actor: createCapabilityActor(input),
 	};
 }
 
@@ -34,7 +26,5 @@ export function assertAccountCapabilityScope(
 	context: AccountCapabilityContext,
 	scope: AccountCapabilityScope,
 ) {
-	if (!context.actor.scopes.has(scope)) {
-		throw new AccountCapabilityScopeError(scope);
-	}
+	assertCapabilityScope(context, "account", scope);
 }

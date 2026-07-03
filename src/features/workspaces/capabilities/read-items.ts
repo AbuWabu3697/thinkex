@@ -38,11 +38,14 @@ const WORKSPACE_READ_MARKDOWN_LINES_PER_PAGE = 1000;
 const MAX_WORKSPACE_READ_LINE_LENGTH = 2000;
 const TRUNCATED_LINE_SUFFIX = `... (line truncated to ${MAX_WORKSPACE_READ_LINE_LENGTH} chars)`;
 
-type WorkspaceCapabilityReadFailureCode =
-	| "page_range_out_of_range"
-	| "path_is_folder"
-	| "path_not_absolute"
-	| "path_not_found";
+export const readWorkspaceCapabilityFailureCodes = [
+	"page_range_out_of_range",
+	"path_is_folder",
+	"path_not_absolute",
+	"path_not_found",
+] as const;
+
+type WorkspaceCapabilityReadFailureCode = (typeof readWorkspaceCapabilityFailureCodes)[number];
 
 interface WorkspaceCapabilityReadFailure {
 	code: WorkspaceCapabilityReadFailureCode;

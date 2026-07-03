@@ -15,8 +15,15 @@ export interface RenameWorkspaceCapabilityItemInput {
 	path: string;
 }
 
+export const renameWorkspaceCapabilityFailureCodes = [
+	"cannot_rename_root",
+	"path_already_exists",
+	"path_not_absolute",
+	"path_not_found",
+] as const;
+
 export interface RenameWorkspaceCapabilityFailure {
-	code: "cannot_rename_root" | "path_already_exists" | "path_not_absolute" | "path_not_found";
+	code: (typeof renameWorkspaceCapabilityFailureCodes)[number];
 	path: string;
 }
 

@@ -1,22 +1,18 @@
+import {
+	assertCapabilityScope,
+	type CapabilityActor,
+	createCapabilityActor,
+	type ScopedCapabilityContext,
+} from "#/features/workspaces/capabilities/capability-context";
+
 export const workspaceCapabilityScopes = ["workspace:read", "workspace:write"] as const;
 
 export type WorkspaceCapabilityScope = (typeof workspaceCapabilityScopes)[number];
 
-export interface WorkspaceCapabilityActor {
-	scopes: ReadonlySet<WorkspaceCapabilityScope>;
-	userId: string;
-}
+export type WorkspaceCapabilityActor = CapabilityActor<WorkspaceCapabilityScope>;
 
-export interface WorkspaceCapabilityContext {
-	actor: WorkspaceCapabilityActor;
+export interface WorkspaceCapabilityContext extends ScopedCapabilityContext<WorkspaceCapabilityScope> {
 	workspaceId: string;
-}
-
-export class WorkspaceCapabilityScopeError extends Error {
-	constructor(scope: WorkspaceCapabilityScope) {
-		super(`Missing workspace capability scope: ${scope}`);
-		this.name = "WorkspaceCapabilityScopeError";
-	}
 }
 
 export function createWorkspaceCapabilityContext(input: {
@@ -25,10 +21,7 @@ export function createWorkspaceCapabilityContext(input: {
 	workspaceId: string;
 }): WorkspaceCapabilityContext {
 	return {
-		actor: {
-			scopes: new Set(input.scopes),
-			userId: input.userId,
-		},
+		actor: createCapabilityActor(input),
 		workspaceId: input.workspaceId,
 	};
 }
@@ -37,7 +30,5 @@ export function assertWorkspaceCapabilityScope(
 	context: WorkspaceCapabilityContext,
 	scope: WorkspaceCapabilityScope,
 ) {
-	if (!context.actor.scopes.has(scope)) {
-		throw new WorkspaceCapabilityScopeError(scope);
-	}
+	assertCapabilityScope(context, "workspace", scope);
 }

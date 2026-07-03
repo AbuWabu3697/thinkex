@@ -27,6 +27,18 @@ export interface CreateWorkspaceCapabilityItemsInput {
 	items: CreateWorkspaceCapabilityItemInput[];
 }
 
+export const createWorkspaceCapabilityFailureCodes = [
+	"cannot_create_root",
+	"invalid_initial_content",
+	"path_already_exists",
+	"path_not_absolute",
+	"path_not_canonical",
+	"path_not_folder",
+	"path_not_found",
+] as const;
+
+type CreateWorkspaceCapabilityFailureCode = (typeof createWorkspaceCapabilityFailureCodes)[number];
+
 export interface CreateWorkspaceCapabilityFailure {
 	code: CreateWorkspaceCapabilityFailureCode;
 	index: number;
@@ -56,15 +68,6 @@ type WorkspaceCapabilityCreatePathResolution =
 			path: string;
 			status: "ready";
 	  };
-
-type CreateWorkspaceCapabilityFailureCode =
-	| "cannot_create_root"
-	| "invalid_initial_content"
-	| "path_already_exists"
-	| "path_not_absolute"
-	| "path_not_canonical"
-	| "path_not_folder"
-	| "path_not_found";
 
 export async function createWorkspaceCapabilityItems(
 	capabilityContext: WorkspaceCapabilityContext,

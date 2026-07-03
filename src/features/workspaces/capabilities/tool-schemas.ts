@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import { createWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/create-items";
+import { deleteWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/delete-items";
+import { editWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/edit-item";
+import { moveWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/move-items";
+import { readWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/read-items";
+import { renameWorkspaceCapabilityFailureCodes } from "#/features/workspaces/capabilities/rename-item";
 import { workspaceItemTypeSchema, workspaceSummarySchema } from "#/features/workspaces/contracts";
 import { documentMarkdownEditSchema } from "#/features/workspaces/documents/document-markdown-edits";
 
@@ -13,7 +19,7 @@ function createInputExamples<T>(...inputs: T[]) {
 	return inputs.map((input) => ({ input }));
 }
 
-function createFailureSchema<const TCodes extends [string, ...string[]]>(
+function createFailureSchema<const TCodes extends readonly [string, ...string[]]>(
 	codes: TCodes,
 	options?: { includeIndex?: boolean },
 ) {
@@ -245,12 +251,7 @@ export const workspaceReadItemsOutputSchema = createWorkspaceItemsResultSchema({
 		content: z.string().optional(),
 		pages: workspaceReadPagesSchema.optional(),
 	}),
-	failureSchema: createFailureSchema([
-		"page_range_out_of_range",
-		"path_is_folder",
-		"path_not_absolute",
-		"path_not_found",
-	]),
+	failureSchema: createFailureSchema(readWorkspaceCapabilityFailureCodes),
 });
 
 export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema({
@@ -262,38 +263,19 @@ export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema
 			.optional()
 			.describe("Content projection warnings for created documents."),
 	}),
-	failureSchema: createFailureSchema([
-		"cannot_create_root",
-		"invalid_initial_content",
-		"path_already_exists",
-		"path_not_absolute",
-		"path_not_canonical",
-		"path_not_folder",
-		"path_not_found",
-	]),
+	failureSchema: createFailureSchema(createWorkspaceCapabilityFailureCodes),
 });
 
 export const workspaceDeleteItemsOutputSchema = createWorkspaceItemsResultSchema({
 	itemSchema: workspacePathItemSchema,
-	failureSchema: createFailureSchema(["cannot_delete_root", "path_not_absolute", "path_not_found"]),
+	failureSchema: createFailureSchema(deleteWorkspaceCapabilityFailureCodes),
 });
 
 export const workspaceMoveItemsOutputSchema = createWorkspaceItemsResultSchema({
 	itemSchema: workspacePreviousPathItemSchema,
-	failureSchema: createFailureSchema(
-		[
-			"already_in_destination",
-			"cannot_move_into_descendant",
-			"cannot_move_root",
-			"destination_path_not_absolute",
-			"destination_path_not_folder",
-			"destination_path_not_found",
-			"path_already_exists",
-			"path_not_absolute",
-			"path_not_found",
-		],
-		{ includeIndex: false },
-	).extend({
+	failureSchema: createFailureSchema(moveWorkspaceCapabilityFailureCodes, {
+		includeIndex: false,
+	}).extend({
 		index: workspaceIndexSchema.optional(),
 	}),
 });
@@ -301,10 +283,7 @@ export const workspaceMoveItemsOutputSchema = createWorkspaceItemsResultSchema({
 export const workspaceRenameItemOutputSchema = z.object({
 	item: workspacePreviousPathItemSchema.optional(),
 	failed: z.array(
-		createFailureSchema(
-			["cannot_rename_root", "path_already_exists", "path_not_absolute", "path_not_found"],
-			{ includeIndex: false },
-		),
+		createFailureSchema(renameWorkspaceCapabilityFailureCodes, { includeIndex: false }),
 	),
 });
 
@@ -313,7 +292,7 @@ export const workspaceEditItemOutputSchema = z.object({
 	applied: z.number().int().min(0),
 	failed: z.array(
 		z.object({
-			code: z.string(),
+			code: z.enum(editWorkspaceCapabilityFailureCodes),
 			index: workspaceIndexSchema,
 		}),
 	),

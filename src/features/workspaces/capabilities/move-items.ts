@@ -17,6 +17,18 @@ export interface MoveWorkspaceCapabilityItemsInput {
 	paths: string[];
 }
 
+export const moveWorkspaceCapabilityFailureCodes = [
+	"already_in_destination",
+	"cannot_move_into_descendant",
+	"cannot_move_root",
+	"destination_path_not_absolute",
+	"destination_path_not_folder",
+	"destination_path_not_found",
+	"path_already_exists",
+	"path_not_absolute",
+	"path_not_found",
+] as const;
+
 interface MoveWorkspaceCapabilityDestinationFailure {
 	code:
 		| "destination_path_not_absolute"
@@ -26,16 +38,7 @@ interface MoveWorkspaceCapabilityDestinationFailure {
 }
 
 export interface MoveWorkspaceCapabilityFailure {
-	code:
-		| "already_in_destination"
-		| "cannot_move_into_descendant"
-		| "cannot_move_root"
-		| "destination_path_not_absolute"
-		| "destination_path_not_folder"
-		| "destination_path_not_found"
-		| "path_already_exists"
-		| "path_not_absolute"
-		| "path_not_found";
+	code: (typeof moveWorkspaceCapabilityFailureCodes)[number];
 	index?: number;
 	path: string;
 }

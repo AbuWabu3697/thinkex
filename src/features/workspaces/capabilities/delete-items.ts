@@ -9,8 +9,14 @@ export interface DeleteWorkspaceCapabilityItemsInput {
 	paths: string[];
 }
 
+export const deleteWorkspaceCapabilityFailureCodes = [
+	"cannot_delete_root",
+	"path_not_absolute",
+	"path_not_found",
+] as const;
+
 export interface DeleteWorkspaceCapabilityFailure {
-	code: "cannot_delete_root" | "path_not_absolute" | "path_not_found";
+	code: (typeof deleteWorkspaceCapabilityFailureCodes)[number];
 	index: number;
 	path: string;
 }

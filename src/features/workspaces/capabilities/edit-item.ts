@@ -4,21 +4,31 @@ import {
 	resolveWorkspaceCapabilityExistingItemPath,
 } from "#/features/workspaces/capabilities/common";
 import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
-import type { DocumentSessionApplyMarkdownEditsResult } from "#/features/workspaces/documents/document-session";
-import type { DocumentMarkdownEdit } from "#/features/workspaces/documents/document-markdown-edits";
+import {
+	type DocumentMarkdownEdit,
+	documentMarkdownEditFailureCodes,
+} from "#/features/workspaces/documents/document-markdown-edits";
 
-type EditWorkspaceCapabilityFailureCode =
-	| "cannot_edit_root"
-	| "path_not_absolute"
-	| "path_not_found"
-	| "unsupported_item_type";
+export const editWorkspaceCapabilityFailureCodes = [
+	"cannot_edit_root",
+	"path_not_absolute",
+	"path_not_found",
+	"unsupported_item_type",
+	...documentMarkdownEditFailureCodes,
+	"invalid_document_projection",
+] as const;
+
+type EditWorkspaceCapabilityFailureCode = (typeof editWorkspaceCapabilityFailureCodes)[number];
 
 export interface EditWorkspaceCapabilityItemInput {
 	edits: DocumentMarkdownEdit[];
 	path: string;
 }
 
-type EditWorkspaceCapabilityFailure = DocumentSessionApplyMarkdownEditsResult["failures"][number];
+interface EditWorkspaceCapabilityFailure {
+	code: EditWorkspaceCapabilityFailureCode;
+	index: number;
+}
 
 export interface EditWorkspaceCapabilityItemResult {
 	applied: number;

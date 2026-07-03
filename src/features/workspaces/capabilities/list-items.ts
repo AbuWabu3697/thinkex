@@ -1,7 +1,7 @@
 import { getWorkspaceCapabilityPageContext } from "#/features/workspaces/capabilities/common";
 import type { WorkspaceCapabilityContext } from "#/features/workspaces/capabilities/workspace-capability-context";
 import {
-	listWorkspaceKernelPageItems,
+	listWorkspaceKernelTreeItems,
 	type ListWorkspaceKernelItemsResult,
 } from "#/features/workspaces/kernel/workspace-kernel-list";
 
@@ -20,8 +20,8 @@ export async function listWorkspaceCapabilityItems(
 		context: capabilityContext,
 	});
 
-	return listWorkspaceKernelPageItems({
-		items: workspaceContext.pageItems,
+	return listWorkspaceKernelTreeItems({
+		tree: workspaceContext.tree,
 		path: input.path,
 		recursive: input.recursive,
 		limit: input.limit,

@@ -4,6 +4,7 @@ import {
 	joinWorkspacePathSegment,
 	resolveWorkspaceKernelCwd,
 	WorkspaceKernelPathError,
+	type WorkspaceKernelTree,
 	type WorkspaceKernelPathErrorCode,
 } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
@@ -35,16 +36,29 @@ export function listWorkspaceKernelPageItems(input: {
 	recursive?: boolean;
 	limit?: number;
 }): ListWorkspaceKernelItemsResult {
+	return listWorkspaceKernelTreeItems({
+		tree: buildWorkspaceKernelTree(input.items),
+		path: input.path,
+		recursive: input.recursive,
+		limit: input.limit,
+	});
+}
+
+export function listWorkspaceKernelTreeItems(input: {
+	tree: WorkspaceKernelTree;
+	path?: string;
+	recursive?: boolean;
+	limit?: number;
+}): ListWorkspaceKernelItemsResult {
 	try {
-		const tree = buildWorkspaceKernelTree(input.items);
-		const cwd = resolveWorkspaceKernelCwd(input.path ?? "/", tree);
+		const cwd = resolveWorkspaceKernelCwd(input.path ?? "/", input.tree);
 		const boundedLimit = clampWorkspaceListLimit(input.limit);
 		const listing = collectWorkspaceKernelListItems({
 			parentId: cwd.parentId,
 			basePath: cwd.path,
 			recursive: input.recursive ?? false,
 			limit: boundedLimit,
-			childrenByParentId: tree.childrenByParentId,
+			childrenByParentId: input.tree.childrenByParentId,
 		});
 
 		return {

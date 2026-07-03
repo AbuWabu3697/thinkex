@@ -19,6 +19,7 @@ import { createAIThreadResearchTools } from "#/features/workspaces/ai/research-t
 import { createAIThreadTimeTools } from "#/features/workspaces/ai/time-tools";
 import { createAIThreadWebTools } from "#/features/workspaces/ai/web-tools";
 import { createAIThreadWorkspaceTools } from "#/features/workspaces/ai/workspace-tools";
+import { workspaceCapabilityToolDefinitions } from "#/features/workspaces/capabilities/workspace-capability-tools";
 import { formatWorkspaceAiContextForPrompt } from "#/features/workspaces/model/workspace-ai-context";
 
 const thinkPromptSectionDivider = "══════════════════════════════════════════════";
@@ -164,41 +165,11 @@ const AI_THREAD_TIME_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
 ];
 
 const AI_THREAD_WORKSPACE_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "workspace_list_items",
+	...workspaceCapabilityToolDefinitions.map(({ name, mutating }) => ({
+		name,
 		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "workspace_read_items",
-		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "workspace_create_items",
-		codemode: true,
-		mutating: true,
-	},
-	{
-		name: "workspace_move_items",
-		codemode: true,
-		mutating: true,
-	},
-	{
-		name: "workspace_delete_items",
-		codemode: true,
-		mutating: true,
-	},
-	{
-		name: "workspace_rename_item",
-		codemode: true,
-		mutating: true,
-	},
-	{
-		name: "workspace_edit_item",
-		codemode: true,
-		mutating: true,
-	},
+		mutating,
+	})),
 ];
 
 function createAIThreadToolCatalog(input: {

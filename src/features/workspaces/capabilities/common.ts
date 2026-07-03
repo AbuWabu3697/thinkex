@@ -24,7 +24,6 @@ export type WorkspaceCapabilityAccessMode = "read" | "mutate";
 
 export interface WorkspaceCapabilityPageContext {
 	kernel: WorkspaceKernelClient;
-	pageItems: WorkspaceItemSummary[];
 	tree: WorkspaceKernelTree;
 }
 
@@ -86,7 +85,6 @@ export async function getWorkspaceCapabilityPageContext(input: {
 
 		return {
 			kernel,
-			pageItems: page.items,
 			tree: buildWorkspaceKernelTree(page.items),
 		};
 	} finally {

@@ -46,13 +46,16 @@ export interface DocumentMarkdownEditResult {
 	status: Exclude<DocumentMarkdownEditResultStatus, "rejected">;
 }
 
+export const documentMarkdownEditFailureCodes = [
+	"empty_old_text",
+	"identical_text",
+	"multiple_matches",
+	"old_text_not_found",
+] as const;
+
 type Replacer = (content: string, find: string) => Generator<string>;
 
-type DocumentMarkdownEditFailureCode =
-	| "empty_old_text"
-	| "identical_text"
-	| "multiple_matches"
-	| "old_text_not_found";
+export type DocumentMarkdownEditFailureCode = (typeof documentMarkdownEditFailureCodes)[number];
 
 export function applyDocumentMarkdownEdits(
 	content: string,
