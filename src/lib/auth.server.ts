@@ -13,6 +13,7 @@ import {
 import { sendDeleteAccountVerificationEmail } from "#/features/account/account-deletion-email";
 import * as schema from "#/db/schema";
 import { createDbContext } from "#/db/server";
+import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 import { getAuthBaseURL, getTrustedAppOrigins } from "#/lib/app-origin";
 
 const isProduction = import.meta.env.PROD;
@@ -204,6 +205,28 @@ function createAuth(database: Db, env: AuthRuntimeEnv) {
 			}),
 			tanstackStartCookies(),
 		],
+		databaseHooks: {
+			user: {
+				create: {
+					// Fires once when a brand-new user row is inserted (first-ever
+					// signup), not on repeat logins. Guest sign-in is a dev-only
+					// convenience, so we skip anonymous users.
+					after: async (createdUser) => {
+						const isAnonymous = "isAnonymous" in createdUser && Boolean(createdUser.isAnonymous);
+
+						if (isAnonymous) {
+							return;
+						}
+
+						capturePostHogServerEvent({
+							distinctId: createdUser.id,
+							event: "user signed up",
+							properties: { method: "google" },
+						});
+					},
+				},
+			},
+		},
 		user: {
 			deleteUser: {
 				enabled: true,
