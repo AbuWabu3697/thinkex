@@ -49,6 +49,8 @@ jobs:
         run: vp run check && vp run test
 
       - name: Build staging bundle
+        env:
+          CLOUDFLARE_VITE_FORCE_LOCAL: "true"
         run: vp run build:staging
 
       - name: Apply staging migrations

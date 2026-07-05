@@ -59,6 +59,8 @@ jobs:
         run: vp run check && vp run test
 
       - name: Build production bundle
+        env:
+          CLOUDFLARE_VITE_FORCE_LOCAL: "true"
         run: vp run build:production
 
       - name: Apply production migrations
