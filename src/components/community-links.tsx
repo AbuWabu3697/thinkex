@@ -58,11 +58,6 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
 
 export const communityLinks: CommunityLink[] = [
 	{
-		href: "https://github.com/thinkex-oss/thinkex",
-		label: "GitHub",
-		icon: GitHubIcon,
-	},
-	{
 		href: "https://discord.gg/dtPnzkqCcG",
 		label: "Discord",
 		icon: DiscordIcon,
@@ -71,5 +66,10 @@ export const communityLinks: CommunityLink[] = [
 		href: "https://x.com/trythinkex",
 		label: "Twitter / X",
 		icon: XIcon,
+	},
+	{
+		href: "https://github.com/thinkex-oss/thinkex",
+		label: "GitHub",
+		icon: GitHubIcon,
 	},
 ];
