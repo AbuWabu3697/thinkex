@@ -11,9 +11,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Metric-matched fallback for Geist. Generated from the Geist latin woff2 with
+ * @capsizecss/core (see scripts/gen-geist-fallback.mjs). Reshapes Arial to
+ * occupy the same space as Geist so the font swap causes no layout shift.
+ */
+@font-face {
+	font-family: "Geist Variable Fallback";
+	src: local("Arial"), local("ArialMT");
+	ascent-override: 95.9379%;
+	descent-override: 28.1609%;
+	line-gap-override: 0%;
+	size-adjust: 104.7553%;
+}
+
 @theme inline {
 	--font-heading: var(--font-sans);
-	--font-sans: "Geist Variable", sans-serif;
+	--font-sans: "Geist Variable", "Geist Variable Fallback", sans-serif;
 	--color-chart-5: var(--chart-5);
 	--color-chart-6: var(--chart-6);
 	--color-chart-4: var(--chart-4);
