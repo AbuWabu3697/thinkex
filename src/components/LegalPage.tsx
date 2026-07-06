@@ -1,9 +1,5 @@
-import { Link } from "@tanstack/react-router";
-
-import { ModeToggle } from "#/components/mode-toggle";
+import { PublicHeader } from "#/components/PublicHeader";
 import SiteFooter from "#/components/SiteFooter";
-import ThinkExLogo from "#/components/ThinkExLogo";
-import { Button } from "#/components/ui/button";
 
 export const LEGAL_LAST_UPDATED = "July 2, 2026";
 
@@ -25,23 +21,7 @@ export function LegalPage({ document }: { document: LegalDocument }) {
 			data-app-shell
 			className="flex min-h-screen flex-col bg-background text-foreground dark:bg-black"
 		>
-			<header className="border-b border-border bg-background dark:bg-black">
-				<div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-6">
-					<Link
-						to="/"
-						className="flex items-center gap-3 rounded-md text-foreground no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<ThinkExLogo size={28} />
-						<span className="text-xl font-semibold tracking-tight sm:text-2xl">ThinkEx</span>
-					</Link>
-					<nav className="ml-auto flex items-center gap-2" aria-label="Legal page controls">
-						<ModeToggle className="size-9" />
-						<Button nativeButton={false} render={<Link to="/login" />} variant="outline">
-							Sign in
-						</Button>
-					</nav>
-				</div>
-			</header>
+			<PublicHeader />
 
 			<main className="flex-1">
 				<article className="mx-auto w-full max-w-3xl px-6 py-12 sm:py-16">

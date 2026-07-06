@@ -1,85 +1,146 @@
 import { Link } from "@tanstack/react-router";
-import { Check, Mail } from "lucide-react";
 
-import { communityLinks, CONTACT_EMAIL } from "#/components/community-links";
+import { CONTACT_EMAIL, communityLinks } from "#/components/community-links";
+import { FEATURES_SECTION_ID, PRICING_SECTION_ID } from "#/components/landing/landing-sections";
+import { PublicSectionLink } from "#/components/PublicSectionLink";
 import ThinkExLogo from "#/components/ThinkExLogo";
-import { AnimatedIconSwap } from "#/components/ui/animated-icon-swap";
 import { useCopyToClipboard } from "#/hooks/use-copy-to-clipboard";
 
-function FooterEmailLink() {
+const externalLinkClassName =
+	"text-base text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline";
+
+const footerColumns = [
+	{
+		title: "Product",
+		links: [
+			{ label: "Features", sectionId: FEATURES_SECTION_ID },
+			{ label: "Pricing", sectionId: PRICING_SECTION_ID },
+			{ label: "Workspace", to: "/login" },
+		],
+	},
+	{
+		title: "Resources",
+		links: [
+			{ label: "Blog", to: "/blog" },
+			{ label: "Docs", href: "https://docs.thinkex.app" },
+			{ label: "GitHub", href: "https://github.com/thinkex-oss/thinkex" },
+		],
+	},
+	{
+		title: "Company",
+		links: [
+			{ label: "Careers", href: `mailto:${CONTACT_EMAIL}?subject=Careers%20at%20ThinkEx` },
+			{ label: "Email", action: "copyEmail" },
+			{ label: "Community", href: "https://discord.gg/dtPnzkqCcG" },
+		],
+	},
+	{
+		title: "Legal",
+		links: [
+			{ label: "Terms of Service", to: "/terms" },
+			{ label: "Privacy Policy", to: "/privacy" },
+			{ label: "Cookie Policy", to: "/cookies" },
+		],
+	},
+] as const;
+
+export default function SiteFooter() {
 	const { copied, copy } = useCopyToClipboard({ resetTimeoutMs: 2000 });
 
 	return (
-		<button
-			type="button"
-			onClick={() => void copy(CONTACT_EMAIL)}
-			className="group flex items-center gap-3 transition-colors hover:text-foreground"
-			aria-label={copied ? "Email copied" : `Copy ${CONTACT_EMAIL}`}
-		>
-			<AnimatedIconSwap swapKey={copied} className="size-5">
-				{copied ? <Check className="size-5" /> : <Mail className="size-5" />}
-			</AnimatedIconSwap>
-			<span className="inline-block min-w-[3.75rem] text-left underline-offset-4 group-hover:underline">
-				{copied ? "Copied" : "Email"}
-			</span>
-		</button>
-	);
-}
+		<footer className="bg-background text-foreground dark:bg-black">
+			<div className="mx-auto w-full max-w-7xl px-6 py-14 sm:py-16">
+				<div className="grid gap-10 lg:grid-cols-[minmax(12rem,1.1fr)_minmax(0,3fr)] lg:gap-16">
+					<div>
+						<Link
+							to="/"
+							aria-label="ThinkEx home"
+							className="inline-flex rounded-md text-foreground no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						>
+							<ThinkExLogo size={32} />
+						</Link>
+					</div>
 
-export default function SiteFooter() {
-	return (
-		<footer className="bg-background text-foreground">
-			<div className="mx-auto w-full max-w-7xl px-6 py-16">
-				<div className="flex flex-col items-center">
-					<ThinkExLogo size={32} />
+					<nav
+						aria-label="Footer"
+						className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-4 lg:gap-x-12"
+					>
+						{footerColumns.map((column) => (
+							<div key={column.title}>
+								<h2 className="text-sm font-medium text-muted-foreground">{column.title}</h2>
+								<ul className="mt-4 grid gap-3.5">
+									{column.links.map((link) => (
+										<li key={link.label}>
+											{"action" in link ? (
+												<button
+													type="button"
+													onClick={() => void copy(CONTACT_EMAIL)}
+													className={`${externalLinkClassName} text-left`}
+													aria-label={copied ? "Email copied" : `Copy ${CONTACT_EMAIL}`}
+												>
+													{copied ? "Copied" : link.label}
+												</button>
+											) : "href" in link ? (
+												<a
+													href={link.href}
+													target={link.href.startsWith("http") ? "_blank" : undefined}
+													rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+													className={externalLinkClassName}
+												>
+													{link.label}
+												</a>
+											) : (
+												<FooterInternalLink link={link} />
+											)}
+										</li>
+									))}
+								</ul>
+							</div>
+						))}
+					</nav>
+				</div>
 
-					<div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-5 text-base text-muted-foreground">
-						{communityLinks.map(({ href, label, icon: Icon }) => (
+				<div className="mt-12 flex flex-col gap-5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+					<p>© 2026 ThinkEx Inc. All rights reserved.</p>
+					<div className="flex flex-wrap items-center gap-4">
+						{communityLinks.map(({ href, icon: Icon, label }) => (
 							<a
 								key={href}
 								href={href}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="group flex items-center gap-3 transition-colors hover:text-foreground"
+								aria-label={label}
+								className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 							>
-								<Icon className={label === "Twitter / X" ? "size-[18px]" : "size-5"} />
-								<span className="underline-offset-4 group-hover:underline">{label}</span>
+								<Icon className={label === "Twitter / X" ? "size-4" : "size-5"} />
 							</a>
 						))}
-						<FooterEmailLink />
-					</div>
-
-					<div className="mt-14 flex flex-col items-center gap-2 text-center text-xs text-muted-foreground/55 sm:mt-16 sm:text-sm">
-						<div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:gap-x-5">
-							<Link
-								to="/blog"
-								className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
-							>
-								Blog
-							</Link>
-							<Link
-								to="/terms"
-								className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
-							>
-								Terms of Service
-							</Link>
-							<Link
-								to="/privacy"
-								className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
-							>
-								Privacy Policy
-							</Link>
-							<Link
-								to="/cookies"
-								className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
-							>
-								Cookie Policy
-							</Link>
-						</div>
-						<p>© 2026 ThinkEx Inc. All rights reserved.</p>
 					</div>
 				</div>
 			</div>
 		</footer>
+	);
+}
+
+function FooterInternalLink({
+	link,
+}: {
+	link: Extract<
+		(typeof footerColumns)[number]["links"][number],
+		{ sectionId: string } | { to: string }
+	>;
+}) {
+	if ("sectionId" in link) {
+		return (
+			<PublicSectionLink sectionId={link.sectionId} className={externalLinkClassName}>
+				{link.label}
+			</PublicSectionLink>
+		);
+	}
+
+	return (
+		<Link to={link.to} className={externalLinkClassName}>
+			{link.label}
+		</Link>
 	);
 }

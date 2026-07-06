@@ -1,5 +1,8 @@
 import { Link } from "@tanstack/react-router";
 
+import { FEATURES_SECTION_ID, PRICING_SECTION_ID } from "#/components/landing/landing-sections";
+import { PublicSectionLink } from "#/components/PublicSectionLink";
+
 type PublicNavLinksProps = {
 	className?: string;
 	linkClassName?: string;
@@ -9,10 +12,9 @@ const linkClassName =
 	"text-sm font-normal text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline";
 
 const navLinks = [
-	{ label: "Features" },
-	{ label: "Pricing" },
+	{ label: "Features", sectionId: FEATURES_SECTION_ID },
+	{ label: "Pricing", sectionId: PRICING_SECTION_ID },
 	{ label: "Blog", to: "/blog" },
-	{ label: "Careers" },
 ] as const;
 
 export function PublicNavLinks({
@@ -29,9 +31,9 @@ export function PublicNavLinks({
 						{link.label}
 					</Link>
 				) : (
-					<button key={link.label} type="button" aria-disabled="true" className={classes}>
+					<PublicSectionLink key={link.label} sectionId={link.sectionId} className={classes}>
 						{link.label}
-					</button>
+					</PublicSectionLink>
 				),
 			)}
 		</div>
