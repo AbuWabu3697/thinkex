@@ -23,6 +23,7 @@ export type WorkspaceAiContextScope = {
 export type WorkspaceAiContextSnapshot = {
 	workspace: {
 		name: string;
+		outline?: WorkspaceAiContextOutline;
 	};
 	view: {
 		activeItem?: WorkspaceAiContextItemReference;
@@ -33,6 +34,27 @@ export type WorkspaceAiContextSnapshot = {
 	openTabs: WorkspaceAiContextTabReference[];
 	selectedQuotes: WorkspaceAiContextSnapshotSelectedQuote[];
 	contentIncluded: false;
+};
+
+export type WorkspaceAiContextOutline =
+	| {
+			status: "included";
+			totalItems: number;
+			items: WorkspaceAiContextOutlineItem[];
+	  }
+	| {
+			status: "summarized";
+			totalItems: number;
+			limit: number;
+			omittedItems: number;
+			items: WorkspaceAiContextOutlineItem[];
+	  };
+
+export type WorkspaceAiContextOutlineItem = {
+	childCount?: number;
+	descendantCount?: number;
+	path: string;
+	type: string;
 };
 
 export type WorkspaceAiContextSnapshotSelectedQuote = {

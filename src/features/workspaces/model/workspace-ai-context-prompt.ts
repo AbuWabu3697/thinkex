@@ -1,4 +1,5 @@
 import type {
+	WorkspaceAiContextOutline,
 	WorkspaceAiContextPaneReference,
 	WorkspaceAiContextPresentationReference,
 	WorkspaceAiContextSnapshotSelectedQuote,
@@ -14,6 +15,9 @@ import {
 	formatWorkspaceAiContextItemViewState,
 	formatWorkspaceAiContextItemViewStateSuffix,
 } from "./workspace-item-view-state";
+
+export const WORKSPACE_AI_CONTEXT_OUTLINE_PROMPT_CHAR_LIMIT = 6000;
+export const WORKSPACE_AI_CONTEXT_OUTLINE_PATH_CHAR_LIMIT = 180;
 
 export function formatWorkspaceAiContextForPrompt(value: unknown) {
 	if (!isWorkspaceAiContextSnapshot(value)) {
@@ -42,6 +46,12 @@ export function formatWorkspaceAiContextForPrompt(value: unknown) {
 		}
 	}
 
+	const outline = value.workspace.outline;
+
+	if (outline) {
+		lines.push(...formatWorkspaceAiContextOutline(outline));
+	}
+
 	if (openTabs.length > 0) {
 		lines.push("- Open workspace tabs:");
 		for (const tab of openTabs) {
@@ -60,6 +70,71 @@ export function formatWorkspaceAiContextForPrompt(value: unknown) {
 	}
 
 	return lines.join("\n");
+}
+
+function formatWorkspaceAiContextOutline(outline: WorkspaceAiContextOutline) {
+	const itemLines = limitWorkspaceAiContextOutlineLines(
+		outline.items.map(formatWorkspaceAiContextOutlineItem),
+	);
+	const omittedItems = outline.totalItems - itemLines.length;
+	const isComplete = outline.status === "included" && omittedItems === 0;
+	const lines = isComplete
+		? [
+				`- Workspace outline: ${outline.totalItems} ${outline.totalItems === 1 ? "item" : "items"} complete, paths/types and folder counts only. Item bodies are not included.`,
+			]
+		: [
+				`- Workspace outline: ${outline.totalItems} items total. Showing ${itemLines.length} structural paths, folder-first; this is not complete. Item bodies are not included.`,
+			];
+
+	lines.push(...itemLines);
+
+	if (!isComplete) {
+		lines.push(
+			`  - ${omittedItems} items omitted. Use workspace_list_items on a folder before assuming its contents.`,
+		);
+	}
+
+	return lines;
+}
+
+function formatWorkspaceAiContextOutlineItem(item: WorkspaceAiContextOutline["items"][number]) {
+	return `  - ${truncateWorkspaceAiContextOutlinePath(item.path)} (${formatWorkspaceAiContextOutlineItemMeta(item)})`;
+}
+
+function formatWorkspaceAiContextOutlineItemMeta(item: WorkspaceAiContextOutline["items"][number]) {
+	const counts =
+		item.childCount === undefined || item.descendantCount === undefined
+			? ""
+			: `, ${item.childCount} direct ${item.childCount === 1 ? "child" : "children"}, ${item.descendantCount} total ${item.descendantCount === 1 ? "descendant" : "descendants"}`;
+
+	return `${item.type}${counts}`;
+}
+
+function limitWorkspaceAiContextOutlineLines(lines: string[]) {
+	const selectedLines: string[] = [];
+	let size = 0;
+
+	for (const line of lines) {
+		const nextSize = size + line.length + 1;
+
+		if (selectedLines.length > 0 && nextSize > WORKSPACE_AI_CONTEXT_OUTLINE_PROMPT_CHAR_LIMIT) {
+			break;
+		}
+
+		selectedLines.push(line);
+		size = nextSize;
+	}
+
+	return selectedLines;
+}
+
+function truncateWorkspaceAiContextOutlinePath(path: string) {
+	if (path.length <= WORKSPACE_AI_CONTEXT_OUTLINE_PATH_CHAR_LIMIT) {
+		return path;
+	}
+
+	const edgeLength = Math.floor((WORKSPACE_AI_CONTEXT_OUTLINE_PATH_CHAR_LIMIT - 3) / 2);
+	return `${path.slice(0, edgeLength)}...${path.slice(-edgeLength)}`;
 }
 
 function formatWorkspaceAiContextTab(tab: WorkspaceAiContextTabReference) {
