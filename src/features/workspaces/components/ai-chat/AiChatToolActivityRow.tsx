@@ -33,10 +33,11 @@ import { cn } from "#/lib/utils";
 
 const INLINE_SOURCE_LIMIT = 3;
 const DETAIL_SOURCE_LIMIT = 8;
+const EMPTY_TOOL_CHILDREN: AiChatToolChildActivity[] = [];
 
 export function AiChatToolActivityRow({
 	part,
-	nestedChildren = [],
+	nestedChildren = EMPTY_TOOL_CHILDREN,
 }: {
 	part: AiChatToolPart;
 	nestedChildren?: AiChatToolChildActivity[];
@@ -144,15 +145,13 @@ function ActivitySummary({
 	sourcePreviews: ToolSourcePreview[];
 }) {
 	const isRunning = activity.status === "running";
-	const title = activity.title;
-	const summary = activity.summary === title ? "" : activity.summary;
-	const fullLabel = summary ? `${title} · ${summary}` : title;
+	const label = activity.summary;
 
 	return (
 		<div
 			role={isRunning ? "status" : undefined}
 			aria-live={isRunning ? "polite" : undefined}
-			title={fullLabel}
+			title={label}
 			className={cn(
 				"group/tool-row inline-flex min-w-0 max-w-full items-center gap-1.5 py-0.5 text-sm text-muted-foreground",
 				activity.status === "failed" && "text-destructive",
@@ -166,16 +165,14 @@ function ActivitySummary({
 			>
 				<ToolActivityIcon toolName={activity.toolName} />
 			</span>
-			<span className="min-w-0 truncate">
-				<span className={cn("font-medium text-foreground/90", isRunning && "shimmer")}>
-					{title}
-				</span>
-				{summary ? (
-					<span className="text-muted-foreground/70">
-						{" · "}
-						{summary}
-					</span>
-				) : null}
+			<span
+				className={cn(
+					"min-w-0 truncate font-medium text-foreground/90",
+					isRunning && "shimmer",
+					activity.status === "failed" && "text-destructive",
+				)}
+			>
+				{label}
 			</span>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
 			<ToolStatusIcon status={activity.status} />
@@ -195,7 +192,7 @@ function InlineSourceFavicons({ sources }: { sources: ToolSourcePreview[] }) {
 	}
 
 	return (
-		<span className="inline-flex shrink-0 items-center -space-x-1 self-center pl-0.5">
+		<span className="inline-flex shrink-0 items-center -space-x-1.5 self-center pl-0.5">
 			{sources.map((source) => (
 				<SourceFaviconLink key={`${source.url ?? source.title}:${source.title}`} source={source} />
 			))}
@@ -206,8 +203,8 @@ function InlineSourceFavicons({ sources }: { sources: ToolSourcePreview[] }) {
 function SourceFaviconLink({ source }: { source: ToolSourcePreview }) {
 	const hostname = source.url ? getToolSourceHostname(source.url) : null;
 	const content = (
-		<span className="grid size-4 place-items-center rounded-full bg-background ring-1 ring-border/70">
-			<Favicon hostname={hostname} title={source.title} className="size-3 rounded-[2px]" />
+		<span className="grid size-[18px] place-items-center rounded-full bg-background ring-1 ring-border/70">
+			<Favicon hostname={hostname} title={source.title} className="size-3.5 rounded-[3px]" />
 		</span>
 	);
 
@@ -300,7 +297,7 @@ function Favicon({
 
 	return (
 		<img
-			src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=32`}
+			src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`}
 			alt=""
 			className={cn("size-3.5 shrink-0 rounded-sm", className)}
 			loading="lazy"

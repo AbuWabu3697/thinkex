@@ -6,10 +6,7 @@ import type {
 	AiChatStatus,
 	AiChatToolPart,
 } from "#/features/workspaces/components/ai-chat/types";
-import {
-	getAiToolActivityTitle,
-	getAiToolPresentation,
-} from "#/features/workspaces/ai/ai-tool-presentation";
+import { getAiToolPresentation } from "#/features/workspaces/ai/ai-tool-presentation";
 import {
 	getFinishedToolReceipt,
 	getRunningToolReceipt,
@@ -35,11 +32,9 @@ export type AssistantRowDisplay =
 	| { kind: "hidden" };
 
 export interface AiChatToolActivity {
-	children: AiChatToolChildActivity[];
 	detail: AiChatToolPart;
 	status: "completed" | "failed" | "running";
 	summary: string;
-	title: string;
 	toolName: string;
 }
 
@@ -221,15 +216,12 @@ export function getToolActivityForPart(part: AiChatToolPart): AiChatToolActivity
 	}
 
 	const toolName = getToolPartName(part);
-	const title = getToolActivityTitle(part, toolName);
 	const receipt = getToolActivityReceipt(part, toolName);
 
 	return {
-		children: [],
 		detail: part,
 		status: receipt.status,
 		summary: receipt.summary,
-		title,
 		toolName,
 	};
 }
@@ -241,13 +233,6 @@ export function isVisibleToolPart(part: AiChatToolPart) {
 
 function getToolPartName(part: AiChatToolPart) {
 	return part.type === "dynamic-tool" ? part.toolName : part.type.split("-").slice(1).join("-");
-}
-
-function getToolActivityTitle(part: AiChatToolPart, toolName: string) {
-	return getAiToolActivityTitle({
-		title: part.title,
-		toolName,
-	});
 }
 
 function getToolActivityReceipt(
