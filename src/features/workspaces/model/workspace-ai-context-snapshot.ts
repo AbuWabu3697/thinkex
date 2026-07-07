@@ -9,6 +9,7 @@ import {
 	getWorkspaceAiContextItemReference,
 	getWorkspaceAiContextVisibleItemIds,
 } from "./workspace-ai-context-reference";
+import { buildWorkspaceAiContextOutline } from "./workspace-ai-context-outline";
 import type {
 	WorkspaceAiContextPaneReference,
 	WorkspaceAiContextPresentationReference,
@@ -39,6 +40,7 @@ export function buildWorkspaceAiContextSnapshot(
 	return {
 		workspace: {
 			name: context.workspaceName,
+			outline: buildWorkspaceAiContextOutline(context),
 		},
 		view: {
 			activeItem: activeItem

@@ -1,5 +1,6 @@
 import type {
 	WorkspaceAiContextItemReference,
+	WorkspaceAiContextOutline,
 	WorkspaceAiContextPaneReference,
 	WorkspaceAiContextPresentationReference,
 	WorkspaceAiContextSelectedItem,
@@ -16,6 +17,8 @@ export function isWorkspaceAiContextSnapshot(value: unknown): value is Workspace
 	return (
 		isRecord(value.workspace) &&
 		typeof value.workspace.name === "string" &&
+		(value.workspace.outline === undefined ||
+			isWorkspaceAiContextOutline(value.workspace.outline)) &&
 		Array.isArray(value.selectedItems) &&
 		Array.isArray(value.openTabs) &&
 		Array.isArray(value.selectedQuotes) &&
@@ -23,6 +26,64 @@ export function isWorkspaceAiContextSnapshot(value: unknown): value is Workspace
 		isRecord(value.view) &&
 		isWorkspaceAiContextPresentationReference(value.view.presentation)
 	);
+}
+
+function isWorkspaceAiContextOutline(value: unknown): value is WorkspaceAiContextOutline {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	if (
+		typeof value.totalItems !== "number" ||
+		!Number.isInteger(value.totalItems) ||
+		value.totalItems < 0
+	) {
+		return false;
+	}
+
+	if (value.status === "summarized") {
+		return (
+			typeof value.limit === "number" &&
+			Number.isInteger(value.limit) &&
+			value.limit > 0 &&
+			value.totalItems > value.limit &&
+			Array.isArray(value.items) &&
+			value.items.length <= value.limit &&
+			typeof value.omittedItems === "number" &&
+			Number.isInteger(value.omittedItems) &&
+			value.omittedItems === value.totalItems - value.items.length &&
+			value.omittedItems > 0 &&
+			value.items.every(isWorkspaceAiContextOutlineItem)
+		);
+	}
+
+	return (
+		value.status === "included" &&
+		Array.isArray(value.items) &&
+		value.items.length === value.totalItems &&
+		value.items.every(isWorkspaceAiContextOutlineItem)
+	);
+}
+
+function isWorkspaceAiContextOutlineItem(value: unknown) {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	const hasChildCount = value.childCount !== undefined;
+	const hasDescendantCount = value.descendantCount !== undefined;
+
+	return (
+		typeof value.path === "string" &&
+		typeof value.type === "string" &&
+		hasChildCount === hasDescendantCount &&
+		(value.childCount === undefined || isNonNegativeInteger(value.childCount)) &&
+		(value.descendantCount === undefined || isNonNegativeInteger(value.descendantCount))
+	);
+}
+
+function isNonNegativeInteger(value: unknown) {
+	return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
 export function isWorkspaceAiContextSelectedItem(
