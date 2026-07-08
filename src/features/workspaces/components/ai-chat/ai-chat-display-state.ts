@@ -6,13 +6,13 @@ import type {
 	AiChatStatus,
 	AiChatToolPart,
 } from "#/features/workspaces/components/ai-chat/types";
+import { getAiToolPresentation } from "#/features/workspaces/ai/ai-tool-presentation";
 import {
-	getAiToolActivityTitle,
-	getAiToolPresentation,
-} from "#/features/workspaces/ai/ai-tool-presentation";
-import { getFinishedToolReceipt } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
+	getFinishedToolReceipt,
+	getRunningToolReceipt,
+} from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 
-export type AssistantPendingKind = "thinking" | "recovering";
+export type AssistantPendingKind = "thinking" | "working" | "recovering";
 export interface AiChatToolChildActivity {
 	summary: string;
 	toolName: string;
@@ -32,11 +32,9 @@ export type AssistantRowDisplay =
 	| { kind: "hidden" };
 
 export interface AiChatToolActivity {
-	children: AiChatToolChildActivity[];
 	detail: AiChatToolPart;
 	status: "completed" | "failed" | "running";
 	summary: string;
-	title: string;
 	toolName: string;
 }
 
@@ -70,19 +68,23 @@ export function deriveAiChatPresentation(
 ): AiChatPresentation {
 	const lastMessage = messages.at(-1);
 	const lastAssistantMessageId = lastMessage?.role === "assistant" ? lastMessage.id : undefined;
-	const isBusy = isRecovering || isStreaming || isServerStreaming;
 	const awaitingFirstToken = status === "submitted" && !isToolContinuation;
+	const isBusy = isRecovering || isStreaming || isServerStreaming || status === "submitted";
 	const hasAssistantTail = lastMessage?.role === "assistant";
 	const assistantTailIsEmpty =
 		lastMessage?.role === "assistant" && getDisplayableParts(lastMessage).length === 0;
+	const hasVisibleAssistantTail = hasAssistantTail && !assistantTailIsEmpty;
 	const tailPending = isRecovering
-		? hasAssistantTail && !assistantTailIsEmpty
-			? null
+		? hasVisibleAssistantTail
+			? "working"
 			: "recovering"
-		: !isToolContinuation &&
-			  (awaitingFirstToken || (isBusy && (!hasAssistantTail || assistantTailIsEmpty)))
+		: awaitingFirstToken
 			? "thinking"
-			: null;
+			: !isBusy
+				? null
+				: !hasVisibleAssistantTail
+					? "thinking"
+					: "working";
 
 	return {
 		isBusy,
@@ -214,15 +216,12 @@ export function getToolActivityForPart(part: AiChatToolPart): AiChatToolActivity
 	}
 
 	const toolName = getToolPartName(part);
-	const title = getToolActivityTitle(part, toolName);
-	const receipt = getToolActivityReceipt(part, toolName, title);
+	const receipt = getToolActivityReceipt(part, toolName);
 
 	return {
-		children: [],
 		detail: part,
 		status: receipt.status,
 		summary: receipt.summary,
-		title,
 		toolName,
 	};
 }
@@ -236,17 +235,9 @@ function getToolPartName(part: AiChatToolPart) {
 	return part.type === "dynamic-tool" ? part.toolName : part.type.split("-").slice(1).join("-");
 }
 
-function getToolActivityTitle(part: AiChatToolPart, toolName: string) {
-	return getAiToolActivityTitle({
-		title: part.title,
-		toolName,
-	});
-}
-
 function getToolActivityReceipt(
 	part: AiChatToolPart,
 	toolName: string,
-	title: string,
 ): { status: AiChatToolActivity["status"]; summary: string } {
 	switch (part.state) {
 		case "output-available":
@@ -267,7 +258,10 @@ function getToolActivityReceipt(
 		default:
 			return {
 				status: "running",
-				summary: title,
+				summary: getRunningToolReceipt({
+					toolInput: part.input,
+					toolName,
+				}).summary,
 			};
 	}
 }

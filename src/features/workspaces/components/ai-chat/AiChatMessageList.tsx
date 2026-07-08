@@ -1,5 +1,8 @@
 import type { ChatErrorClassification, ChatErrorContext } from "@cloudflare/think";
 import { AlertCircle, RotateCcw } from "lucide-react";
+import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
+import type { HTMLMotionProps } from "motion/react";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import ThinkExLogo from "#/components/ThinkExLogo";
 import { Button } from "#/components/ui/button";
@@ -41,6 +44,23 @@ type SelectedText = {
 	text: string;
 };
 
+const sentMessageAnimation = {
+	animate: { opacity: 1, scale: 1, y: 0 },
+	initial: { opacity: 0, scale: 0.985, y: 18 },
+	transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+} satisfies Pick<HTMLMotionProps<"div">, "animate" | "initial" | "transition">;
+
+const tailRowAnimation = {
+	animate: { opacity: 1, y: 0 },
+	initial: { opacity: 0, y: 6 },
+	transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+} satisfies Pick<HTMLMotionProps<"div">, "animate" | "initial" | "transition">;
+
+const rowLayoutTransition = {
+	duration: 0.24,
+	ease: [0.22, 1, 0.36, 1],
+} satisfies HTMLMotionProps<"div">["transition"];
+
 export type AiChatAssistantErrorState =
 	| {
 			classification?: ChatErrorClassification | null;
@@ -74,6 +94,7 @@ interface AiChatMessageListProps {
 	messages: AiChatMessage[];
 	onRegenerateLastResponse?: () => void;
 	presentation: AiChatPresentation;
+	sentMessageAnimationId?: string | null;
 	workspaceId: string;
 }
 
@@ -82,6 +103,7 @@ export default function AiChatMessageList({
 	messages,
 	onRegenerateLastResponse,
 	presentation,
+	sentMessageAnimationId,
 	workspaceId,
 }: AiChatMessageListProps) {
 	const { lastAssistantMessageId, status } = presentation;
@@ -89,6 +111,7 @@ export default function AiChatMessageList({
 	const hasAssistantContent = hasLatestAssistantContent(rows);
 	const isStreamActive = isAiChatStreamActive(status);
 	const listRef = useRef<HTMLDivElement>(null);
+	const shouldReduceMotion = useReducedMotion();
 	const [selectedText, setSelectedText] = useState<SelectedText | null>(null);
 	const showEmptyState = rows.length === 0 && !assistantError;
 
@@ -125,22 +148,30 @@ export default function AiChatMessageList({
 							aria-busy={isStreamActive}
 							className={aiChatMessageScrollerContentClassName}
 						>
-							{rows.map((row) => (
-								<MessageScrollerItem
-									key={row.key}
-									messageId={getAiChatRowMessageId(row)}
-									scrollAnchor={isAiChatRowScrollAnchor(row)}
-								>
-									<AiChatListRowView
-										canRetry={Boolean(onRegenerateLastResponse)}
-										hasAssistantContent={hasAssistantContent}
-										lastAssistantMessageId={lastAssistantMessageId}
-										row={row}
-										status={status}
-										onRegenerateLastResponse={onRegenerateLastResponse}
-									/>
-								</MessageScrollerItem>
-							))}
+							<LazyMotion features={domAnimation}>
+								{rows.map((row) => (
+									<AiChatMessageScrollerItem
+										key={row.key}
+										entryAnimation={
+											shouldReduceMotion
+												? null
+												: getAiChatRowEntryAnimation(row, sentMessageAnimationId)
+										}
+										enableLayoutMotion={!shouldReduceMotion}
+										messageId={getAiChatRowMessageId(row)}
+										scrollAnchor={isAiChatRowScrollAnchor(row)}
+									>
+										<AiChatListRowView
+											canRetry={Boolean(onRegenerateLastResponse)}
+											hasAssistantContent={hasAssistantContent}
+											lastAssistantMessageId={lastAssistantMessageId}
+											row={row}
+											status={status}
+											onRegenerateLastResponse={onRegenerateLastResponse}
+										/>
+									</AiChatMessageScrollerItem>
+								))}
+							</LazyMotion>
 						</MessageScrollerContent>
 					</MessageScrollerViewport>
 					<MessageScrollerButton className={aiChatMessageScrollerButtonClassName} />
@@ -163,6 +194,41 @@ export default function AiChatMessageList({
 				/>
 			) : null}
 		</div>
+	);
+}
+
+function AiChatMessageScrollerItem({
+	children,
+	enableLayoutMotion,
+	entryAnimation,
+	messageId,
+	scrollAnchor,
+}: {
+	children: ReactNode;
+	enableLayoutMotion: boolean;
+	entryAnimation: "sent" | "tail" | null;
+	messageId: string;
+	scrollAnchor: boolean;
+}) {
+	const animationProps: Pick<
+		HTMLMotionProps<"div">,
+		"animate" | "initial" | "transition"
+	> = entryAnimation === "sent"
+		? sentMessageAnimation
+		: entryAnimation === "tail"
+			? tailRowAnimation
+			: { initial: false, transition: rowLayoutTransition };
+
+	return (
+		<MessageScrollerItem messageId={messageId} scrollAnchor={scrollAnchor}>
+			<m.div
+				layout={enableLayoutMotion ? "position" : false}
+				className="min-w-0"
+				{...animationProps}
+			>
+				{children}
+			</m.div>
+		</MessageScrollerItem>
 	);
 }
 
@@ -322,6 +388,21 @@ function getAiChatRowMessageId(row: AiChatListRow) {
 	}
 
 	return row.key;
+}
+
+function getAiChatRowEntryAnimation(
+	row: AiChatListRow,
+	sentMessageAnimationId?: string | null,
+): "sent" | "tail" | null {
+	if (getAiChatRowMessageId(row) === sentMessageAnimationId) {
+		return "sent";
+	}
+
+	if (row.type === "pending") {
+		return "tail";
+	}
+
+	return null;
 }
 
 function isAiChatRowScrollAnchor(row: AiChatListRow) {

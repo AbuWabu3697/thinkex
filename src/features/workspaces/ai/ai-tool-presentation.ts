@@ -1,7 +1,7 @@
 export type AiToolVisibility = "hidden" | "visible";
+export type AiToolActivityIconKind = "code" | "edit" | "file" | "search" | "web";
 
 interface AiToolPresentation {
-	title?: string;
 	visibility: AiToolVisibility;
 }
 
@@ -9,49 +9,28 @@ const defaultToolPresentation = {
 	visibility: "visible",
 } as const satisfies AiToolPresentation;
 
-const aiToolPresentationByName: Readonly<Record<string, AiToolPresentation>> = {
-	compute: { title: "Computing", visibility: "visible" },
-	orchestrate: { title: "Working", visibility: "visible" },
-	research_deepen: { title: "Researching sources", visibility: "visible" },
-	research_discover: { title: "Researching sources", visibility: "visible" },
-	sandbox_bash: { visibility: "hidden" },
-	web_links: { title: "Reading the web", visibility: "visible" },
-	web_markdown: { title: "Reading the web", visibility: "visible" },
-	web_search: { title: "Reading the web", visibility: "visible" },
-	workspace_create_items: { title: "Updating workspace", visibility: "visible" },
-	workspace_delete_items: { title: "Updating workspace", visibility: "visible" },
-	workspace_edit_item: { title: "Updating workspace", visibility: "visible" },
-	workspace_link_items: { visibility: "hidden" },
-	workspace_list_items: { title: "Reading workspace", visibility: "visible" },
-	workspace_move_items: { title: "Updating workspace", visibility: "visible" },
-	workspace_read_items: { title: "Reading workspace", visibility: "visible" },
-	workspace_rename_item: { title: "Updating workspace", visibility: "visible" },
-};
+const hiddenToolNames = new Set(["sandbox_bash", "workspace_link_items"]);
 
 export function getAiToolPresentation(toolName: string): AiToolPresentation {
-	if (toolName.startsWith("time_")) {
+	if (toolName.startsWith("time_") || hiddenToolNames.has(toolName)) {
 		return { visibility: "hidden" };
 	}
 
-	return aiToolPresentationByName[toolName] ?? defaultToolPresentation;
+	return defaultToolPresentation;
 }
 
-export function getAiToolActivityTitle(input: { title?: string; toolName: string }) {
-	const title = input.title?.trim();
-
-	if (title) {
-		return title;
+export function getAiToolActivityIconKind(toolName: string): AiToolActivityIconKind {
+	if (toolName === "compute" || toolName === "orchestrate") {
+		return "code";
 	}
 
-	return getAiToolPresentation(input.toolName).title ?? humanizeToolName(input.toolName);
-}
+	if (toolName.startsWith("web_") || toolName.startsWith("research_")) {
+		return toolName.includes("search") || toolName.includes("discover") ? "search" : "web";
+	}
 
-function humanizeToolName(value: string) {
-	return value
-		.split("_")
-		.filter(Boolean)
-		.map((segment, index) =>
-			index === 0 ? segment.charAt(0).toUpperCase() + segment.slice(1) : segment,
-		)
-		.join(" ");
+	if (toolName.startsWith("workspace_")) {
+		return toolName.includes("read") || toolName.includes("list") ? "file" : "edit";
+	}
+
+	return "web";
 }
