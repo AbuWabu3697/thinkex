@@ -13,6 +13,7 @@ export class OfficePdfConverter extends Container {
 	sleepAfter = "5m";
 	enableInternet = false;
 	envVars = {
+		API_TIMEOUT: "120s",
 		LIBREOFFICE_AUTO_START: "true",
 		LIBREOFFICE_MAX_QUEUE_SIZE: "1",
 		LIBREOFFICE_START_TIMEOUT: "60s",
