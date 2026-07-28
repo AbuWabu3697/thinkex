@@ -16,10 +16,18 @@ import type {
 	TurnContext,
 } from "@cloudflare/think";
 import { defaultContextOverflowClassifier, Think } from "@cloudflare/think";
-import { createCompactFunction } from "agents/experimental/memory/utils";
 import { generateText, type LanguageModel, type ToolSet } from "ai";
 
+import {
+	AI_THREAD_COMPACTION_SYSTEM_PROMPT,
+	createAIThreadCompactFunction,
+} from "#/features/workspaces/ai/ai-compaction";
+import {
+	collectWorkspaceReferenceRecords,
+	reconcileWorkspaceMessageCitations,
+} from "#/features/workspaces/ai/workspace-citations";
 import type { AIInspectorSnapshot } from "#/features/workspaces/ai/ai-inspector";
+import { resolveChatAttachmentModelMessages } from "#/features/workspaces/ai/chat-attachment-model";
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
 import { AIThreadTelemetryRecorder } from "#/features/workspaces/ai/ai-thread-telemetry-recorder";
 import {
@@ -38,10 +46,12 @@ import {
 	type WorkspaceAiChatModelId,
 } from "#/features/workspaces/ai/models";
 import type { UserAIStore } from "#/features/workspaces/ai/user-ai-agents";
+import type { WorkspaceReferenceRecord } from "#/features/workspaces/locations/workspace-location";
 import {
 	checkWorkspaceAiMessageAccess,
 	trackWorkspaceAiMessageUsage,
 } from "#/integrations/autumn/workspace-ai-usage";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 
 const AI_THREAD_CHAT_RECOVERY_NO_PROGRESS_TIMEOUT_MS = 90_000;
 const AI_THREAD_CHAT_RECOVERY_TERMINAL_MESSAGE =
@@ -79,13 +89,6 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			noProgressTimeoutMs: AI_THREAD_CHAT_RECOVERY_NO_PROGRESS_TIMEOUT_MS,
 			terminalMessage: AI_THREAD_CHAT_RECOVERY_TERMINAL_MESSAGE,
 			onExhausted: (ctx: ChatRecoveryExhaustedContext) => {
-				console.warn("[AIThread] Chat recovery exhausted", {
-					incidentId: ctx.incidentId,
-					reason: ctx.reason,
-					recoveryKind: ctx.recoveryKind,
-					requestId: ctx.requestId,
-				});
-
 				return this.keepAliveWhile(() => this._handleChatRecoveryExhausted(ctx));
 			},
 		} satisfies Exclude<ChatRecoveryConfig, boolean>;
@@ -96,6 +99,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		private shouldRefreshSessionPrompt = false;
 		private activeRunStartedAt: number | undefined;
 		private activeUsageContext: AIThreadUsageContext | undefined;
+		private activeWorkspaceReferences: WorkspaceReferenceRecord[] = [];
 		private readonly telemetry = new AIThreadTelemetryRecorder({
 			env: this.env,
 			host: this,
@@ -131,13 +135,12 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 					maxTokens: 1500,
 				})
 				.onCompaction(
-					createCompactFunction({
+					createAIThreadCompactFunction({
 						summarize: (prompt) => this._summarizeCompactionPrompt(prompt),
 					}),
 				)
 				.compactAfter(100_000)
 				.onCompactionError((error) => {
-					console.warn("[AIThread] Session compaction failed", error);
 					void this.keepAliveWhile(() =>
 						this._recordAuxiliaryError({
 							error,
@@ -154,6 +157,9 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				threadId: this.name,
 				workspace: this.workspace,
 				getThreadContext: () => this._getThreadContext(),
+				onWorkspaceReferences: (records) => {
+					this._recordWorkspaceReferences(records);
+				},
 			});
 		}
 
@@ -166,6 +172,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			}
 
 			if (!ctx.continuation) {
+				this.activeWorkspaceReferences = [];
 				this.activeRunStartedAt = await directory.recordThreadRunStarted(this.name, {
 					isUserMessage: true,
 				});
@@ -203,6 +210,9 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				workspace: this.workspace,
 				getThreadContext: () => this._getThreadContext(),
 				canMutate: thread.promptScope.canMutate,
+				onWorkspaceReferences: (records) => {
+					this._recordWorkspaceReferences(records);
+				},
 				timeZone: getBodyString(ctx.body, "timeZone"),
 			});
 			const activeTools = filterToolSetByNames(
@@ -217,8 +227,16 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				thread,
 				tools: activeTools,
 			});
+			const messages = await resolveChatAttachmentModelMessages({
+				bucket: this.env.WORKSPACE_KERNEL_FILES,
+				messages: ctx.messages,
+				threadId: thread.id,
+				userId: thread.userId,
+				workspaceId: thread.workspaceId,
+			});
 
 			return {
+				messages,
 				model: getWorkspaceAiLanguageModel(modelId, this.env, this.sessionAffinity),
 				providerOptions: getWorkspaceAiGatewayProviderOptions({
 					modelId,
@@ -244,30 +262,26 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		override async onChatResponse(result: ChatResponseResult) {
 			this.telemetry.recordTurnFinished(result);
 			this._trackCompletedMessageUsage(result);
+			if (result.status === "completed") {
+				await this._reconcileWorkspaceCitations(result.message);
+			}
 			if (!this._shouldSettleRunAfterResponse(result)) {
 				await this._refreshSessionPromptIfNeeded();
 				return;
 			}
 
-			await this._settleActiveRun({ kind: "finished", result }, (error) => {
-				console.warn("[AIThread] Failed to update directory", error);
-			});
+			await this._settleActiveRun({ kind: "finished", result });
 		}
 
 		override onChatError(error: unknown, ctx?: ChatErrorContext) {
 			this.telemetry.recordTurnError(error, ctx);
 			void this.keepAliveWhile(async () => {
-				await this._settleActiveRun(
-					{
-						error,
-						errorClassification: ctx?.classification,
-						errorStage: ctx?.stage,
-						kind: "failed",
-					},
-					(metadataError) => {
-						console.warn("[AIThread] Failed to clear directory run status", metadataError);
-					},
-				);
+				await this._settleActiveRun({
+					error,
+					errorClassification: ctx?.classification,
+					errorStage: ctx?.stage,
+					kind: "failed",
+				});
 			});
 
 			return super.onChatError(error, ctx);
@@ -317,10 +331,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			return startedAt;
 		}
 
-		private async _settleActiveRun(
-			settlement: AIThreadRunSettlement,
-			onError: (error: unknown) => void,
-		) {
+		private async _settleActiveRun(settlement: AIThreadRunSettlement) {
 			try {
 				const startedAt = await this._getActiveRunStartedAt();
 
@@ -345,13 +356,54 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						viewed,
 					});
 				}
-
+			} catch (error) {
+				const thread = this.activeUsageContext?.thread;
+				recordOperationalFailure({
+					distinctId: thread?.userId,
+					error,
+					event: "ai_directory_settlement",
+					fields: {
+						settlement_kind: settlement.kind,
+						thread_id: this.name,
+						user_id: thread?.userId,
+						workspace_id: thread?.workspaceId,
+					},
+				});
+			} finally {
 				this.activeRunStartedAt = undefined;
 				this.activeUsageContext = undefined;
-			} catch (error) {
-				onError(error);
-			} finally {
+				this.activeWorkspaceReferences = [];
 				await this._refreshSessionPromptIfNeeded();
+			}
+		}
+
+		private _recordWorkspaceReferences(records: readonly WorkspaceReferenceRecord[]) {
+			this.activeWorkspaceReferences.push(...records);
+		}
+
+		private async _reconcileWorkspaceCitations(message: ChatResponseResult["message"]) {
+			try {
+				const transcriptReferences = collectWorkspaceReferenceRecords(await this.getMessages());
+				const reconciled = reconcileWorkspaceMessageCitations(message, [
+					...transcriptReferences,
+					...this.activeWorkspaceReferences,
+				]);
+
+				if (reconciled !== message) {
+					await this.addMessages([reconciled], { mode: "upsert" });
+				}
+			} catch (error) {
+				const thread = this.activeUsageContext?.thread;
+				recordOperationalFailure({
+					distinctId: thread?.userId,
+					error,
+					event: "ai_citation_finalization",
+					fields: {
+						thread_id: this.name,
+						user_id: thread?.userId,
+						workspace_id: thread?.workspaceId,
+					},
+				});
 			}
 		}
 
@@ -383,21 +435,11 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				error: new Error(errorMessage),
 				feature: "chat-recovery",
 			});
-			await this._settleActiveRun(
-				{
-					error: errorMessage,
-					errorStage: "recovery",
-					kind: "failed",
-				},
-				(error) => {
-					console.warn("[AIThread] Failed to record recovery exhaustion", error, {
-						incidentId: ctx.incidentId,
-						reason: ctx.reason,
-						recoveryKind: ctx.recoveryKind,
-						requestId: ctx.requestId,
-					});
-				},
-			);
+			await this._settleActiveRun({
+				error: errorMessage,
+				errorStage: "recovery",
+				kind: "failed",
+			});
 		}
 
 		private async _summarizeCompactionPrompt(prompt: string) {
@@ -412,7 +454,12 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						this.env,
 						this.sessionAffinity,
 					),
+					providerOptions: getWorkspaceAiGatewayProviderOptions({
+						modelId: DEFAULT_WORKSPACE_AI_CHAT_MODEL_ID,
+						tags: ["task:compaction"],
+					}),
 					prompt,
+					system: AI_THREAD_COMPACTION_SYSTEM_PROMPT,
 				});
 			} catch (error) {
 				await this._recordAuxiliaryError({
@@ -470,7 +517,6 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 
 				await directory.recordGeneratedThreadTitle(this.name, titleResult?.title);
 			} catch (error) {
-				console.warn("[AIThread] Failed to generate title", error);
 				await this._recordAuxiliaryError({
 					error,
 					feature: "thread-title",
@@ -488,7 +534,6 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			try {
 				await this.session.refreshSystemPrompt();
 			} catch (error) {
-				console.warn("[AIThread] Failed to refresh session prompt", error);
 				await this._recordAuxiliaryError({
 					error,
 					feature: "session-prompt-refresh",
@@ -503,9 +548,29 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			latencySeconds?: number;
 			prompt?: string;
 		}) {
-			const thread = await this._getThreadContext().catch(() => null);
+			let thread: AIThreadContext | null = null;
+			try {
+				thread = await this._getThreadContext();
+			} catch (error) {
+				recordOperationalFailure({
+					error,
+					event: "ai_auxiliary_context",
+					fields: {
+						feature: input.feature,
+						thread_id: this.name,
+					},
+				});
+			}
 
 			if (!thread) {
+				recordOperationalFailure({
+					error: input.error,
+					event: "ai_auxiliary",
+					fields: {
+						feature: input.feature,
+						thread_id: this.name,
+					},
+				});
 				return;
 			}
 

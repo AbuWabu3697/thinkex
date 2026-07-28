@@ -1,7 +1,7 @@
 import type { JsonValue, WorkspaceItemType } from "#/features/workspaces/contracts";
 import { withDocumentPreviewMetadata } from "#/features/workspaces/documents/document-preview-text";
 import { getInitialWorkspaceKernelContent } from "#/features/workspaces/kernel/workspace-kernel-files";
-import { parseWorkspaceItemMetadataJson } from "#/features/workspaces/kernel/workspace-kernel-metadata";
+import { parseWorkspaceMetadataJson } from "#/features/workspaces/kernel/workspace-kernel-metadata";
 import type { WorkspaceKernelSql } from "#/features/workspaces/kernel/workspace-kernel-schema";
 
 export function prepareDocumentItemMetadata(
@@ -14,12 +14,10 @@ export function prepareDocumentItemMetadata(
 /** Shared create-time content + metadata for kernel writes and optimistic UI. */
 export function buildWorkspaceItemCreateBootstrap(input: {
 	type: WorkspaceItemType;
-	name: string;
 	metadataJson?: Record<string, JsonValue>;
 	initialContent?: string;
 }) {
-	const initialContent =
-		input.initialContent ?? getInitialWorkspaceKernelContent(input.type, input.name);
+	const initialContent = input.initialContent ?? getInitialWorkspaceKernelContent(input.type);
 	const metadataJson =
 		input.type === "document"
 			? prepareDocumentItemMetadata(input.metadataJson ?? {}, initialContent)
@@ -36,7 +34,7 @@ export function persistDocumentItemContentUpdate(input: {
 	updatedAt?: number;
 }) {
 	const metadata = prepareDocumentItemMetadata(
-		parseWorkspaceItemMetadataJson(input.metadataJson),
+		parseWorkspaceMetadataJson(input.metadataJson),
 		input.content,
 	);
 	const updatedAt = input.updatedAt ?? Date.now();

@@ -17,13 +17,13 @@ import { cn } from "#/lib/utils";
 
 interface WorkspaceImageViewerProps {
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }
 
 export default function WorkspaceImageViewer({
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 }: WorkspaceImageViewerProps) {
 	const fileUrl = getWorkspaceFileContentUrl(workspaceId, item.id);
@@ -33,7 +33,7 @@ export default function WorkspaceImageViewer({
 			key={fileUrl}
 			fileUrl={fileUrl}
 			item={item}
-			toolbarSlotId={toolbarSlotId}
+			viewInstanceId={viewInstanceId}
 			workspaceId={workspaceId}
 		/>
 	);
@@ -42,12 +42,12 @@ export default function WorkspaceImageViewer({
 function WorkspaceImageViewerContent({
 	fileUrl,
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 }: {
 	fileUrl: string;
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }) {
 	const imageRef = useRef<HTMLImageElement>(null);
@@ -75,7 +75,7 @@ function WorkspaceImageViewerContent({
 			: undefined,
 		fileName: item.name,
 		fileUrl,
-		slotId: toolbarSlotId ?? item.id,
+		slotId: viewInstanceId,
 	});
 
 	const handleImageLoad = useCallback(() => {

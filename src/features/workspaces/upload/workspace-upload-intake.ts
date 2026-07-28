@@ -1,4 +1,3 @@
-import type { JsonValue } from "#/features/workspaces/contracts";
 import {
 	type WorkspaceDocumentImportFormat,
 	workspaceDocumentImportFormats,
@@ -7,6 +6,7 @@ import {
 	workspaceFileUploadLimits,
 	workspaceFileUploadFormats,
 	resolveWorkspaceFileTypeFromHint,
+	resolveWorkspaceUploadConversion,
 	type WorkspaceFileTypeDescriptor,
 	type WorkspaceFileUploadHint,
 	type WorkspaceFileUploadValidationError,
@@ -27,11 +27,7 @@ export type WorkspaceUploadPlan =
 			descriptor: WorkspaceFileTypeDescriptor;
 	  };
 
-export type WorkspaceUploadDocumentCreateContent = {
-	initialContent: string;
-	metadataJson: Record<string, JsonValue>;
-	name: string;
-};
+export type WorkspaceDirectUploadTarget = "source" | "staging";
 
 export type WorkspaceUploadValidationResult =
 	| {
@@ -124,11 +120,25 @@ export function validateWorkspaceUpload(input: {
 		};
 	}
 
-	if (input.sizeBytes > workspaceFileUploadLimits.maxBytesPerSelection) {
+	if (
+		plan.kind === "document" &&
+		input.sizeBytes > workspaceFileUploadLimits.maxDocumentImportBytes
+	) {
 		return {
 			error: {
 				code: "SELECTION_TOO_LARGE",
-				message: "Upload up to 200 MB at once.",
+				message: "Import text, code, Markdown, CSV, or TSV files up to 10 MB.",
+				status: 413,
+			},
+			ok: false,
+		};
+	}
+
+	if (input.sizeBytes > workspaceFileUploadLimits.maxFileBytes) {
+		return {
+			error: {
+				code: "SELECTION_TOO_LARGE",
+				message: "Upload up to 100 MB at once.",
 				status: 413,
 			},
 			ok: false,
@@ -136,6 +146,24 @@ export function validateWorkspaceUpload(input: {
 	}
 
 	return { ok: true, plan };
+}
+
+export function resolveWorkspaceDirectUploadTarget(input: {
+	contentType?: string | null;
+	fileName: string;
+	plan: WorkspaceUploadPlan;
+}): WorkspaceDirectUploadTarget {
+	if (
+		input.plan.kind === "file" &&
+		!resolveWorkspaceUploadConversion({
+			contentType: input.contentType,
+			fileName: input.fileName,
+		})
+	) {
+		return "source";
+	}
+
+	return "staging";
 }
 
 export function getWorkspaceUploadSelectionValidationError(input: {
@@ -161,10 +189,10 @@ export function getWorkspaceUploadSelectionValidationError(input: {
 		return validationError;
 	}
 
-	if (input.selectionBytes + input.file.size > workspaceFileUploadLimits.maxBytesPerSelection) {
+	if (input.selectionBytes + input.file.size > workspaceFileUploadLimits.maxSelectionBytes) {
 		return {
 			code: "SELECTION_TOO_LARGE",
-			message: "Upload up to 200 MB at once.",
+			message: "Upload up to 100 MB at once.",
 			status: 413,
 		};
 	}
@@ -194,17 +222,6 @@ export function partitionWorkspaceUploadSelection(files: readonly File[]) {
 	}
 
 	return { accepted, rejected };
-}
-
-export function uploadPlanCreatesDocument(input: WorkspaceFileUploadHint) {
-	return resolveWorkspaceUploadPlan(input)?.kind === "document";
-}
-
-export async function createDocumentContentFromWorkspaceUpload(input: {
-	file: File;
-	plan: Extract<WorkspaceUploadPlan, { kind: "document" }>;
-}): Promise<WorkspaceUploadDocumentCreateContent> {
-	return input.plan.importer.importFile(input.file);
 }
 
 function resolveWorkspaceDocumentImporter(

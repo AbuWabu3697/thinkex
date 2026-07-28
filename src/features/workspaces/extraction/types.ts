@@ -20,12 +20,23 @@ export interface WorkspaceFileExtractionWorkflowParams {
 	itemId: string;
 	actorUserId: string | null;
 	assetKind: WorkspaceFileAssetKind;
+	requestId: string | null;
 }
+
+export type LiteParseStageOutcome =
+	| { durationMs: number; outcome: "skipped" }
+	| { durationMs: number; errorType: string; outcome: "error" }
+	| {
+			durationMs: number;
+			markdownLength: number;
+			outcome: "success";
+			pageCount: number;
+	  };
 
 export interface MarkdownExtractionInput {
 	workspaceId: string;
 	itemId: string;
-	bytes: Uint8Array;
+	body: ReadableStream<Uint8Array>;
 	fileName: string;
 	contentType: string;
 	sizeBytes: number;

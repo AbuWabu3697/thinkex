@@ -28,6 +28,7 @@ import {
 	ScrollPluginPackage,
 	ScrollStrategy,
 	useScroll,
+	useScrollCapability,
 } from "@embedpdf/plugin-scroll/react";
 import {
 	SelectionPluginPackage,
@@ -44,7 +45,10 @@ import {
 	WorkspaceCaptureViewerFrame,
 } from "#/features/workspaces/components/WorkspaceCaptureChrome";
 import { useFileItemToolbar } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
-import { useWorkspacePaneHotkey } from "#/features/workspaces/components/WorkspacePaneRuntime";
+import {
+	useWorkspacePaneHotkey,
+	useWorkspacePaneRuntime,
+} from "#/features/workspaces/components/WorkspacePaneRuntime";
 import { WorkspacePdfAskSelectionMenu } from "#/features/workspaces/components/WorkspacePdfAskSelectionMenu";
 import {
 	WorkspacePdfCaptureInteractionMode,
@@ -55,6 +59,7 @@ import { WorkspacePdfPageControl } from "#/features/workspaces/components/Worksp
 import { useWorkspaceViewCapabilities } from "#/features/workspaces/components/workspace-view-policy";
 import { createCaptureAttachmentFile } from "#/features/workspaces/components/workspace-region-capture";
 import { stageCaptureAttachmentToComposerWithFeedback } from "#/features/workspaces/composer/workspace-composer-actions";
+import { useWorkspacePdfPageRevealRequest } from "#/features/workspaces/locations/workspace-location-context";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { getWorkspaceFileContentUrl } from "#/features/workspaces/model/workspace-file";
 import {
@@ -102,11 +107,11 @@ type WorkspacePdfInteractions = {
 
 export default function WorkspacePdfViewer({
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 }: {
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }) {
 	const fileUrl = getWorkspaceFileContentUrl(workspaceId, item.id);
@@ -131,7 +136,7 @@ export default function WorkspacePdfViewer({
 			: undefined,
 		fileName: item.name,
 		fileUrl,
-		slotId: toolbarSlotId ?? item.id,
+		slotId: viewInstanceId,
 	});
 
 	return (
@@ -155,6 +160,7 @@ export default function WorkspacePdfViewer({
 								itemId={item.id}
 								onCaptureModeExit={exitCapture}
 								onCaptureModeToggle={toggleCapture}
+								viewInstanceId={viewInstanceId}
 								workspaceId={workspaceId}
 							/>
 						) : (
@@ -177,6 +183,7 @@ function WorkspacePdfDocumentLoader({
 	itemId,
 	onCaptureModeExit,
 	onCaptureModeToggle,
+	viewInstanceId,
 	workspaceId,
 }: {
 	activeDocumentId: string | null;
@@ -187,14 +194,19 @@ function WorkspacePdfDocumentLoader({
 	itemId: string;
 	onCaptureModeExit: () => void;
 	onCaptureModeToggle: () => void;
+	viewInstanceId: string;
 	workspaceId: string;
 }) {
 	const { provides: documentManager } = useDocumentManagerCapability();
+	const { provides: scrollCapability } = useScrollCapability();
+	const paneRuntime = useWorkspacePaneRuntime();
+	const { consume, request } = useWorkspacePdfPageRevealRequest(viewInstanceId);
 	const [openError, setOpenError] = useState<{
 		documentId: string;
 		message: string;
 	} | null>(null);
 	const currentOpenError = openError?.documentId === documentId ? openError.message : null;
+	const isActive = paneRuntime?.isActive ?? true;
 
 	useEffect(() => {
 		if (!documentManager || documentManager.isDocumentOpen(documentId)) {
@@ -239,6 +251,46 @@ function WorkspacePdfDocumentLoader({
 			cancelled = true;
 		};
 	}, [documentId, documentManager, fileName, fileUrl]);
+
+	useEffect(() => {
+		if (!request) {
+			return;
+		}
+
+		if (currentOpenError || request.location.itemId !== documentId) {
+			consume(request);
+			return;
+		}
+
+		if (!isActive || activeDocumentId !== documentId || !scrollCapability) {
+			return;
+		}
+
+		let handled = false;
+
+		return scrollCapability.onLayoutReady((event) => {
+			if (handled || event.documentId !== documentId) {
+				return;
+			}
+
+			handled = true;
+			if (request.location.pageNumber <= event.totalPages) {
+				scrollCapability.forDocument(documentId).scrollToPage({
+					behavior: "instant",
+					pageNumber: request.location.pageNumber,
+				});
+			}
+			consume(request);
+		});
+	}, [
+		activeDocumentId,
+		consume,
+		currentOpenError,
+		documentId,
+		isActive,
+		request,
+		scrollCapability,
+	]);
 
 	if (currentOpenError) {
 		return (

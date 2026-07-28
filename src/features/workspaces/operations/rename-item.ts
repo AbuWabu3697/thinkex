@@ -1,5 +1,5 @@
 import {
-	getWorkspaceOperationContext,
+	getAuthorizedWorkspaceKernel,
 	resolveWorkspaceExistingItemPath,
 } from "#/features/workspaces/operations/workspace-operation-context";
 import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
@@ -8,7 +8,6 @@ import {
 	getParentWorkspacePath,
 	joinWorkspaceItemPath,
 } from "#/features/workspaces/kernel/workspace-kernel-paths";
-import { WorkspaceKernelNameConflictError } from "#/features/workspaces/kernel/workspace-kernel-store";
 
 export interface RenameWorkspaceItemOperationInput {
 	name: string;
@@ -42,14 +41,17 @@ export async function renameWorkspaceItemOperation(
 	accessContext: WorkspaceAccessContext,
 	input: RenameWorkspaceItemOperationInput,
 ): Promise<RenameWorkspaceItemOperationResult> {
-	const workspaceContext = await getWorkspaceOperationContext({
+	const kernel = await getAuthorizedWorkspaceKernel({
 		access: "mutate",
 		context: accessContext,
 	});
+	const [pathResolution] = await kernel.resolvePaths({ paths: [input.path] });
+	if (!pathResolution) {
+		throw new Error("Workspace kernel did not resolve the requested rename path.");
+	}
 	const resolution = resolveWorkspaceExistingItemPath({
-		path: input.path,
+		resolution: pathResolution,
 		rootFailureCode: "cannot_rename_root",
-		tree: workspaceContext.tree,
 	});
 
 	if (resolution.status === "failed") {
@@ -63,35 +65,34 @@ export async function renameWorkspaceItemOperation(
 		};
 	}
 
-	try {
-		const command = await workspaceContext.kernel.renameItem({
-			itemId: resolution.item.id,
-			name: input.name,
-			onNameConflict: "error",
-			actorUserId: accessContext.actor.userId,
-			clientMutationId: null,
-		});
+	const outcome = await kernel.renameItem({
+		itemId: resolution.item.id,
+		name: input.name,
+		onNameConflict: "error",
+		actorUserId: accessContext.actor.userId,
+		clientMutationId: accessContext.operationId,
+	});
 
+	if (outcome.status === "conflict") {
 		return {
-			failed: [],
-			item: {
-				path: joinWorkspaceItemPath(getParentWorkspacePath(resolution.path), command.result.name),
-				previousPath: resolution.path,
-				type: command.result.type,
-			},
+			failed: [
+				{
+					code: "path_already_exists",
+					path: resolution.path,
+				},
+			],
 		};
-	} catch (error) {
-		if (error instanceof WorkspaceKernelNameConflictError) {
-			return {
-				failed: [
-					{
-						code: "path_already_exists",
-						path: resolution.path,
-					},
-				],
-			};
-		}
-
-		throw error;
 	}
+
+	return {
+		failed: [],
+		item: {
+			path: joinWorkspaceItemPath(
+				getParentWorkspacePath(resolution.path),
+				outcome.command.result.name,
+			),
+			previousPath: resolution.path,
+			type: outcome.command.result.type,
+		},
+	};
 }

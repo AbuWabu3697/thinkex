@@ -1,5 +1,4 @@
 import { createWorkspaceStateBackend, type WorkspaceFsLike } from "@cloudflare/shell";
-import { createExecuteTool } from "@cloudflare/think/tools/execute";
 import type { WorkspaceLike } from "@cloudflare/think/tools/workspace";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
@@ -9,23 +8,31 @@ import type {
 	AIThreadContext,
 	AIThreadPromptScope,
 } from "#/features/workspaces/ai/ai-thread-metadata";
+import type { WorkspaceReferenceRecord } from "#/features/workspaces/locations/workspace-location";
+import {
+	requireAiToolDefinition,
+	type AiToolModelPolicy,
+} from "#/features/workspaces/ai/ai-tool-registry";
+import {
+	getAIThreadTitleGatewayRoutingOptions,
+	getWorkspaceAiGatewayRoutingOptions,
+} from "#/features/workspaces/ai/ai-gateway-routing";
 import {
 	DEFAULT_WORKSPACE_AI_CHAT_MODEL_ID,
 	getWorkspaceAiChatModel,
 	type resolveWorkspaceAiChatModelId,
 } from "#/features/workspaces/ai/models";
 import { createAIThreadCodeRunTools } from "#/features/workspaces/ai/code-run-tools";
+import { createAIThreadOrchestrationTool } from "#/features/workspaces/ai/ai-thread-orchestration";
 import { createAIThreadResearchTools } from "#/features/workspaces/ai/research-tools";
 import { createAIThreadTimeTools } from "#/features/workspaces/ai/time-tools";
 import { createAIThreadWebTools } from "#/features/workspaces/ai/web-tools";
 import { createAIThreadWorkspaceTools } from "#/features/workspaces/ai/workspace-tools";
-import { workspaceToolDefinitions } from "#/features/workspaces/operations/workspace-tool-definitions";
 import { formatWorkspaceAiContextForPrompt } from "#/features/workspaces/model/workspace-ai-context";
 
 const thinkPromptSectionDivider = "══════════════════════════════════════════════";
 
 const AI_THREAD_TITLE_GATEWAY_MODEL = "google/gemini-2.5-flash-lite";
-const AI_THREAD_TITLE_FALLBACK_MODELS = ["openai/gpt-4.1-nano"] as const;
 
 type WorkspaceAiProviderOptions = NonNullable<
 	Parameters<typeof generateText>[0]["providerOptions"]
@@ -36,6 +43,14 @@ const AI_THREAD_ORCHESTRATE_TOOL_NAME = "orchestrate";
 
 const AI_THREAD_VIEW_ONLY_WORKSPACE_LINE =
 	"- Workspace access: view-only. Do not create, rename, edit, move, or delete workspace items.";
+const AI_THREAD_WORKSPACE_CITATION_PROMPT = [
+	"# Workspace Citations",
+	"- Workspace read results may include exact short refs such as `wr_7Kp2Qa9x`.",
+	'- When a direct quote or important factual claim depends on workspace material with a ref, place `<citation ref="wr_7Kp2Qa9x"></citation>` immediately after the supported text.',
+	"- Copy the ref exactly. Never invent, alter, or reuse a ref for different material, and never use workspace citation tags for web sources or unsupported claims.",
+	"- Cite selectively: important claims, conclusions, summaries, and direct quotations—not every sentence, reasoning step, transition, or common knowledge.",
+	"- The citation element must be empty and contain only the `ref` attribute. If no supporting ref was provided, omit the citation.",
+].join("\n");
 const WORKSPACE_FS_METHOD_NAMES = [
 	"readFile",
 	"readFileBytes",
@@ -60,6 +75,7 @@ export function createAIThreadTools(input: {
 	threadId: string;
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
+	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 	timeZone?: string;
 }): ToolSet {
 	return createAIThreadToolCatalog(input).tools;
@@ -72,6 +88,7 @@ export function createAIThreadTurnToolConfig(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	canMutate: boolean;
+	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 	timeZone?: string;
 }) {
 	const toolCatalog = createAIThreadToolCatalog(input);
@@ -83,7 +100,7 @@ export function createAIThreadTurnToolConfig(input: {
 	return {
 		activeTools: activeToolNames,
 		tools: {
-			orchestrate: createExecuteTool({
+			orchestrate: createAIThreadOrchestrationTool({
 				ctx: input.ctx,
 				loader: input.env.LOADER,
 				state,
@@ -95,88 +112,17 @@ export function createAIThreadTurnToolConfig(input: {
 	};
 }
 
-interface AIThreadToolEntry {
-	codemode: boolean;
-	mutating: boolean;
+interface AIThreadToolEntry extends AiToolModelPolicy {
 	name: string;
 	tool: ToolSet[string];
 }
-
-type AIThreadToolDescriptor = Omit<AIThreadToolEntry, "tool">;
-
-const AI_THREAD_SANDBOX_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "sandbox_bash",
-		codemode: false,
-		mutating: false,
-	},
-];
-
-const AI_THREAD_CODE_RUN_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "compute",
-		codemode: true,
-		mutating: false,
-	},
-];
-
-const AI_THREAD_WEB_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "web_search",
-		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "web_markdown",
-		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "web_links",
-		codemode: true,
-		mutating: false,
-	},
-];
-
-const AI_THREAD_RESEARCH_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "research_discover",
-		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "research_deepen",
-		codemode: true,
-		mutating: false,
-	},
-];
-
-const AI_THREAD_TIME_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	{
-		name: "time_get_current",
-		codemode: true,
-		mutating: false,
-	},
-	{
-		name: "time_calculate_relative",
-		codemode: true,
-		mutating: false,
-	},
-];
-
-const AI_THREAD_WORKSPACE_TOOL_DESCRIPTORS: AIThreadToolDescriptor[] = [
-	...workspaceToolDefinitions.map(({ name, mutating }) => ({
-		name,
-		codemode: true,
-		mutating,
-	})),
-];
 
 function createAIThreadToolCatalog(input: {
 	env: Cloudflare.Env;
 	threadId: string;
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
+	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 	timeZone?: string;
 }) {
 	const sandboxTools = createSandboxTools(input.workspace);
@@ -191,22 +137,26 @@ function createAIThreadToolCatalog(input: {
 	});
 	const workspaceTools = createAIThreadWorkspaceTools({
 		getThreadContext: input.getThreadContext,
+		onWorkspaceReferences: input.onWorkspaceReferences,
 	});
 	const entries: AIThreadToolEntry[] = [];
 
-	addAIThreadToolEntries(entries, sandboxTools, AI_THREAD_SANDBOX_TOOL_DESCRIPTORS);
-	addAIThreadToolEntries(entries, codeRunTools, AI_THREAD_CODE_RUN_TOOL_DESCRIPTORS);
-	addAIThreadToolEntries(entries, webTools, AI_THREAD_WEB_TOOL_DESCRIPTORS);
-	addAIThreadToolEntries(entries, researchTools, AI_THREAD_RESEARCH_TOOL_DESCRIPTORS);
-	addAIThreadToolEntries(entries, timeTools, AI_THREAD_TIME_TOOL_DESCRIPTORS);
-	addAIThreadToolEntries(entries, workspaceTools, AI_THREAD_WORKSPACE_TOOL_DESCRIPTORS);
+	addAIThreadToolEntries(entries, sandboxTools);
+	addAIThreadToolEntries(entries, codeRunTools);
+	addAIThreadToolEntries(entries, webTools);
+	addAIThreadToolEntries(entries, researchTools);
+	addAIThreadToolEntries(entries, timeTools);
+	addAIThreadToolEntries(entries, workspaceTools);
 
 	return {
 		tools: createAIThreadToolSet(entries),
 		getActiveToolNames(canMutate: boolean) {
-			const names = entries
-				.filter((entry) => canMutate || !entry.mutating)
-				.map((entry) => entry.name);
+			const names: string[] = [];
+			for (const entry of entries) {
+				if (canMutate || entry.access === "read") {
+					names.push(entry.name);
+				}
+			}
 
 			return names.includes("sandbox_bash")
 				? [
@@ -218,7 +168,7 @@ function createAIThreadToolCatalog(input: {
 		},
 		getCodemodeTools(canMutate: boolean) {
 			return createAIThreadToolSet(
-				entries.filter((entry) => entry.codemode && (canMutate || !entry.mutating)),
+				entries.filter((entry) => entry.codemode && (canMutate || entry.access === "read")),
 			);
 		},
 	};
@@ -251,7 +201,7 @@ function createSandboxTools(workspace: WorkspaceLike): ToolSet {
 
 function getAIThreadOrchestrateDescription(hasState: boolean) {
 	const stateLine = hasState
-		? "- `state.*` is the private assistant sandbox filesystem for scratch files and directories only. Nothing in `state.*` becomes a real ThinkEx workspace item unless you explicitly call a real workspace mutation tool through `tools.*`."
+		? "- `state.*` is the private assistant sandbox filesystem for scratch files and directories only. Nothing in `state.*` becomes a real ThinkEx workspace item."
 		: "- `state.*` is unavailable in this runtime. Use `tools.*` for real workspace, web, and research operations.";
 	const workflowLine = hasState
 		? "3. Call the method shown by the docs, for example `await tools.workspace_list_items(args)` or `await state.readFile(args)`."
@@ -266,7 +216,8 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		"## Boundaries",
 		"",
 		stateLine,
-		"- `tools.*` exposes actual ThinkEx workspace, web, research, and time operations.",
+		"- `tools.*` exposes read-only ThinkEx workspace operations plus web, research, and time operations.",
+		"- Workspace mutations are direct tools outside Code Mode so each call retains its durable idempotency key.",
 		"- `tools.compute` executes private Python for calculations, data analysis, and charts.",
 		"",
 		"## Workflow",
@@ -300,26 +251,16 @@ function isWorkspaceFsLike(workspace: WorkspaceLike): workspace is WorkspaceFsLi
 	return WORKSPACE_FS_METHOD_NAMES.every((method) => typeof candidate[method] === "function");
 }
 
-function addAIThreadToolEntry(
-	entries: AIThreadToolEntry[],
-	entry: AIThreadToolEntry | { tool: undefined; name: string },
-) {
-	if (!entry.tool) {
-		return;
-	}
+function addAIThreadToolEntries(entries: AIThreadToolEntry[], tools: ToolSet) {
+	for (const [name, tool] of Object.entries(tools)) {
+		if (!tool) {
+			continue;
+		}
 
-	entries.push(entry);
-}
-
-function addAIThreadToolEntries(
-	entries: AIThreadToolEntry[],
-	tools: ToolSet,
-	descriptors: AIThreadToolDescriptor[],
-) {
-	for (const descriptor of descriptors) {
-		addAIThreadToolEntry(entries, {
-			...descriptor,
-			tool: tools[descriptor.name],
+		entries.push({
+			...requireAiToolDefinition(name).model,
+			name,
+			tool,
 		});
 	}
 }
@@ -386,40 +327,15 @@ export function getWorkspaceAiGatewayProviderOptions(input?: {
 			...getWorkspaceAiGatewayTransportOptions(),
 			...getWorkspaceAiGatewayRoutingOptions(modelId),
 			tags,
-			user: input?.thread?.userId,
+			...(input?.thread ? { user: input.thread.userId } : {}),
 		},
 		...getWorkspaceAiReasoningOptions(modelId),
-	} as unknown as WorkspaceAiProviderOptions;
+	} satisfies WorkspaceAiProviderOptions;
 }
 
-function getWorkspaceAiGatewayRoutingOptions(
+function getWorkspaceAiReasoningOptions(
 	modelId: ReturnType<typeof resolveWorkspaceAiChatModelId>,
-) {
-	switch (modelId) {
-		case "claude-sonnet":
-			return {
-				order: ["bedrock", "vertex"],
-				models: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
-				sort: "ttft",
-			};
-		case "gemini":
-			return {
-				order: ["google", "vertex"],
-				models: ["openai/gpt-5.4-mini"],
-				sort: "ttft",
-			};
-		case "chatgpt":
-			return {
-				order: ["openai", "azure"],
-				models: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
-				sort: "ttft",
-			};
-		default:
-			return {};
-	}
-}
-
-function getWorkspaceAiReasoningOptions(modelId: ReturnType<typeof resolveWorkspaceAiChatModelId>) {
+): WorkspaceAiProviderOptions {
 	switch (modelId) {
 		case "claude-sonnet":
 			return {
@@ -478,9 +394,7 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 		providerOptions: {
 			gateway: {
 				...getWorkspaceAiGatewayTransportOptions(),
-				order: ["google", "vertex"],
-				models: [...AI_THREAD_TITLE_FALLBACK_MODELS],
-				sort: "ttft",
+				...getAIThreadTitleGatewayRoutingOptions(),
 				tags: [
 					"app:thinkex",
 					"feature:workspace-chat",
@@ -508,64 +422,7 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 	};
 }
 
-export function getAIThreadSoulPrompt() {
-	const sections = [
-		{
-			title: "Identity",
-			rules: [
-				"You are ThinkEx's workspace assistant.",
-				"Help the user understand, organize, and work in their actual ThinkEx workspace.",
-			],
-		},
-		{
-			title: "Workspace Boundaries",
-			rules: [
-				"Actual workspace means user-visible ThinkEx content. Private sandbox means assistant-only scratch files.",
-				"Use actual workspace tools to inspect workspace contents; change the workspace only through actual workspace mutation tools.",
-				"Never use private sandbox files as user-visible workspace items.",
-				"Do not claim to have read actual workspace content unless an actual workspace tool returned it.",
-				"Resolve this/it/that/here/above/the page/this file from current-turn context: selected quotes, then active view, then active/open items. Ask briefly before changes if ambiguous.",
-				"Web tools read public web content only.",
-			],
-		},
-		{
-			title: "Tool Use",
-			rules: [
-				"Follow tool descriptions and schemas.",
-				"Whenever you call a user-visible tool, provide a short plain-English title for that tool call. Treat the title as required, not optional.",
-				"Tool titles must be present-progressive activity phrases like 'Reading workspace', 'Researching sources', or 'Updating workspace'.",
-				"Use time_get_current for exact time in UTC or a requested IANA time zone, and time_calculate_relative for exact relative time math; the current turn includes user-local date/time context.",
-			],
-		},
-		{
-			title: "Response Style",
-			rules: [
-				"Answer directly first. Be clear, specific, and non-redundant.",
-				"Match depth to the task: stay brief for simple questions; explain from first principles when teaching, debugging, comparing options, or recommending a path.",
-				"Treat user claims as hypotheses, not facts. Evaluate them against the available context before agreeing, and challenge weak assumptions directly but respectfully.",
-				"State assumptions, uncertainty, and tradeoffs when they matter. Use examples, steps, or comparisons only when they make the answer easier to act on.",
-				"Do not open with praise, flattery, or generic validation such as 'You're absolutely right', 'Great question', or 'Good catch'. Avoid filler, repeated restatements, and unnecessary summary sections.",
-			],
-		},
-		{
-			title: "Output Format",
-			rules: [
-				"Format final answers as GitHub-flavored Markdown. Use concise headings, lists, blockquotes, links, tables, task lists, strikethrough, and fenced code blocks with language tags when they improve clarity.",
-				"When writing Markdown with math, use `$...$` for inline math and `$$...$$` on separate lines for block math. Escape literal currency dollar signs as `\\$` so they are not parsed as inline math.",
-			],
-		},
-		{
-			title: "Memory",
-			rules: [
-				"Use memory only for durable preferences, workspace goals, thread goals, and decisions. Do not store transient requests, secrets, full documents, item bodies, or actual workspace state.",
-			],
-		},
-	];
-
-	return sections
-		.map(({ title, rules }) => [`# ${title}`, ...rules.map((rule) => `- ${rule}`)].join("\n"))
-		.join("\n\n");
-}
+export { getAIThreadSoulPrompt } from "#/features/workspaces/ai/ai-thread-soul-prompt";
 
 export function getAIThreadSystemPromptForWorkspace(
 	system: string,
@@ -578,6 +435,7 @@ export function getAIThreadSystemPromptForWorkspace(
 ) {
 	return [
 		stripThinkCapabilityBlock(system),
+		AI_THREAD_WORKSPACE_CITATION_PROMPT,
 		getThinkExRuntimeScopePrompt(promptScope, options),
 	].join("\n\n");
 }

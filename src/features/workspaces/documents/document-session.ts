@@ -12,6 +12,12 @@ import {
 	serializeTiptapDocumentToMarkdown,
 } from "#/features/workspaces/documents/document-markdown";
 import {
+	createDocumentMarkdownSnapshot,
+	type DocumentMarkdownChunkReadInput,
+	type DocumentMarkdownChunkReadResult,
+	type DocumentMarkdownSnapshot,
+} from "#/features/workspaces/documents/document-markdown-chunk";
+import {
 	applyDocumentMarkdownEdits,
 	type DocumentMarkdownEdit,
 	type DocumentMarkdownEditFailureCode,
@@ -35,6 +41,8 @@ import {
 	getWorkspaceKernelFromEnv,
 	type WorkspaceKernelClient,
 } from "#/features/workspaces/kernel/workspace-kernel-access";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
+import { sha256Base64Url } from "#/lib/binary";
 
 const persistedYDocUpdateKey = "document-session:yjs-update";
 const checkpointDelayMs = 1_500;
@@ -60,6 +68,12 @@ export class DocumentSession extends YServer {
 		hibernate: true,
 	};
 
+	private markdownSnapshot?: {
+		revision: string;
+		snapshot: DocumentMarkdownSnapshot;
+		stateVector: Uint8Array;
+	};
+
 	static override callbackOptions = {
 		debounceWait: checkpointDelayMs,
 		debounceMaxWait: checkpointMaxWaitMs,
@@ -74,8 +88,16 @@ export class DocumentSession extends YServer {
 
 		try {
 			access = await resolveDocumentSessionConnectionAccess(context.request, room.workspaceId);
-		} catch {
-			connection.close(1011, "Unauthorized");
+		} catch (error) {
+			recordOperationalFailure({
+				error,
+				event: "document_session_connection",
+				fields: {
+					item_id: room.itemId,
+					workspace_id: room.workspaceId,
+				},
+			});
+			connection.close(1011, "Document session unavailable");
 			return;
 		}
 
@@ -98,14 +120,10 @@ export class DocumentSession extends YServer {
 	override async onLoad() {
 		const room = getDocumentSessionRoomNameParts(this.name);
 		const kernel = await this.getWorkspaceKernel(room.workspaceId);
-		const { item, content } = await kernel.readItem({ itemId: room.itemId });
-
-		if (item.type !== "document") {
-			throw new Error("Document session can only open document items.");
-		}
-
-		const persistedUpdate = await this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey);
-
+		const [{ content }, persistedUpdate] = await Promise.all([
+			kernel.readDocumentCheckpoint({ itemId: room.itemId }),
+			this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey),
+		]);
 		if (persistedUpdate) {
 			Y.applyUpdate(this.document, persistedUpdate, this);
 			return;
@@ -149,7 +167,6 @@ export class DocumentSession extends YServer {
 
 		try {
 			projection = parseMarkdownToTiptapDocumentProjection(editResult.content);
-			this.replaceCurrentDocument(projection.document);
 		} catch {
 			return {
 				applied: 0,
@@ -159,6 +176,8 @@ export class DocumentSession extends YServer {
 				warnings: [],
 			};
 		}
+
+		this.replaceCurrentDocument(projection.document);
 
 		await this.persistYDoc();
 		await this.checkpointToKernel();
@@ -172,6 +191,30 @@ export class DocumentSession extends YServer {
 		};
 	}
 
+	async readMarkdownChunk(
+		input: DocumentMarkdownChunkReadInput,
+	): Promise<DocumentMarkdownChunkReadResult> {
+		const stateVector = Uint8Array.from(Y.encodeStateVector(this.document));
+		let currentSnapshot = this.markdownSnapshot;
+		if (!currentSnapshot || !uint8ArraysEqual(currentSnapshot.stateVector, stateVector)) {
+			const markdown = serializeTiptapDocumentToMarkdown(this.getCurrentTiptapDocument());
+			currentSnapshot = {
+				revision: await sha256Base64Url(stateVector),
+				snapshot: createDocumentMarkdownSnapshot(markdown),
+				stateVector,
+			};
+			this.markdownSnapshot = currentSnapshot;
+		}
+		if (input.expectedRevision && input.expectedRevision !== currentSnapshot.revision) {
+			return { status: "content_changed" };
+		}
+
+		const chunk = currentSnapshot.snapshot.readChunk(input.offset);
+		return chunk
+			? { ...chunk, revision: currentSnapshot.revision, status: "ready" }
+			: { status: "invalid_offset" };
+	}
+
 	async purgeForDeletion(): Promise<void> {
 		await this.ctx.storage.deleteAll();
 	}
@@ -183,7 +226,7 @@ export class DocumentSession extends YServer {
 		);
 		const kernel = await this.getWorkspaceKernel(room.workspaceId);
 
-		await kernel.writeItem({
+		await kernel.commitDocumentCheckpoint({
 			itemId: room.itemId,
 			content: stringifyTiptapDocumentJson(document),
 			actorUserId: null,
@@ -211,6 +254,10 @@ export class DocumentSession extends YServer {
 	private async getWorkspaceKernel(workspaceId: string): Promise<WorkspaceKernelClient> {
 		return getWorkspaceKernelFromEnv(this.env, workspaceId);
 	}
+}
+
+function uint8ArraysEqual(left: Uint8Array, right: Uint8Array) {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function getDocumentSessionRoomNameParts(roomName: string): DocumentSessionRouteParams {

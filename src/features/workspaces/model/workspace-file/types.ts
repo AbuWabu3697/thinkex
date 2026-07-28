@@ -1,4 +1,7 @@
+import { z } from "zod";
+
 export const workspaceFileAssetKinds = ["pdf", "image"] as const;
+export const workspaceFileAssetKindSchema = z.enum(workspaceFileAssetKinds);
 
 export type WorkspaceFileAssetKind = (typeof workspaceFileAssetKinds)[number];
 
@@ -26,7 +29,3 @@ export interface WorkspaceFileExtractionRoute {
 	mode: WorkspaceFileExtractionMode;
 	reason: string;
 }
-
-export type WorkspaceFilePreviewGeneratorId = "pdf_webp" | "image_webp";
-
-export type WorkspaceFileAiReadStrategy = "markdown_extraction";

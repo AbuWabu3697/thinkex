@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import type { WorkspaceSummary } from "#/features/workspaces/contracts";
+import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import type { WorkspaceDragCommand } from "#/features/workspaces/model/drag";
 import { getWorkspaceTabSearch } from "#/features/workspaces/model/tabs";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
@@ -10,6 +11,7 @@ import {
 	useWorkspaceTabsStore,
 	type WorkspaceTab,
 } from "#/features/workspaces/state/workspace-tabs-store";
+import type { WorkspacePresentation } from "#/features/workspaces/state/workspace-ui-store";
 
 type OpenWorkspaceItemOptions = {
 	background?: boolean;
@@ -18,13 +20,31 @@ type OpenWorkspaceItemOptions = {
 interface UseWorkspaceNavigationInput {
 	workspace: WorkspaceSummary;
 	items: WorkspaceItem[];
+	presentation: WorkspacePresentation;
 	activeTabIdFromUrl?: string;
 	activeViewFromUrl?: string;
+}
+
+function findPresentedItemViewInstanceId(
+	presentation: WorkspacePresentation,
+	itemId: string,
+): string | undefined {
+	if (presentation.mode === "maximized") {
+		const { pane } = presentation;
+		return pane.kind === "item" && pane.itemId === itemId ? pane.id : undefined;
+	}
+
+	if (presentation.mode === "split") {
+		return presentation.panes.find((pane) => pane.kind === "item" && pane.itemId === itemId)?.id;
+	}
+
+	return undefined;
 }
 
 export function useWorkspaceNavigation({
 	workspace,
 	items,
+	presentation,
 	activeTabIdFromUrl,
 	activeViewFromUrl,
 }: UseWorkspaceNavigationInput) {
@@ -213,6 +233,35 @@ export function useWorkspaceNavigation({
 
 		navigateToTab(tab);
 	};
+	const revealWorkspaceLocation = (location: WorkspaceLocation) => {
+		const item = itemsById.get(location.itemId);
+		if (!item) {
+			return undefined;
+		}
+
+		const presentedViewInstanceId = findPresentedItemViewInstanceId(presentation, item.id);
+		if (presentedViewInstanceId) {
+			return presentedViewInstanceId;
+		}
+
+		if (activeTab?.viewItemId === item.id) {
+			return activeTab.id;
+		}
+
+		const matchingTab = session?.tabs.find((tab) => tab.viewItemId === item.id);
+		if (matchingTab) {
+			activateWorkspaceTab(matchingTab);
+			return matchingTab.id;
+		}
+
+		if (activeTab && !activeTab.viewItemId) {
+			const tab = replaceActiveTabView({ item });
+			navigateToTab(tab);
+			return tab.id;
+		}
+
+		return openItemInNewTab({ item }).id;
+	};
 	const openWorkspaceRoot = () => {
 		if (!activeTab?.viewItemId) {
 			return;
@@ -246,6 +295,7 @@ export function useWorkspaceNavigation({
 		itemsById,
 		openItem,
 		openWorkspaceRoot,
+		revealWorkspaceLocation,
 		scopedItems,
 		session,
 		validItemIds,

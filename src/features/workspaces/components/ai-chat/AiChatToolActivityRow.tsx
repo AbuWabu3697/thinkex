@@ -13,16 +13,19 @@ import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#/components/ui/collapsible";
-import { getAiToolActivityIconKind } from "#/features/workspaces/ai/ai-tool-presentation";
+import type {
+	AiToolActivityIconKind,
+	AiToolPresentation,
+} from "#/features/workspaces/ai/ai-tool-registry";
 import {
 	AiChatComputeDetails,
 	AiChatComputeImages,
 } from "#/features/workspaces/components/ai-chat/AiChatComputeResult";
 import {
 	getToolActivityForPart,
-	type AiChatToolChildActivity,
 	type AiChatToolActivity,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
+import type { AiChatToolChildActivity } from "#/features/workspaces/components/ai-chat/ai-chat-codemode-activity";
 import {
 	getToolSourceHostname,
 	getToolSourcePreviews,
@@ -72,12 +75,7 @@ export function AiChatToolActivityRow({
 							{nestedChildren.length > 0 ? (
 								<div className="space-y-1">
 									{nestedChildren.map((child) => (
-										<div
-											key={`${child.toolName}:${child.summary}`}
-											className="text-muted-foreground/80 text-sm"
-										>
-											{child.summary}
-										</div>
+										<ActivitySummary key={child.id} activity={child} sourcePreviews={[]} />
 									))}
 								</div>
 							) : null}
@@ -92,7 +90,6 @@ export function AiChatToolActivityRow({
 
 	return <ToolActivityMotion disabled={shouldReduceMotion}>{content}</ToolActivityMotion>;
 }
-
 function ToolActivityMotion({
 	children,
 	disabled,
@@ -140,39 +137,29 @@ function ActivitySummary({
 	canExpand = false,
 	sourcePreviews,
 }: {
-	activity: AiChatToolActivity;
+	activity: {
+		presentation: AiToolPresentation;
+		status: AiChatToolActivity["status"];
+		summary: string;
+	};
 	canExpand?: boolean;
 	sourcePreviews: ToolSourcePreview[];
 }) {
 	const isRunning = activity.status === "running";
-	const label = activity.summary;
+	const { presentation } = activity;
 
 	return (
 		<div
 			role={isRunning ? "status" : undefined}
 			aria-live={isRunning ? "polite" : undefined}
-			title={label}
-			className={cn(
-				"group/tool-row inline-flex min-w-0 max-w-full items-center gap-1.5 py-0.5 text-sm text-muted-foreground",
-				activity.status === "failed" && "text-destructive",
-			)}
+			title={activity.summary}
+			className="group/tool-row inline-flex min-w-0 max-w-full items-center gap-1.5 py-0.5 text-muted-foreground text-xs"
 		>
-			<span
-				className={cn(
-					"grid size-4 shrink-0 place-items-center self-center text-muted-foreground/80",
-					activity.status === "failed" && "text-destructive",
-				)}
-			>
-				<ToolActivityIcon toolName={activity.toolName} />
+			<span className="grid size-3.5 shrink-0 place-items-center self-center text-muted-foreground/70">
+				<ToolActivityIcon icon={presentation.icon} />
 			</span>
-			<span
-				className={cn(
-					"min-w-0 truncate font-medium text-foreground/90",
-					isRunning && "shimmer",
-					activity.status === "failed" && "text-destructive",
-				)}
-			>
-				{label}
+			<span className={cn("min-w-0 truncate font-medium", isRunning && "shimmer")}>
+				{activity.summary}
 			</span>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
 			<ToolStatusIcon status={activity.status} />
@@ -305,8 +292,8 @@ function Favicon({
 	);
 }
 
-function ToolActivityIcon({ toolName }: { toolName: string }) {
-	switch (getAiToolActivityIconKind(toolName)) {
+function ToolActivityIcon({ icon }: { icon: AiToolActivityIconKind }) {
+	switch (icon) {
 		case "code":
 			return <Code2 className="size-3.5" aria-hidden="true" />;
 		case "edit":
@@ -318,7 +305,8 @@ function ToolActivityIcon({ toolName }: { toolName: string }) {
 		case "web":
 			return <Globe2 className="size-3.5" aria-hidden="true" />;
 		default:
-			return <Globe2 className="size-3.5" aria-hidden="true" />;
+			icon satisfies never;
+			return null;
 	}
 }
 
@@ -327,7 +315,6 @@ function ToolStatusIcon({ status }: { status: AiChatToolActivity["status"] }) {
 		"size-3.5 shrink-0 text-muted-foreground/70",
 		status === "running" && "animate-spin",
 		status === "completed" && "text-success",
-		status === "failed" && "text-destructive",
 	);
 
 	if (status === "running") {

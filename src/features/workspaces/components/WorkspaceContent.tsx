@@ -49,7 +49,7 @@ import { useNativeFileDropTarget } from "#/lib/use-native-file-drop-target";
 import { cn } from "#/lib/utils";
 
 interface WorkspaceContentProps {
-	instanceId?: string;
+	viewInstanceId: string;
 	items: WorkspaceItem[];
 	activeItem?: WorkspaceItem;
 	workspace: WorkspaceSummary;
@@ -60,7 +60,7 @@ interface WorkspaceContentProps {
 type WorkspaceItemActionDialogsState = ReturnType<typeof useWorkspaceItemActionDialogState>;
 
 export default function WorkspaceContent({
-	instanceId,
+	viewInstanceId,
 	items,
 	activeItem,
 	workspace,
@@ -75,7 +75,7 @@ export default function WorkspaceContent({
 			<>
 				<WorkspaceItemView
 					item={activeItem}
-					viewInstanceId={instanceId ?? activeItem.id}
+					viewInstanceId={viewInstanceId}
 					workspaceId={workspaceId}
 					onMoveItem={actionDialogs.openMoveDialog}
 					onRenameItem={actionDialogs.setRenamingItem}
@@ -109,7 +109,7 @@ function WorkspaceBrowseContent({
 	workspace,
 	onCreateItem,
 	onOpenItem,
-}: WorkspaceContentProps & {
+}: Omit<WorkspaceContentProps, "viewInstanceId"> & {
 	actionDialogs: WorkspaceItemActionDialogsState;
 }) {
 	const { capabilities } = useWorkspaceMutationAccess();
@@ -490,7 +490,11 @@ function WorkspaceItemView({
 
 	if (item.type === "document") {
 		return (
-			<DocumentEditorSurface item={item} toolbarSlotId={viewInstanceId} workspaceId={workspaceId} />
+			<DocumentEditorSurface
+				item={item}
+				viewInstanceId={viewInstanceId}
+				workspaceId={workspaceId}
+			/>
 		);
 	}
 
@@ -498,7 +502,7 @@ function WorkspaceItemView({
 		return (
 			<WorkspaceFileViewer
 				item={item}
-				toolbarSlotId={viewInstanceId}
+				viewInstanceId={viewInstanceId}
 				workspaceId={workspaceId}
 				onMoveItem={onMoveItem}
 				onRenameItem={onRenameItem}

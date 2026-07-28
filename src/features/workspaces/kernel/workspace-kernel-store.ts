@@ -1,4 +1,8 @@
-import type { WorkspaceItemSummary, WorkspaceItemType } from "#/features/workspaces/contracts";
+import type {
+	WorkspaceItemFacts,
+	WorkspaceItemSummary,
+	WorkspaceItemType,
+} from "#/features/workspaces/contracts";
 import {
 	getAvailableWorkspaceItemName,
 	normalizeWorkspaceItemName,
@@ -12,17 +16,10 @@ import {
 	workspaceItemSortStep,
 	workspaceRevisionKey,
 } from "#/features/workspaces/kernel/workspace-kernel-schema";
+import { parseWorkspaceMetadataJson } from "#/features/workspaces/kernel/workspace-kernel-metadata";
 import type { WorkspaceKernelNameConflictPolicy } from "#/features/workspaces/kernel/workspace-kernel-types";
-
-export class WorkspaceKernelNameConflictError extends Error {
-	constructor(
-		readonly itemId?: string,
-		readonly requestedName?: string,
-	) {
-		super("Workspace item name already exists.");
-		this.name = "WorkspaceKernelNameConflictError";
-	}
-}
+import type { WorkspaceKernelNameConflict } from "#/features/workspaces/kernel/workspace-kernel-types";
+import { getMetadataNumber } from "#/features/workspaces/model/workspace-file";
 
 export class WorkspaceKernelStore {
 	private readonly sql: WorkspaceKernelSql;
@@ -42,29 +39,54 @@ export class WorkspaceKernelStore {
 		`.map((row) => mapKernelItemRow(row, this.workspaceId()));
 	}
 
+	getItemFacts(items: WorkspaceItemSummary[]): WorkspaceItemFacts[] {
+		if (items.length === 0) {
+			return [];
+		}
+		const itemIdsJson = JSON.stringify(items.map((item) => item.id));
+		const factsByItemId = new Map(
+			this.sql<{
+				id: string;
+				projection_metadata_json: string | null;
+				relationship_count: number;
+			}>`
+				SELECT
+					i.id,
+					p.metadata_json AS projection_metadata_json,
+					(
+						SELECT COUNT(*)
+						FROM kernel_relations r
+						WHERE r.from_item_id = i.id OR r.to_item_id = i.id
+					) AS relationship_count
+				FROM kernel_items i
+				LEFT JOIN kernel_item_projections p
+					ON p.item_id = i.id AND p.format = 'pages' AND p.status = 'ready'
+					WHERE i.deleted_at IS NULL
+						AND i.id IN (SELECT value FROM json_each(${itemIdsJson}))
+			`.map((row) => [row.id, row] as const),
+		);
+
+		return items.map((item) => {
+			const facts = factsByItemId.get(item.id);
+			const projectionMetadata = facts?.projection_metadata_json
+				? parseWorkspaceMetadataJson(facts.projection_metadata_json)
+				: {};
+			const pageCount = getMetadataNumber(projectionMetadata, "pageCount");
+
+			return {
+				itemId: item.id,
+				...(pageCount && Number.isInteger(pageCount) ? { pageCount } : {}),
+				relationshipCount: facts?.relationship_count ?? 0,
+			};
+		});
+	}
+
 	getAllDocumentItemIds(): string[] {
 		return this.sql<{ id: string }>`
 			SELECT id
 			FROM kernel_items
 			WHERE type = 'document'
 		`.map((row) => row.id);
-	}
-
-	listItems(input: { parentId?: string | null; limit?: number } = {}): WorkspaceItemSummary[] {
-		const parentFilter = input.parentId ?? null;
-		const rows = this.sql<KernelItemRow>`
-			SELECT *
-			FROM kernel_items
-			WHERE deleted_at IS NULL
-				AND (
-					(${parentFilter} IS NULL AND parent_id IS NULL)
-					OR parent_id = ${parentFilter}
-				)
-			ORDER BY sort_order ASC, name ASC
-			LIMIT ${Math.max(1, Math.min(input.limit ?? 80, 500))}
-		`;
-
-		return rows.map((row) => mapKernelItemRow(row, this.workspaceId()));
 	}
 
 	getCurrentRevision() {
@@ -171,7 +193,9 @@ export class WorkspaceKernelStore {
 		excludeItemId?: string;
 		onNameConflict?: WorkspaceKernelNameConflictPolicy;
 		reservedNames?: string[];
-	}) {
+	}):
+		| { name: string; status: "resolved" }
+		| { conflict: WorkspaceKernelNameConflict; status: "conflict" } {
 		const existingNames = [
 			...this.getActiveSiblingNames(input.parentId, input.excludeItemId),
 			...(input.reservedNames ?? []),
@@ -182,21 +206,38 @@ export class WorkspaceKernelStore {
 
 		if (input.onNameConflict === "error") {
 			if (!requestedName) {
-				throw new WorkspaceKernelNameConflictError(input.itemId, input.requestedName);
+				return {
+					conflict: {
+						code: "name_conflict",
+						itemId: input.itemId ?? null,
+						requestedName: input.requestedName?.trim() || null,
+					},
+					status: "conflict",
+				};
 			}
 
 			if (existingNames.includes(requestedName)) {
-				throw new WorkspaceKernelNameConflictError(input.itemId, requestedName);
+				return {
+					conflict: {
+						code: "name_conflict",
+						itemId: input.itemId ?? null,
+						requestedName,
+					},
+					status: "conflict",
+				};
 			}
 
-			return requestedName;
+			return { name: requestedName, status: "resolved" };
 		}
 
-		return getAvailableWorkspaceItemName({
-			type: input.type,
-			requestedName: input.requestedName,
-			existingNames,
-		});
+		return {
+			name: getAvailableWorkspaceItemName({
+				type: input.type,
+				requestedName: input.requestedName,
+				existingNames,
+			}),
+			status: "resolved",
+		};
 	}
 
 	requireItem(itemId: string) {

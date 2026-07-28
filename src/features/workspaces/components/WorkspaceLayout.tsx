@@ -22,7 +22,13 @@ import {
 	useWorkspaceViewPolicy,
 	WorkspaceViewCapabilitiesProvider,
 } from "#/features/workspaces/components/workspace-view-policy";
-import type { WorkspaceItemType, WorkspaceSummary } from "#/features/workspaces/contracts";
+import type {
+	WorkspaceItemFacts,
+	WorkspaceItemType,
+	WorkspaceSummary,
+} from "#/features/workspaces/contracts";
+import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
+import { WorkspaceLocationProvider } from "#/features/workspaces/locations/workspace-location-context";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { isWorkspaceItemView } from "#/features/workspaces/model/view";
 import { workspaceItemRequiresHeavyViewerRuntime } from "#/features/workspaces/model/workspace-file";
@@ -51,6 +57,7 @@ export type { WorkspaceItem } from "#/features/workspaces/model/types";
 interface WorkspaceShellProps {
 	workspace: WorkspaceSummary;
 	items: WorkspaceItem[];
+	itemFacts: WorkspaceItemFacts[];
 	revision: number;
 	activeTabIdFromUrl?: string;
 	activeViewFromUrl?: string;
@@ -59,6 +66,7 @@ interface WorkspaceShellProps {
 export function WorkspaceShell({
 	workspace,
 	items,
+	itemFacts,
 	revision,
 	activeTabIdFromUrl,
 	activeViewFromUrl,
@@ -72,6 +80,7 @@ export function WorkspaceShell({
 	const selectedQuotes = useWorkspaceAiComposerDraftQuotes(workspace.id);
 	const setChatSurfaceMode = useWorkspaceUiStore((state) => state.setChatSurfaceMode);
 	const toggleChatPanel = useWorkspaceUiStore((state) => state.toggleChatPanel);
+	const normalizedUiSession = useWorkspaceUiSession(workspace.id);
 	const realtime = useWorkspaceRealtime({
 		workspaceId: workspace.id,
 		lastSeenRevision: revision,
@@ -81,12 +90,7 @@ export function WorkspaceShell({
 			}
 			applyWorkspaceEventToCache(queryClient, event);
 		},
-		onReconnect: () => {
-			void queryClient.invalidateQueries({
-				queryKey: workspacePageQueryKey(workspace.id),
-			});
-		},
-		onRevisionGap: () => {
+		onDesync: () => {
 			void queryClient.invalidateQueries({
 				queryKey: workspacePageQueryKey(workspace.id),
 			});
@@ -107,21 +111,31 @@ export function WorkspaceShell({
 		itemsById,
 		openItem,
 		openWorkspaceRoot,
+		revealWorkspaceLocation,
 		scopedItems,
 		session,
 		validItemIds,
 	} = useWorkspaceNavigation({
 		workspace,
 		items,
+		presentation: normalizedUiSession.presentation,
 		activeTabIdFromUrl,
 		activeViewFromUrl,
 	});
-	const normalizedUiSession = useWorkspaceUiSession(workspace.id);
 	const { capabilities: viewCapabilities, viewportMode } = useWorkspaceViewPolicy();
 	const selectedItemIds = useWorkspaceSelectionItemIds(workspace.id);
 	const { chatSurfaceMode, presentation } = normalizedUiSession;
 	const mobileChatSurfaceMode = getWorkspaceMobileChatSurfaceMode(chatSurfaceMode);
 	const hasHeavyViewerRuntimeItems = scopedItems.some(workspaceItemRequiresHeavyViewerRuntime);
+	const navigateToWorkspaceLocation = (location: WorkspaceLocation) => {
+		const viewInstanceId = revealWorkspaceLocation(location);
+
+		if (viewInstanceId && chatSurfaceMode === "fullscreen") {
+			setChatSurfaceMode(workspace.id, "hidden");
+		}
+
+		return viewInstanceId;
+	};
 	const createWorkspaceItem = (input: { type: WorkspaceItemType; parentId: string | null }) => {
 		if (!getWorkspaceMemberCapabilities(workspace.membershipRole).canMutateContent) {
 			return;
@@ -174,6 +188,7 @@ export function WorkspaceShell({
 		activeItem: isWorkspaceItemView(activeItem) ? activeItem : undefined,
 		activeTabId: activeTab.id,
 		itemViewStatesByItemId,
+		itemFactsById: new Map(itemFacts.map((item) => [item.itemId, item])),
 		itemsById,
 		presentation,
 		selectedItemIds,
@@ -288,11 +303,13 @@ export function WorkspaceShell({
 
 	return (
 		<WorkspaceMutationAccessProvider membershipRole={workspace.membershipRole}>
-			{hasHeavyViewerRuntimeItems ? (
-				<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
-			) : (
-				workspaceInteractionContent
-			)}
+			<WorkspaceLocationProvider itemsById={itemsById} navigate={navigateToWorkspaceLocation}>
+				{hasHeavyViewerRuntimeItems ? (
+					<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
+				) : (
+					workspaceInteractionContent
+				)}
+			</WorkspaceLocationProvider>
 		</WorkspaceMutationAccessProvider>
 	);
 }

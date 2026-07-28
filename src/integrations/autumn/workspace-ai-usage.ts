@@ -1,4 +1,4 @@
-import { Autumn } from "autumn-js";
+import { Autumn, ResponseValidationError } from "autumn-js";
 import { eq } from "drizzle-orm";
 
 import { user } from "#/db/schema";
@@ -8,6 +8,10 @@ import {
 	type WorkspaceAiChatModelId,
 	type WorkspaceAiChatModelBillingTier,
 } from "#/features/workspaces/ai/models";
+import {
+	logOperationalEvent,
+	recordOperationalFailure,
+} from "#/integrations/observability/operational-events";
 
 export const WORKSPACE_AI_MESSAGE_FEATURE_IDS = {
 	standard: "standard_messages",
@@ -68,28 +72,21 @@ export async function trackWorkspaceAiMessageUsage(input: TrackWorkspaceAiMessag
 	const autumn = getAutumnClient(input.env);
 
 	if (!autumn) {
-		console.info("[Autumn] Skipping workspace AI usage tracking: AUTUMN_SECRET_KEY is unset", {
-			modelId: input.modelId,
-			threadId: input.threadId,
-			userId: input.userId,
-			workspaceId: input.workspaceId,
-		});
 		return;
 	}
 
 	const model = getWorkspaceAiChatModelById(input.modelId);
 	const featureId = WORKSPACE_AI_MESSAGE_FEATURE_IDS[model.billingTier];
+	const fields = {
+		feature_id: featureId,
+		model_billing_tier: model.billingTier,
+		model_id: input.modelId,
+		thread_id: input.threadId,
+		user_id: input.userId,
+		workspace_id: input.workspaceId,
+	};
 
 	try {
-		console.info("[Autumn] Tracking workspace AI message usage", {
-			featureId,
-			modelBillingTier: model.billingTier,
-			modelId: model.id,
-			threadId: input.threadId,
-			userId: input.userId,
-			workspaceId: input.workspaceId,
-		});
-
 		const customerFields = await getAutumnCustomerFields(input.userId);
 
 		await autumn.customers.getOrCreate({
@@ -97,42 +94,47 @@ export async function trackWorkspaceAiMessageUsage(input: TrackWorkspaceAiMessag
 			...customerFields,
 		});
 
-		const response = await autumn.track({
-			customerId: input.userId,
-			featureId,
-			value: 1,
-			properties: {
-				workspace_id: input.workspaceId,
-				thread_id: input.threadId,
-				model_id: model.id,
-				model_name: model.name,
-				gateway_model: model.gatewayModel,
-				model_provider: model.provider,
-				model_billing_tier: model.billingTier,
-				model_cost_level: model.cost,
-				feature_surface: "workspace_ai_chat",
-			},
-			async: true,
-		});
+		try {
+			await autumn.track({
+				customerId: input.userId,
+				featureId,
+				value: 1,
+				properties: {
+					workspace_id: input.workspaceId,
+					thread_id: input.threadId,
+					model_id: model.id,
+					model_name: model.name,
+					gateway_model: model.gatewayModel,
+					model_provider: model.provider,
+					model_billing_tier: model.billingTier,
+					model_cost_level: model.cost,
+					feature_surface: "workspace_ai_chat",
+				},
+				async: true,
+			});
+		} catch (error) {
+			if (!(error instanceof ResponseValidationError)) {
+				throw error;
+			}
 
-		console.info("[Autumn] Tracked workspace AI message usage", {
-			featureId,
-			modelBillingTier: model.billingTier,
-			modelId: model.id,
-			response,
-			threadId: input.threadId,
-			userId: input.userId,
-			workspaceId: input.workspaceId,
-		});
+			// Autumn can accept an async usage event but return a slim response that
+			// fails the SDK's success schema. Keep that visible without escalating it.
+			logOperationalEvent({
+				event: "workspace_ai_usage_tracking",
+				fields: {
+					...fields,
+					error_type: error.name,
+					operation_stage: "track_response",
+				},
+				outcome: "partial",
+			});
+		}
 	} catch (error) {
-		console.warn("[Autumn] Failed to track workspace AI message usage", {
+		recordOperationalFailure({
+			distinctId: input.userId,
 			error,
-			featureId,
-			modelBillingTier: model.billingTier,
-			modelId: input.modelId,
-			threadId: input.threadId,
-			userId: input.userId,
-			workspaceId: input.workspaceId,
+			event: "workspace_ai_usage_tracking",
+			fields,
 		});
 	}
 }
@@ -183,9 +185,10 @@ async function getAutumnCustomerFields(userId: string): Promise<AutumnCustomerFi
 			},
 		};
 	} catch (error) {
-		console.warn("[Autumn] Failed to load customer fields", {
+		recordOperationalFailure({
+			distinctId: userId,
 			error,
-			userId,
+			event: "autumn_customer_fields",
 		});
 
 		return DEFAULT_AUTUMN_CUSTOMER_FIELDS;

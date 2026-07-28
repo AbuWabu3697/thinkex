@@ -12,12 +12,12 @@ import type { WorkspaceClipboardIntake } from "#/features/workspaces/clipboard/w
 import { getWorkspaceObjectRegistryEntry } from "#/features/workspaces/model/object-registry";
 import { workspaceColors } from "#/features/workspaces/model/workspace-colors";
 import { resolveWorkspaceFileTypeFromHint } from "#/features/workspaces/model/workspace-file";
-import { workspaceItemTypeColors } from "#/features/workspaces/model/workspace-item-colors";
 import { cn } from "#/lib/utils";
 
 const documentDisplay = getWorkspaceObjectRegistryEntry("document");
-const documentIconClassName = workspaceColors[workspaceItemTypeColors.document].iconClassName;
-const fileIconClassName = workspaceColors[workspaceItemTypeColors.file].iconClassName;
+const documentIconClassName = workspaceColors[documentDisplay.color].iconClassName;
+const fileIconClassName =
+	workspaceColors[getWorkspaceObjectRegistryEntry("file").color].iconClassName;
 
 export function WorkspaceClipboardIntakeDialog({
 	intake,
@@ -54,8 +54,8 @@ export function WorkspaceClipboardIntakeDialog({
 									source={intake.document.source}
 								/>
 							) : null}
-							{intake.files.map((file) => (
-								<WorkspaceClipboardFileRow file={file} key={getFileKey(file)} />
+							{intake.files.map((file, index) => (
+								<WorkspaceClipboardFileRow file={file} key={getFileKey(file, index)} />
 							))}
 						</ul>
 					</section>
@@ -152,8 +152,8 @@ function getConfirmLabel(input: { documentCount: number; fileCount: number }) {
 	return total > 1 ? `Create ${total} items` : "Create item";
 }
 
-function getFileKey(file: File) {
-	return `${file.name}-${file.type}-${file.size}-${file.lastModified}`;
+function getFileKey(file: File, index: number) {
+	return `${index}-${file.name}-${file.type}-${file.size}-${file.lastModified}`;
 }
 
 function isBrowserPreviewableImage(file: File) {

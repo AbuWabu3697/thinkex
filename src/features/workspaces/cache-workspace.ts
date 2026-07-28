@@ -35,13 +35,19 @@ export function upsertWorkspaceInList(
 
 export function setWorkspacePageCache(
 	queryClient: QueryClient,
-	input: { workspace: WorkspaceSummary; items: WorkspaceItemSummary[]; revision?: number },
+	input: {
+		workspace: WorkspaceSummary;
+		items: WorkspaceItemSummary[];
+		itemFacts: WorkspacePage["itemFacts"];
+		revision: number;
+	},
 ) {
-	queryClient.setQueryData<WorkspacePage>(workspacePageQueryKey(input.workspace.id), (current) => ({
+	queryClient.setQueryData<WorkspacePage>(workspacePageQueryKey(input.workspace.id), {
 		workspace: input.workspace,
 		items: input.items,
-		revision: input.revision ?? current?.revision ?? 0,
-	}));
+		itemFacts: input.itemFacts,
+		revision: input.revision,
+	});
 }
 
 export function restoreWorkspaceListCache(

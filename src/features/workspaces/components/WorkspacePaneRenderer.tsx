@@ -15,6 +15,7 @@ export default function WorkspacePaneRenderer({
 
 			return (
 				<WorkspaceContent
+					viewInstanceId={pane.id}
 					workspace={workspace}
 					items={scopedItems}
 					activeItem={item}
@@ -26,6 +27,7 @@ export default function WorkspacePaneRenderer({
 		case "root":
 			return (
 				<WorkspaceContent
+					viewInstanceId={pane.id}
 					workspace={workspace}
 					items={scopedItems}
 					activeItem={undefined}

@@ -1,8 +1,6 @@
 import * as React from "react";
 
 import {
-	getContentBottom,
-	getElementTop,
 	getElementViewportTop,
 	getFirstVisibleMessageItem,
 	getFlexGap,
@@ -59,7 +57,7 @@ function useMessageScrollerController({
 	});
 
 	const {
-		streamingTurnRef,
+		anchoredMessageRef,
 		autoScrollRef,
 		autoscrollingRef,
 		autoscrollingTimeoutRef,
@@ -80,6 +78,7 @@ function useMessageScrollerController({
 	} = refs;
 
 	const previousDefaultScrollPositionRef = React.useRef(defaultScrollPosition);
+	const resizeFrameRef = React.useRef<number | null>(null);
 
 	React.useLayoutEffect(() => {
 		if (previousDefaultScrollPositionRef.current !== defaultScrollPosition) {
@@ -164,7 +163,6 @@ function useMessageScrollerController({
 
 	const { reanchorToAnchoredMessage, scrollToElement, scrollToEnd, scrollToStart } =
 		useMessageScrollerCommands({
-			anchorScrollBehavior: appendedAnchorScrollBehavior,
 			refs,
 			commitScrollState,
 			scheduleStateCommit,
@@ -242,19 +240,11 @@ function useMessageScrollerController({
 			if (!content || !viewport || !anchor) {
 				handled = scrollToEnd({ behavior: "auto" });
 			} else {
-				const anchorTop = getElementTop(anchor, viewport);
-				const contentBottom = getContentBottom({
-					content,
-					spacer: spacerRef.current,
-					viewport,
-				});
-				// A short last turn already fits below the anchor, so opening at the end
-				// shows the whole turn without leaving a blank gap beneath it.
-				const lastTurnFits = contentBottom - anchorTop <= viewport.clientHeight;
-
-				handled = lastTurnFits
-					? scrollToEnd({ behavior: "auto" })
-					: scrollToElement(anchor, { align: "start" }, { keepPreviousPeek: true });
+				handled = scrollToElement(
+					anchor,
+					{ align: "start", behavior: "auto" },
+					{ keepPreviousPeek: true },
+				);
 			}
 		} else {
 			handled =
@@ -380,7 +370,7 @@ function useMessageScrollerController({
 		spacerRef,
 	]);
 
-	const handleResize = React.useCallback(() => {
+	const reconcileResize = React.useCallback(() => {
 		if (modeRef.current === "following-bottom" && autoScrollRef.current) {
 			scrollToEnd({ behavior: "auto" });
 			return;
@@ -393,8 +383,19 @@ function useMessageScrollerController({
 			return;
 		}
 
-		scheduleStateCommit();
-	}, [autoScrollRef, modeRef, reanchorToAnchoredMessage, scheduleStateCommit, scrollToEnd]);
+		commitScrollState();
+	}, [autoScrollRef, commitScrollState, modeRef, reanchorToAnchoredMessage, scrollToEnd]);
+
+	const handleResize = React.useCallback(() => {
+		if (resizeFrameRef.current !== null) {
+			return;
+		}
+
+		resizeFrameRef.current = window.requestAnimationFrame(() => {
+			resizeFrameRef.current = null;
+			reconcileResize();
+		});
+	}, [reconcileResize]);
 
 	const userScrollIntent = React.useCallback(() => {
 		if (
@@ -406,10 +407,10 @@ function useMessageScrollerController({
 			// programmatic jump so re-pinning (and re-arming) never fights the reader.
 			const viewport = viewportRef.current;
 			viewport?.scrollTo({ top: viewport.scrollTop, behavior: "auto" });
-			streamingTurnRef.current = null;
+			anchoredMessageRef.current = null;
 			modeRef.current = "free-scrolling";
 		}
-	}, [modeRef, streamingTurnRef, viewportRef]);
+	}, [anchoredMessageRef, modeRef, viewportRef]);
 
 	const mirrorStateAttributes = React.useCallback(
 		() => writeStateAttributes(stateStore.getSnapshot()),
@@ -496,6 +497,11 @@ function useMessageScrollerController({
 			if (stateFrameRef.current !== null) {
 				window.cancelAnimationFrame(stateFrameRef.current);
 				stateFrameRef.current = null;
+			}
+
+			if (resizeFrameRef.current !== null) {
+				window.cancelAnimationFrame(resizeFrameRef.current);
+				resizeFrameRef.current = null;
 			}
 
 			if (autoscrollingTimeoutRef.current !== null) {

@@ -9,6 +9,14 @@ import {
 	isAIInspectorEnabled,
 } from "#/features/workspaces/ai/ai-inspector";
 import { createAIThreadClass } from "#/features/workspaces/ai/ai-thread";
+import type { ResourcePurgeResult } from "#/features/workspaces/resource-purge-result";
+import { WorkspaceForbiddenError } from "#/features/workspaces/server/permissions";
+import {
+	copyChatAttachmentsForThread,
+	deleteChatAttachmentsForThread,
+	getChatAttachmentObjectKey,
+	rebindChatAttachmentMessageUrls,
+} from "#/features/workspaces/ai/chat-attachment-storage";
 import {
 	deleteThreadMeta,
 	deleteLinkedThreadImport,
@@ -37,6 +45,10 @@ import {
 	type UserAIStoreState,
 } from "#/features/workspaces/ai/ai-thread-metadata";
 import { getWorkspacePromptScope } from "#/features/workspaces/ai/ai-thread-prompt-scope";
+import {
+	logOperationalEvent,
+	recordOperationalFailure,
+} from "#/integrations/observability/operational-events";
 
 export type {
 	AIThreadSummary,
@@ -46,12 +58,14 @@ export type {
 class AIThreadNotFoundError extends Error {
 	constructor() {
 		super("Chat thread not found");
+		this.name = "AIThreadNotFoundError";
 	}
 }
 
 class AIThreadForbiddenError extends Error {
 	constructor() {
 		super("Forbidden");
+		this.name = "AIThreadForbiddenError";
 	}
 }
 
@@ -62,19 +76,57 @@ interface LinkedAIThreadSnapshot {
 
 interface LinkedUserAIStore {
 	exportForAccountLinking(): Promise<LinkedAIThreadSnapshot[]>;
-	purgeForDeletion(): Promise<void>;
+	purgeForDeletion(): Promise<ResourcePurgeResult>;
+}
+
+export interface PutChatAttachmentInput {
+	attachmentId: string;
+	bytes: ArrayBuffer;
+	contentType: string;
+	threadId: string;
+	workspaceId: string;
 }
 
 export const AIThread = createAIThreadClass(() => UserAIStore);
 
 export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
-	static options = { sendIdentityOnConnect: false };
+	// PartyServer selects its connection manager from the raw subclass options,
+	// before the Agents SDK fills its defaults. Keep hibernation explicit here.
+	static options = { hibernate: true, sendIdentityOnConnect: false };
 
 	initialState: UserAIStoreState = { isLoaded: false, threads: [] };
 
 	onStart() {
-		ensureChatMetaStore(this);
-		this._refreshState();
+		const startedAt = performance.now();
+		let stage: "schema" | "state_refresh" = "schema";
+
+		try {
+			ensureChatMetaStore(this);
+			stage = "state_refresh";
+			const { registeredThreadCount, visibleThreadCount } = this._refreshState();
+
+			logOperationalEvent({
+				event: "user_ai_store_start",
+				fields: {
+					duration_ms: Math.round(performance.now() - startedAt),
+					hibernation_enabled: UserAIStore.options.hibernate,
+					registered_thread_count: registeredThreadCount,
+					visible_thread_count: visibleThreadCount,
+				},
+				outcome: "success",
+			});
+		} catch (error) {
+			recordOperationalFailure({
+				error,
+				event: "user_ai_store_start",
+				fields: {
+					duration_ms: Math.round(performance.now() - startedAt),
+					hibernation_enabled: UserAIStore.options.hibernate,
+					stage,
+				},
+			});
+			throw error;
+		}
 	}
 
 	override async onBeforeSubAgent(
@@ -86,24 +138,16 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		}
 
 		try {
-			await this._requireThreadMeta(name);
+			await this._requireThreadMetaOrEnsureDefault(name);
 		} catch (error) {
 			if (error instanceof AIThreadForbiddenError) {
 				return new Response("Forbidden", { status: 403 });
 			}
-
-			try {
-				const defaultThread = await this._ensureDefaultWorkspaceThread(name);
-				if (defaultThread) {
-					return undefined;
-				}
-			} catch (ensureError) {
-				if (ensureError instanceof AIThreadForbiddenError) {
-					return new Response("Forbidden", { status: 403 });
-				}
+			if (error instanceof AIThreadNotFoundError) {
+				return new Response("Chat thread not found", { status: 404 });
 			}
 
-			return new Response("Chat thread not found", { status: 404 });
+			throw error;
 		}
 	}
 
@@ -119,10 +163,7 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 			throw new Error("workspaceId is required");
 		}
 
-		await getWorkspacePromptScope({
-			userId: this.name,
-			workspaceId,
-		});
+		await this._getWorkspacePromptScope(workspaceId);
 
 		return this._createThreadRecord(workspaceId);
 	}
@@ -149,12 +190,7 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 			return null;
 		}
 
-		await getWorkspacePromptScope({
-			userId: this.name,
-			workspaceId,
-		}).catch(() => {
-			throw new AIThreadForbiddenError();
-		});
+		await this._getWorkspacePromptScope(workspaceId);
 
 		const existing = this._getThreadSummary(threadId);
 		if (existing) {
@@ -235,31 +271,88 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 	@callable()
 	async deleteThread(threadId: string): Promise<void> {
-		await this._requireThreadMeta(threadId);
+		const thread = await this._requireThreadMeta(threadId);
 		await this.deleteSubAgent(AIThread, threadId);
 		deleteThreadMeta(this, threadId);
 		this._refreshState();
+		this.ctx.waitUntil(
+			deleteChatAttachmentsForThread(this.env.WORKSPACE_KERNEL_FILES, {
+				threadId,
+				userId: this.name,
+				workspaceId: thread.workspace_id,
+			}).catch((error) => {
+				recordOperationalFailure({
+					distinctId: this.name,
+					error,
+					event: "chat_attachment_cleanup",
+					fields: {
+						reason: "thread_deleted",
+						thread_id: threadId,
+						user_id: this.name,
+						workspace_id: thread.workspace_id,
+					},
+				});
+			}),
+		);
 	}
 
 	@callable()
-	async purgeForDeletion(): Promise<void> {
-		for (const thread of this._getActiveThreadMetaRows()) {
+	async purgeForDeletion(): Promise<ResourcePurgeResult> {
+		const threads = this._getActiveThreadMetaRows();
+		let failed = 0;
+
+		for (const thread of threads) {
 			try {
+				await deleteChatAttachmentsForThread(this.env.WORKSPACE_KERNEL_FILES, {
+					threadId: thread.id,
+					userId: this.name,
+					workspaceId: thread.workspace_id,
+				});
+
 				if (this.hasSubAgent(AIThread, thread.id)) {
 					await this.deleteSubAgent(AIThread, thread.id);
 				}
 
 				deleteThreadMeta(this, thread.id);
 			} catch (error) {
-				console.warn("[UserAIStore] Failed to purge chat thread during deletion", {
-					threadId: thread.id,
+				failed += 1;
+				recordOperationalFailure({
+					distinctId: this.name,
 					error,
+					event: "ai_thread_purge",
+					fields: {
+						thread_id: thread.id,
+						user_id: this.name,
+						workspace_id: thread.workspace_id,
+					},
 				});
 			}
 		}
 
 		this._refreshState();
-		await this.ctx.storage.deleteAll();
+		if (failed === 0) {
+			await this.ctx.storage.deleteAll();
+		}
+		return { attempted: threads.length + 1, failed };
+	}
+
+	@callable()
+	async putChatAttachment(input: PutChatAttachmentInput): Promise<void> {
+		const thread = await this._requireThreadMeta(input.threadId);
+		if (thread.workspace_id !== input.workspaceId) {
+			throw new AIThreadForbiddenError();
+		}
+
+		await this.env.WORKSPACE_KERNEL_FILES.put(
+			getChatAttachmentObjectKey({
+				attachmentId: input.attachmentId,
+				threadId: input.threadId,
+				userId: this.name,
+				workspaceId: input.workspaceId,
+			}),
+			input.bytes,
+			{ httpMetadata: { contentType: input.contentType } },
+		);
 	}
 
 	async mergeLinkedAnonymousUser(input: { anonymousUserId: string }): Promise<void> {
@@ -267,10 +360,10 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 			return;
 		}
 
-		const anonymousStore = getAgentByName(
+		const anonymousStore: LinkedUserAIStore = await getAgentByName(
 			this.env[userAIAgentName],
 			input.anonymousUserId,
-		) as unknown as LinkedUserAIStore;
+		);
 		const snapshots = await anonymousStore.exportForAccountLinking();
 
 		for (const snapshot of snapshots) {
@@ -315,11 +408,8 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 	async getThreadContext(threadId: string): Promise<AIThreadContext | null> {
 		try {
-			const thread = await this._requireThreadMeta(threadId);
-			const promptScope = await getWorkspacePromptScope({
-				workspaceId: thread.workspace_id,
-				userId: this.name,
-			});
+			const thread = await this._requireThreadMetaOrEnsureDefault(threadId);
+			const promptScope = await this._getWorkspacePromptScope(thread.workspace_id);
 
 			return {
 				id: thread.id,
@@ -327,8 +417,12 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 				promptScope,
 				userId: this.name,
 			};
-		} catch {
-			return null;
+		} catch (error) {
+			if (error instanceof AIThreadNotFoundError || error instanceof AIThreadForbiddenError) {
+				return null;
+			}
+
+			throw error;
 		}
 	}
 
@@ -441,6 +535,11 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		threads.sort(compareThreadRecentFirst);
 
 		this.setState({ ...this.state, isLoaded: true, threads });
+
+		return {
+			registeredThreadCount: registry.length,
+			visibleThreadCount: threads.length,
+		};
 	}
 
 	private async _importLinkedThread(input: {
@@ -469,10 +568,18 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		}
 
 		const threadId = this._getAvailableImportedThreadId(snapshot.meta.id);
+		const attachmentTransfer = {
+			sourceThreadId: snapshot.meta.id,
+			sourceUserId: input.sourceUserId,
+			targetThreadId: threadId,
+			targetUserId: this.name,
+			workspaceId: snapshot.meta.workspace_id,
+		};
 		await this.subAgent(AIThread, threadId);
 		const now = Date.now();
 
 		try {
+			await copyChatAttachmentsForThread(this.env.WORKSPACE_KERNEL_FILES, attachmentTransfer);
 			insertThreadMetaRow(this, {
 				...snapshot.meta,
 				archived_at: null,
@@ -482,10 +589,13 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 			if (snapshot.messages.length > 0) {
 				const thread = await this.subAgent(AIThread, threadId);
-				await thread.addMessages(snapshot.messages, {
-					broadcast: false,
-					mode: "upsert",
-				});
+				await thread.addMessages(
+					rebindChatAttachmentMessageUrls(snapshot.messages, attachmentTransfer),
+					{
+						broadcast: false,
+						mode: "upsert",
+					},
+				);
 			}
 
 			insertLinkedThreadImport(this, {
@@ -497,8 +607,31 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		} catch (error) {
 			await this.deleteSubAgent(AIThread, threadId);
 			deleteThreadMeta(this, threadId);
+			await deleteChatAttachmentsForThread(this.env.WORKSPACE_KERNEL_FILES, {
+				threadId,
+				userId: this.name,
+				workspaceId: snapshot.meta.workspace_id,
+			});
 			throw error;
 		}
+
+		await deleteChatAttachmentsForThread(this.env.WORKSPACE_KERNEL_FILES, {
+			threadId: snapshot.meta.id,
+			userId: input.sourceUserId,
+			workspaceId: snapshot.meta.workspace_id,
+		}).catch((error) => {
+			recordOperationalFailure({
+				distinctId: this.name,
+				error,
+				event: "chat_attachment_cleanup",
+				fields: {
+					reason: "account_linked",
+					thread_id: snapshot.meta.id,
+					user_id: input.sourceUserId,
+					workspace_id: snapshot.meta.workspace_id,
+				},
+			});
+		});
 
 		this._refreshState();
 	}
@@ -562,15 +695,40 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 			throw new AIThreadNotFoundError();
 		}
 
-		try {
-			await getWorkspacePromptScope({
-				userId: this.name,
-				workspaceId: thread.workspace_id,
-			});
-		} catch {
-			throw new AIThreadForbiddenError();
-		}
+		await this._getWorkspacePromptScope(thread.workspace_id);
 
 		return thread;
+	}
+
+	private async _getWorkspacePromptScope(workspaceId: string) {
+		try {
+			return await getWorkspacePromptScope({
+				userId: this.name,
+				workspaceId,
+			});
+		} catch (error) {
+			if (error instanceof WorkspaceForbiddenError) {
+				throw new AIThreadForbiddenError();
+			}
+
+			throw error;
+		}
+	}
+
+	private async _requireThreadMetaOrEnsureDefault(threadId: string): Promise<AIThreadMetaRow> {
+		try {
+			return await this._requireThreadMeta(threadId);
+		} catch (error) {
+			if (!(error instanceof AIThreadNotFoundError)) {
+				throw error;
+			}
+
+			const defaultThread = await this._ensureDefaultWorkspaceThread(threadId);
+			if (!defaultThread) {
+				throw error;
+			}
+
+			return this._requireThreadMeta(threadId);
+		}
 	}
 }

@@ -61,6 +61,10 @@ export interface PostHogEventPropertiesByName {
 		tool_name: string;
 		success: boolean;
 		duration_ms: number;
+		failure_codes: string[];
+		failure_count: number;
+		outcome: "error" | "partial" | "success";
+		runtime_success: boolean;
 	};
 	ai_turn_failed: {
 		thread_id: string;
@@ -71,6 +75,44 @@ export interface PostHogEventPropertiesByName {
 		error_message: string;
 		messages_persisted: boolean | null;
 		request_id: string | null;
+	};
+	workspace_file_extraction_completed: {
+		actor_user_id: string | null;
+		asset_kind: string;
+		duration_ms: number;
+		enhancement_duration_ms: number;
+		enhancement_error_message: string | null;
+		enhancement_error_type: string | null;
+		enhancement_outcome: "error" | "success";
+		error_type: string | null;
+		item_id: string;
+		liteparse_duration_ms: number;
+		liteparse_error_type: string | null;
+		liteparse_markdown_length: number | null;
+		liteparse_outcome: "error" | "skipped" | "success";
+		liteparse_page_count: number | null;
+		outcome: "error" | "partial" | "success";
+		page_count: number | null;
+		provider: string | null;
+		provider_mode: string | null;
+		request_id: string | null;
+		route_reason: string | null;
+		workflow_id: string;
+		workspace_id: string;
+	};
+	workspace_file_intake_completed: {
+		asset_kind: string | null;
+		conversion: string | null;
+		duration_ms: number;
+		error_code: string | null;
+		input_bytes: number | null;
+		intake_kind: "chat_attachment" | "workspace_file";
+		item_id: string | null;
+		outcome: "error" | "rejected" | "success";
+		output_bytes: number | null;
+		plan_kind: "document" | "file" | null;
+		status_code: number;
+		workspace_id: string;
 	};
 }
 

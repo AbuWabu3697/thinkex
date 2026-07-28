@@ -24,11 +24,11 @@ import { getAuthSessionQueryOptions } from "#/lib/session-query";
 
 export function DocumentEditorSurface({
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 }: {
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }) {
 	const { data: session } = useQuery(getAuthSessionQueryOptions());
@@ -49,7 +49,7 @@ export function DocumentEditorSurface({
 		<DocumentEditorInstance
 			collaborationSession={collaborationSession}
 			item={item}
-			toolbarSlotId={toolbarSlotId}
+			viewInstanceId={viewInstanceId}
 			workspaceId={workspaceId}
 		/>
 	);
@@ -58,12 +58,12 @@ export function DocumentEditorSurface({
 function DocumentEditorInstance({
 	collaborationSession,
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 }: {
 	collaborationSession: DocumentCollaborationSession;
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }) {
 	const { capabilities } = useWorkspaceMutationAccess();
@@ -98,7 +98,7 @@ function DocumentEditorInstance({
 		},
 	});
 
-	useDocumentEditorToolbar(toolbarSlotId ?? item.id, capabilities.canMutateContent ? editor : null);
+	useDocumentEditorToolbar(viewInstanceId, capabilities.canMutateContent ? editor : null);
 
 	return (
 		<section className="relative flex h-full min-h-0 flex-col bg-background">

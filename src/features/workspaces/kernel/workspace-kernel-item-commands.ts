@@ -26,16 +26,18 @@ import type {
 	DeleteWorkspaceKernelItemsResult,
 	MoveWorkspaceKernelItemsArgs,
 	MoveWorkspaceKernelItemsResult,
-	ReadWorkspaceKernelItemArgs,
+	ReadWorkspaceDocumentCheckpointArgs,
 	RenameWorkspaceKernelItemArgs,
 	UpdateWorkspaceKernelItemColorArgs,
-	WriteWorkspaceKernelItemArgs,
+	CommitWorkspaceDocumentCheckpointArgs,
+	WorkspaceKernelMutationOutcome,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
 import {
 	resolveWorkspaceItemColorForCreate,
 	workspaceItemSupportsCustomColor,
 } from "#/features/workspaces/model/workspace-item-colors";
 import type { WorkspaceCommandResult } from "#/features/workspaces/realtime/messages";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 
 export class WorkspaceKernelItemCommands {
 	private readonly events: WorkspaceKernelEventBus;
@@ -63,10 +65,16 @@ export class WorkspaceKernelItemCommands {
 
 	async createItem(
 		input: CreateWorkspaceKernelItemArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
+	): Promise<WorkspaceKernelMutationOutcome<WorkspaceItemSummary>> {
 		const type = workspaceItemTypeSchema.parse(input.type);
-		const id = input.id ?? crypto.randomUUID();
+
+		if (type === "file") {
+			throw new Error("Binary workspace files must be created through the upload flow.");
+		}
+
+		const id = input.id;
 		const parentId = input.parentId ?? null;
+
 		const color = resolveWorkspaceItemColorForCreate({
 			type,
 			color: input.color,
@@ -78,28 +86,43 @@ export class WorkspaceKernelItemCommands {
 		}
 
 		this.store.assertParentIsValid(parentId);
-		const name = this.store.resolveItemName({
+		const nameResolution = this.store.resolveItemName({
 			itemId: id,
 			type,
 			parentId,
 			requestedName: input.name,
 			onNameConflict: input.onNameConflict,
 		});
+
+		if (nameResolution.status === "conflict") {
+			return nameResolution;
+		}
+
+		const name = nameResolution.name;
+		const initialRelations = input.initialRelations ?? [];
+
+		for (const relation of initialRelations) {
+			if (relation.fromItemId !== id) {
+				throw new Error("Initial workspace relations must originate from the created item.");
+			}
+
+			this.store.assertActiveItem(relation.toItemId);
+		}
 		const shellPath = getWorkspaceKernelShellPath({ id, type });
 		const { initialContent, metadataJson } = buildWorkspaceItemCreateBootstrap({
 			type,
-			name,
 			metadataJson: input.metadataJson ?? {},
 			initialContent: input.initialContent,
 		});
 
 		await this.createWorkspaceFile({
 			type,
-			name,
 			shellPath,
 			initialContent,
 		});
 
+		// Keep these writes synchronous. SQLite-backed Durable Objects coalesce
+		// writes without an intervening await into one atomic implicit transaction.
 		this.sql`
 			INSERT INTO kernel_items (
 				id,
@@ -130,26 +153,33 @@ export class WorkspaceKernelItemCommands {
 		`;
 
 		const item = this.store.requireItem(id);
+		this.relations.createRelations(initialRelations);
+		const factItemIds = Array.from(
+			new Set([id, ...initialRelations.flatMap((relation) => [relation.toItemId])]),
+		);
+		const itemFacts = this.store.getItemFacts(
+			factItemIds.map((itemId) => this.store.requireItem(itemId)),
+		);
 		const event = this.events.commit({
 			type: "workspace.item.created",
 			actorUserId: input.actorUserId ?? null,
 			clientMutationId: input.clientMutationId ?? null,
-			payload: { item },
+			payload: { item, itemFacts },
 		});
 
-		return { result: item, event };
+		return { command: { result: item, event }, status: "applied" };
 	}
 
 	async renameItem(
 		input: RenameWorkspaceKernelItemArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
+	): Promise<WorkspaceKernelMutationOutcome<WorkspaceItemSummary>> {
 		if (!input.name.trim()) {
 			throw new Error("Item name is required.");
 		}
 
 		const existingItem = this.store.assertActiveItem(input.itemId);
 		const type = workspaceItemTypeSchema.parse(existingItem.type);
-		const name = this.store.resolveItemName({
+		const nameResolution = this.store.resolveItemName({
 			itemId: existingItem.id,
 			type,
 			parentId: existingItem.parent_id,
@@ -158,23 +188,30 @@ export class WorkspaceKernelItemCommands {
 			onNameConflict: input.onNameConflict,
 		});
 
+		if (nameResolution.status === "conflict") {
+			return nameResolution;
+		}
+
 		this.sql`
 			UPDATE kernel_items
-			SET name = ${name}, updated_at = ${Date.now()}
+		SET name = ${nameResolution.name}, updated_at = ${Date.now()}
 			WHERE id = ${input.itemId} AND deleted_at IS NULL
 		`;
 
-		return this.commitItemEvent({
-			type: "workspace.item.renamed",
-			itemId: input.itemId,
-			actorUserId: input.actorUserId,
-			clientMutationId: input.clientMutationId,
-		});
+		return {
+			command: this.commitItemEvent({
+				type: "workspace.item.renamed",
+				itemId: input.itemId,
+				actorUserId: input.actorUserId,
+				clientMutationId: input.clientMutationId,
+			}),
+			status: "applied",
+		};
 	}
 
 	async moveItems(
 		input: MoveWorkspaceKernelItemsArgs,
-	): Promise<WorkspaceCommandResult<MoveWorkspaceKernelItemsResult>> {
+	): Promise<WorkspaceKernelMutationOutcome<MoveWorkspaceKernelItemsResult>> {
 		const parentId = input.parentId ?? null;
 		const movesByItemId = new Map(input.items.map((item) => [item.itemId, item]));
 		const roots = this.getUniqueRootRows(input.items.map((item) => item.itemId));
@@ -193,7 +230,11 @@ export class WorkspaceKernelItemCommands {
 			rows: roots,
 		});
 
-		for (const plannedMove of plannedMoves) {
+		if (plannedMoves.status === "conflict") {
+			return plannedMoves;
+		}
+
+		for (const plannedMove of plannedMoves.rows) {
 			movedItems.push(
 				this.moveItemRow({
 					name: plannedMove.name,
@@ -211,7 +252,7 @@ export class WorkspaceKernelItemCommands {
 			payload: { items: movedItems },
 		});
 
-		return { result: movedItems, event };
+		return { command: { result: movedItems, event }, status: "applied" };
 	}
 
 	async updateItemColor(
@@ -247,49 +288,64 @@ export class WorkspaceKernelItemCommands {
 		const rowsToRemove = deleteIds
 			.map((id) => this.store.getItemRowIncludingDeleted(id))
 			.filter((row): row is KernelItemRow => Boolean(row));
+		const relatedItemIds = this.relations.listRelatedItemIds(deleteIds);
 
 		this.store.softDeleteItems(deleteIds, Date.now());
 		this.relations.deleteRelationsForItems(deleteIds);
-		await Promise.all(
-			rowsToRemove.map((row) =>
-				this.workspace.rm(row.shell_path, {
-					recursive: true,
-					force: true,
-				}),
-			),
+		const itemFacts = this.store.getItemFacts(
+			relatedItemIds.map((itemId) => this.store.requireItem(itemId)),
 		);
-
 		const result = { itemIds: rootIds, deletedItemIds: deleteIds };
 		const event = this.events.commit({
 			type: "workspace.item.deleted",
 			actorUserId: input.actorUserId ?? null,
 			clientMutationId: input.clientMutationId ?? null,
-			payload: { itemIds: rootIds, deletedItemIds: deleteIds },
+			payload: { itemIds: rootIds, deletedItemIds: deleteIds, itemFacts },
 		});
+
+		try {
+			await Promise.all(
+				rowsToRemove.map((row) =>
+					this.workspace.rm(row.shell_path, {
+						recursive: true,
+						force: true,
+					}),
+				),
+			);
+		} catch (error) {
+			recordOperationalFailure({
+				error,
+				event: "workspace_shell_cleanup",
+				fields: {
+					item_count: rowsToRemove.length,
+					workspace_id: this.workspaceId(),
+				},
+			});
+		}
 
 		return { result, event };
 	}
 
-	async readItem(input: ReadWorkspaceKernelItemArgs) {
+	async readDocumentCheckpoint(input: ReadWorkspaceDocumentCheckpointArgs) {
 		const item = this.store.assertActiveItem(input.itemId);
+		if (item.type !== "document") {
+			throw new Error("Only document items have document checkpoints.");
+		}
 		const itemSummary = mapKernelItemRow(item, this.workspaceId());
-
-		return item.type === "folder"
-			? { item: itemSummary, content: null }
-			: {
-					item: itemSummary,
-					content: await this.workspace.readFile(item.shell_path),
-				};
+		return {
+			item: itemSummary,
+			content: await this.workspace.readFile(item.shell_path),
+		};
 	}
 
-	async writeItem(
-		input: WriteWorkspaceKernelItemArgs,
+	async commitDocumentCheckpoint(
+		input: CommitWorkspaceDocumentCheckpointArgs,
 	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
 		const item = this.store.assertActiveItem(input.itemId);
 		const type = workspaceItemTypeSchema.parse(item.type);
 
-		if (type === "folder") {
-			throw new Error("Folders do not have writable content.");
+		if (type !== "document") {
+			throw new Error("Only document checkpoints can update workspace text content.");
 		}
 
 		await this.workspace.writeFile(
@@ -326,7 +382,6 @@ export class WorkspaceKernelItemCommands {
 
 	private async createWorkspaceFile(input: {
 		type: WorkspaceItemSummary["type"];
-		name: string;
 		shellPath: string;
 		initialContent?: string;
 	}) {
@@ -337,7 +392,7 @@ export class WorkspaceKernelItemCommands {
 
 		await this.workspace.writeFile(
 			input.shellPath,
-			input.initialContent ?? getInitialWorkspaceKernelContent(input.type, input.name),
+			input.initialContent ?? getInitialWorkspaceKernelContent(input.type),
 			getWorkspaceKernelContentMimeType(input.type),
 		);
 	}
@@ -395,9 +450,15 @@ export class WorkspaceKernelItemCommands {
 	}) {
 		const reservedNames: string[] = [];
 
-		return input.rows.map((row) => {
+		const rows: Array<{
+			name: string;
+			row: KernelItemRow;
+			sortOrder?: number;
+		}> = [];
+
+		for (const row of input.rows) {
 			const type = workspaceItemTypeSchema.parse(row.type);
-			const name = this.store.resolveItemName({
+			const nameResolution = this.store.resolveItemName({
 				itemId: row.id,
 				type,
 				parentId: input.parentId,
@@ -407,14 +468,20 @@ export class WorkspaceKernelItemCommands {
 				reservedNames,
 			});
 
-			reservedNames.push(name);
+			if (nameResolution.status === "conflict") {
+				return nameResolution;
+			}
 
-			return {
-				name,
+			reservedNames.push(nameResolution.name);
+
+			rows.push({
+				name: nameResolution.name,
 				row,
 				sortOrder: input.movesByItemId.get(row.id)?.sortOrder,
-			};
-		});
+			});
+		}
+
+		return { rows, status: "resolved" as const };
 	}
 
 	private getUniqueRootRows(itemIds: string[]) {

@@ -6,6 +6,9 @@
 	"compatibility_date": "2026-03-24",
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "src/server.ts",
+	"version_metadata": {
+		"binding": "CF_VERSION_METADATA",
+	},
 	"workers_dev": true,
 	"preview_urls": true,
 	"observability": {
@@ -37,6 +40,7 @@
 	},
 	"vars": {
 		"FIRECRAWL_API_URL": "https://api.firecrawl.dev",
+		"R2_BUCKET_NAME": "thinkex-workspace-kernel-files-staging",
 		"SANDBOX_TRANSPORT": "rpc",
 	},
 	"send_email": [
@@ -48,7 +52,8 @@
 	"r2_buckets": [
 		{
 			"binding": "WORKSPACE_KERNEL_FILES",
-			"bucket_name": "thinkex-workspace-kernel-files",
+			"bucket_name": "thinkex-workspace-kernel-files-staging",
+			"remote": true,
 		},
 	],
 	"secrets": {
@@ -62,6 +67,10 @@
 			"AI_GATEWAY_API_KEY",
 			"AUTUMN_SECRET_KEY",
 			"TCC_API_KEY",
+			"R2_ACCOUNT_ID",
+			"R2_ACCESS_KEY_ID",
+			"R2_SECRET_ACCESS_KEY",
+			"WORKSPACE_UPLOAD_TOKEN_SECRET",
 		],
 	},
 	"workflows": [
@@ -88,6 +97,12 @@
 			"image": "./containers/image-converter/Dockerfile",
 			"instance_type": "lite",
 			"max_instances": 1,
+		},
+		{
+			"class_name": "WorkspaceFileProcessor",
+			"image": "./containers/liteparse/Dockerfile",
+			"instance_type": "standard-2",
+			"max_instances": 2,
 		},
 	],
 	"upload_source_maps": true,
@@ -117,6 +132,10 @@
 				"name": "IMAGE_FILE_CONVERTER",
 				"class_name": "ImageFileConverter",
 			},
+			{
+				"name": "WORKSPACE_FILE_PROCESSOR",
+				"class_name": "WorkspaceFileProcessor",
+			},
 		],
 	},
 	"migrations": [
@@ -144,6 +163,19 @@
 			"tag": "v7_image_file_converter",
 			"new_sqlite_classes": ["ImageFileConverter"],
 		},
+		{
+			"tag": "v8_liteparse_pdf_extractor",
+			"new_sqlite_classes": ["LiteParsePdfExtractor"],
+		},
+		{
+			"tag": "v9_workspace_file_processor",
+			"renamed_classes": [
+				{
+					"from": "LiteParsePdfExtractor",
+					"to": "WorkspaceFileProcessor",
+				},
+			],
+		},
 	],
 	"d1_databases": [
 		{
@@ -156,6 +188,9 @@
 	"env": {
 		"staging": {
 			"name": "thinkex-staging",
+			"version_metadata": {
+				"binding": "CF_VERSION_METADATA",
+			},
 			"routes": [
 				{
 					"pattern": "staging.thinkex.app",
@@ -165,6 +200,7 @@
 			// Provision dedicated staging resources before the first deploy.
 			"vars": {
 				"FIRECRAWL_API_URL": "https://api.firecrawl.dev",
+				"R2_BUCKET_NAME": "thinkex-workspace-kernel-files-staging",
 				"SANDBOX_TRANSPORT": "rpc",
 			},
 			"secrets": {
@@ -178,6 +214,10 @@
 					"AI_GATEWAY_API_KEY",
 					"AUTUMN_SECRET_KEY",
 					"TCC_API_KEY",
+					"R2_ACCOUNT_ID",
+					"R2_ACCESS_KEY_ID",
+					"R2_SECRET_ACCESS_KEY",
+					"WORKSPACE_UPLOAD_TOKEN_SECRET",
 				],
 			},
 			"ai": {
@@ -222,13 +262,19 @@
 					"class_name": "OfficePdfConverter",
 					"image": "./containers/gotenberg/Dockerfile",
 					"instance_type": "standard-1",
-					"max_instances": 1,
+					"max_instances": 2,
 				},
 				{
 					"class_name": "ImageFileConverter",
 					"image": "./containers/image-converter/Dockerfile",
-					"instance_type": "lite",
+					"instance_type": "basic",
 					"max_instances": 1,
+				},
+				{
+					"class_name": "WorkspaceFileProcessor",
+					"image": "./containers/liteparse/Dockerfile",
+					"instance_type": "standard-2",
+					"max_instances": 2,
 				},
 			],
 			"durable_objects": {
@@ -257,6 +303,10 @@
 						"name": "IMAGE_FILE_CONVERTER",
 						"class_name": "ImageFileConverter",
 					},
+					{
+						"name": "WORKSPACE_FILE_PROCESSOR",
+						"class_name": "WorkspaceFileProcessor",
+					},
 				],
 			},
 			"d1_databases": [
@@ -270,6 +320,9 @@
 		},
 		"production": {
 			"name": "thinkex",
+			"version_metadata": {
+				"binding": "CF_VERSION_METADATA",
+			},
 			"routes": [
 				{
 					"pattern": "thinkex.app",
@@ -278,6 +331,7 @@
 			],
 			"vars": {
 				"FIRECRAWL_API_URL": "https://api.firecrawl.dev",
+				"R2_BUCKET_NAME": "thinkex-workspace-kernel-files",
 				"SANDBOX_TRANSPORT": "rpc",
 			},
 			"secrets": {
@@ -291,6 +345,10 @@
 					"AI_GATEWAY_API_KEY",
 					"AUTUMN_SECRET_KEY",
 					"TCC_API_KEY",
+					"R2_ACCOUNT_ID",
+					"R2_ACCESS_KEY_ID",
+					"R2_SECRET_ACCESS_KEY",
+					"WORKSPACE_UPLOAD_TOKEN_SECRET",
 				],
 			},
 			"ai": {
@@ -335,13 +393,20 @@
 					"class_name": "OfficePdfConverter",
 					"image": "./containers/gotenberg/Dockerfile",
 					"instance_type": "standard-1",
-					"max_instances": 1,
+					"max_instances": 2,
 				},
 				{
 					"class_name": "ImageFileConverter",
 					"image": "./containers/image-converter/Dockerfile",
-					"instance_type": "lite",
+					"instance_type": "basic",
 					"max_instances": 1,
+				},
+				{
+					"class_name": "WorkspaceFileProcessor",
+					"image": "./containers/liteparse/Dockerfile",
+					"instance_type": "standard-2",
+					"max_instances": 2,
+					"name": "thinkex-liteparsepdfextractor-production",
 				},
 			],
 			"durable_objects": {
@@ -369,6 +434,10 @@
 					{
 						"name": "IMAGE_FILE_CONVERTER",
 						"class_name": "ImageFileConverter",
+					},
+					{
+						"name": "WORKSPACE_FILE_PROCESSOR",
+						"class_name": "WorkspaceFileProcessor",
 					},
 				],
 			},

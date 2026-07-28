@@ -1,17 +1,15 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
-import { sha256Base64Url } from "#/features/workspaces/extraction/binary";
-import {
-	joinMarkdownProjectionPages,
-	parseMarkdownPagesProjection,
-	serializeMarkdownPagesProjection,
-} from "#/features/workspaces/extraction/page-markdown-projection";
+import { publishLiteParseProjection } from "#/features/workspaces/extraction/liteparse-projection";
+import { recordWorkspaceFileExtractionOutcome } from "#/features/workspaces/extraction/workspace-file-extraction-observability";
 import { createMarkdownExtractionProvider } from "#/features/workspaces/extraction/providers/index";
 import type {
 	MarkdownExtractionProviderId,
 	MarkdownExtractionProviderMode,
 	WorkspaceFileExtractionWorkflowParams,
 } from "#/features/workspaces/extraction/types";
+import { getWorkspaceFileSourceObject } from "#/features/workspaces/extraction/workspace-file-source";
+import { writeWorkspacePageProjection } from "#/features/workspaces/extraction/workspace-page-projection";
 import { getWorkspaceKernelFromEnv } from "#/features/workspaces/kernel/workspace-kernel-access";
 import { getWorkspaceUploadFamily } from "#/features/workspaces/model/workspace-file";
 
@@ -24,7 +22,7 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 		step: WorkflowStep,
 	) {
 		const params = assertWorkflowParams(event.payload);
-		const artifactKey = getExtractionArtifactKey(event.instanceId);
+		const schedule = (task: Promise<void>) => this.ctx.waitUntil(task);
 
 		await step.do("mark extraction processing", async () => {
 			const kernel = await getWorkspaceKernelFromEnv(this.env, params.workspaceId);
@@ -33,13 +31,24 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 				format: "pages",
 				status: "processing",
 				actorUserId: params.actorUserId,
+				clientMutationId: `${event.instanceId}:projection:processing`,
 			});
 
 			return { status: "processing" };
 		});
 
+		const liteParse = await publishLiteParseProjection(this.env, step, params, event.instanceId);
+		const enhancementStartedAt = Date.now();
+		let extraction: StagedPageExtractionResult;
+		let result: {
+			pageCount: number;
+			provider: MarkdownExtractionProviderId;
+			providerMode: MarkdownExtractionProviderMode;
+			status: "ready";
+		};
+
 		try {
-			const extraction = await step.do(
+			extraction = await step.do(
 				"extract page markdown with provider",
 				{
 					retries: {
@@ -51,42 +60,51 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 				},
 				async (): Promise<StagedPageExtractionResult> => {
 					const kernel = await getWorkspaceKernelFromEnv(this.env, params.workspaceId);
-					const source = await kernel.readFileContent({
+					const { object, source } = await getWorkspaceFileSourceObject({
+						env: this.env,
 						itemId: params.itemId,
+						kernel,
 					});
-					const sourceHash = await sha256Base64Url(source.bytes);
 					const route = getWorkspaceUploadFamily(params.assetKind).extractionRoute;
 					const provider = createMarkdownExtractionProvider(route.provider, this.env);
 					const extraction = await provider.extract({
 						workspaceId: params.workspaceId,
 						itemId: params.itemId,
-						bytes: source.bytes,
+						body: object.body,
 						fileName: source.fileName,
 						contentType: source.contentType,
 						sizeBytes: source.sizeBytes,
-						sourceHash,
+						sourceHash: object.etag,
 						mode: route.mode,
 					});
 
-					const pagesJson = serializeMarkdownPagesProjection(extraction.pages);
-
-					await this.env.WORKSPACE_KERNEL_FILES.put(artifactKey, pagesJson, {
-						httpMetadata: { contentType: "application/json" },
+					const projection = await writeWorkspacePageProjection({
+						bucket: this.env.WORKSPACE_KERNEL_FILES,
+						itemId: params.itemId,
+						metadata: extraction.metadata,
+						pages: extraction.pages,
+						provider: extraction.provider,
+						providerMode: extraction.providerMode,
+						runId: event.instanceId,
+						sourceHash: object.etag,
+						tier: "enhanced",
+						workspaceId: params.workspaceId,
 					});
 
 					return {
-						artifactKey,
+						manifestObjectKey: projection.manifestObjectKey,
+						markdownLength: projection.manifest.markdownLength,
 						provider: extraction.provider,
 						providerMode: extraction.providerMode,
 						metadata: extraction.metadata,
-						pageCount: extraction.pages.length,
+						pageCount: projection.manifest.pageCount,
 						routeReason: route.reason,
-						sourceHash,
+						sourceHash: object.etag,
 					};
 				},
 			);
 
-			const result = await step.do(
+			result = await step.do(
 				"write extracted projections",
 				{
 					retries: {
@@ -98,50 +116,66 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 				},
 				async () => {
 					const kernel = await getWorkspaceKernelFromEnv(this.env, params.workspaceId);
-					const artifact = await this.env.WORKSPACE_KERNEL_FILES.get(extraction.artifactKey);
-
-					if (!artifact) {
-						throw new Error("Staged page extraction artifact was not found.");
-					}
-
-					const pagesJson = await artifact.text();
-					const pages = parseMarkdownPagesProjection(pagesJson);
 					const metadataJson = {
 						...extraction.metadata,
 						routeReason: extraction.routeReason,
 						pageCount: extraction.pageCount,
-						markdownLength: joinMarkdownProjectionPages(pages).length,
+						markdownLength: extraction.markdownLength,
 					};
 
 					await kernel.upsertFileProjection({
 						itemId: params.itemId,
 						format: "pages",
 						status: "ready",
-						content: pagesJson,
+						objectKey: extraction.manifestObjectKey,
 						provider: extraction.provider,
 						providerMode: extraction.providerMode,
 						sourceHash: extraction.sourceHash,
 						metadataJson,
 						actorUserId: params.actorUserId,
+						clientMutationId: `${event.instanceId}:projection:enhanced-ready`,
 					});
 
 					return {
-						status: "ready",
+						status: "ready" as const,
 						provider: extraction.provider,
 						providerMode: extraction.providerMode,
 						pageCount: extraction.pageCount,
 					};
 				},
 			);
-
-			await step.do("delete staged extraction artifact", async () => {
-				await this.env.WORKSPACE_KERNEL_FILES.delete(extraction.artifactKey);
-
-				return { deleted: extraction.artifactKey };
-			});
-
-			return result;
 		} catch (error) {
+			if (liteParse.outcome === "success") {
+				await step.do("record partial extraction outcome", async () => {
+					recordWorkspaceFileExtractionOutcome({
+						durationMs: Date.now() - event.timestamp.getTime(),
+						enhancement: {
+							durationMs: Date.now() - enhancementStartedAt,
+							error,
+							outcome: "error",
+						},
+						instanceId: event.instanceId,
+						liteParse,
+						outcome: "partial",
+						pageCount: liteParse.pageCount,
+						params,
+						provider: "liteparse",
+						providerMode: "fast",
+						routeReason: "LiteParse projection retained after enhancement failed.",
+						schedule,
+					});
+
+					return { outcome: "partial" };
+				});
+
+				return {
+					pageCount: liteParse.pageCount,
+					provider: "liteparse",
+					providerMode: "fast",
+					status: "ready",
+				};
+			}
+
 			await step.do("mark extraction failed", async () => {
 				const kernel = await getWorkspaceKernelFromEnv(this.env, params.workspaceId);
 				const errorMessage = getErrorMessage(error);
@@ -151,18 +185,62 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 					status: "failed",
 					errorMessage,
 					actorUserId: params.actorUserId,
+					clientMutationId: `${event.instanceId}:projection:failed`,
 				});
 
 				return { status: "failed", errorMessage };
 			});
 
+			await step.do("record extraction failure", async () => {
+				recordWorkspaceFileExtractionOutcome({
+					durationMs: Date.now() - event.timestamp.getTime(),
+					enhancement: {
+						durationMs: Date.now() - enhancementStartedAt,
+						error,
+						outcome: "error",
+					},
+					error,
+					instanceId: event.instanceId,
+					liteParse,
+					outcome: "error",
+					params,
+					schedule,
+				});
+
+				return { outcome: "error" };
+			});
+
 			throw error;
 		}
+
+		await step.do("record extraction outcome", async () => {
+			recordWorkspaceFileExtractionOutcome({
+				durationMs: Date.now() - event.timestamp.getTime(),
+				enhancement: {
+					durationMs: Date.now() - enhancementStartedAt,
+					outcome: "success",
+				},
+				instanceId: event.instanceId,
+				liteParse,
+				outcome: "success",
+				pageCount: extraction.pageCount,
+				params,
+				provider: extraction.provider,
+				providerMode: extraction.providerMode,
+				routeReason: extraction.routeReason,
+				schedule,
+			});
+
+			return { outcome: "success" };
+		});
+
+		return result;
 	}
 }
 
 interface StagedPageExtractionResult {
-	artifactKey: string;
+	manifestObjectKey: string;
+	markdownLength: number;
 	provider: MarkdownExtractionProviderId;
 	providerMode: MarkdownExtractionProviderMode;
 	metadata: Record<string, string | number | boolean | null>;
@@ -183,11 +261,8 @@ function assertWorkflowParams(
 		itemId: value.itemId,
 		actorUserId: value.actorUserId ?? null,
 		assetKind: value.assetKind,
+		requestId: value.requestId ?? null,
 	};
-}
-
-function getExtractionArtifactKey(instanceId: string) {
-	return `workflow-artifacts/page-extraction/${instanceId}/projection.json`;
 }
 
 function getErrorMessage(error: unknown) {

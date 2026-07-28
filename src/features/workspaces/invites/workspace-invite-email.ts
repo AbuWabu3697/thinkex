@@ -8,6 +8,7 @@ import {
 	getWorkspaceInviteFromEmail,
 	TRANSACTIONAL_FROM_NAME,
 } from "#/lib/transactional-email";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 
 export type WorkspaceInviteEmailDeliveryFailureReason = "missing_binding" | "send_failed";
 
@@ -88,15 +89,10 @@ export async function sendWorkspaceInviteEmails(input: {
 				});
 				return null;
 			} catch (error) {
-				const message = error instanceof Error ? error.message : "Unknown send error";
-				const code = error instanceof Error && "code" in error ? String(error.code) : undefined;
-
-				console.warn("[WorkspaceInviteEmail] Send failed", {
-					email: invite.email,
-					code,
-					message,
+				recordOperationalFailure({
+					error,
+					event: "workspace_invite_email_send",
 				});
-
 				return {
 					email: invite.email,
 					reason: "send_failed",

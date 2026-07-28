@@ -1,6 +1,7 @@
 import type {
 	JsonValue,
 	WorkspaceItemColor,
+	WorkspaceItemFacts,
 	WorkspaceItemSummary,
 	WorkspaceRelationKind,
 	WorkspaceItemType,
@@ -9,10 +10,12 @@ import type {
 	WorkspaceFileAssetKind,
 	WorkspaceUploadConversion,
 } from "#/features/workspaces/model/workspace-file";
+import type { WorkspaceCommandResult } from "#/features/workspaces/realtime/messages";
 
 export interface WorkspaceKernelPage {
 	workspaceId: string;
 	items: WorkspaceItemSummary[];
+	itemFacts: WorkspaceItemFacts[];
 	revision: number;
 }
 
@@ -21,6 +24,12 @@ export interface CreateWorkspaceKernelRelationArgs {
 	kind: WorkspaceRelationKind;
 	note?: string | null;
 	toItemId: string;
+}
+
+export interface LinkWorkspaceKernelItemsArgs {
+	actorUserId?: string | null;
+	clientMutationId?: string | null;
+	relations: CreateWorkspaceKernelRelationArgs[];
 }
 
 export interface ListWorkspaceKernelItemRelationsArgs {
@@ -37,14 +46,77 @@ export interface WorkspaceKernelItemRelation {
 }
 
 export interface ListWorkspaceKernelItemsArgs {
-	parentId?: string | null;
 	limit?: number;
+	offset?: number;
+	path?: string;
+	recursive?: boolean;
+}
+
+export type WorkspaceKernelPathResolution =
+	| {
+			code: "path_not_absolute";
+			path: string;
+			status: "invalid_path";
+	  }
+	| {
+			path: string;
+			status: "not_found";
+	  }
+	| {
+			path: string;
+			status: "root";
+	  }
+	| {
+			item: WorkspaceItemSummary;
+			path: string;
+			status: "item";
+	  };
+
+export interface ResolveWorkspaceKernelPathsArgs {
+	paths: string[];
+}
+
+export interface GetWorkspaceKernelItemPathsArgs {
+	itemIds: string[];
+}
+
+export interface WorkspaceKernelItemPath {
+	itemId: string;
+	path: string;
 }
 
 export type WorkspaceKernelNameConflictPolicy = "rename" | "error";
 
+export interface WorkspaceKernelNameConflict {
+	code: "name_conflict";
+	itemId: string | null;
+	requestedName: string | null;
+}
+
+export type WorkspaceKernelMutationOutcome<T> =
+	| {
+			command: WorkspaceCommandResult<T>;
+			status: "applied";
+	  }
+	| {
+			conflict: WorkspaceKernelNameConflict;
+			status: "conflict";
+	  };
+
+export function requireAppliedWorkspaceKernelMutation<T>(
+	outcome: WorkspaceKernelMutationOutcome<T>,
+): WorkspaceCommandResult<T> {
+	if (outcome.status === "conflict") {
+		throw new Error("Workspace kernel unexpectedly returned a name conflict.", {
+			cause: outcome.conflict,
+		});
+	}
+
+	return outcome.command;
+}
+
 export interface CreateWorkspaceKernelItemArgs {
-	id?: string;
+	id: string;
 	parentId?: string | null;
 	type: WorkspaceItemType;
 	name?: string;
@@ -52,6 +124,7 @@ export interface CreateWorkspaceKernelItemArgs {
 	color?: WorkspaceItemColor;
 	metadataJson?: Record<string, JsonValue>;
 	initialContent?: string;
+	initialRelations?: CreateWorkspaceKernelRelationArgs[];
 	actorUserId?: string | null;
 	clientMutationId?: string | null;
 }
@@ -90,16 +163,16 @@ export interface DeleteWorkspaceKernelItemsArgs {
 	clientMutationId?: string | null;
 }
 
-export interface ReadWorkspaceKernelItemArgs {
+export interface ReadWorkspaceDocumentCheckpointArgs {
 	itemId: string;
 }
 
-export interface ReadWorkspaceKernelFileContentArgs {
+export interface ReadWorkspaceKernelFileSourceArgs {
 	itemId: string;
 }
 
-export interface ReadWorkspaceKernelFileContentResult {
-	bytes: Uint8Array;
+export interface WorkspaceKernelFileSource {
+	objectKey: string;
 	contentType: string;
 	fileName: string;
 	sizeBytes: number;
@@ -114,26 +187,48 @@ export type WorkspaceKernelFileProjectionStatus =
 	| "ready"
 	| "failed";
 
-export interface UpsertWorkspaceKernelFileProjectionArgs {
+interface WorkspaceKernelFileProjectionMutationBase {
 	itemId: string;
 	format: WorkspaceKernelFileProjectionFormat;
-	status: WorkspaceKernelFileProjectionStatus;
-	content?: string | null;
-	contentBytes?: Uint8Array | null;
-	provider?: string | null;
-	providerMode?: string | null;
-	errorMessage?: string | null;
-	sourceHash?: string | null;
-	metadataJson?: Record<string, JsonValue>;
 	actorUserId?: string | null;
 	clientMutationId?: string | null;
 }
 
+export type UpsertWorkspaceKernelFileProjectionArgs =
+	| (WorkspaceKernelFileProjectionMutationBase & {
+			status: "processing";
+			errorMessage?: never;
+			metadataJson?: never;
+			objectKey?: never;
+			provider?: never;
+			providerMode?: never;
+			sourceHash?: never;
+	  })
+	| (WorkspaceKernelFileProjectionMutationBase & {
+			status: "failed";
+			errorMessage: string;
+			metadataJson?: never;
+			objectKey?: never;
+			provider?: never;
+			providerMode?: never;
+			sourceHash?: never;
+	  })
+	| (WorkspaceKernelFileProjectionMutationBase & {
+			status: "ready";
+			errorMessage?: never;
+			metadataJson?: Record<string, JsonValue>;
+			objectKey: string;
+			provider?: string | null;
+			providerMode?: string | null;
+			sourceHash: string;
+	  });
+
 export interface ReadWorkspaceKernelFilePreviewResult {
 	itemId: string;
 	status: WorkspaceKernelFileProjectionStatus;
-	bytes: Uint8Array | null;
+	objectKey: string | null;
 	contentType: string;
+	sizeBytes: number | null;
 	sourceHash: string | null;
 	metadataJson: Record<string, JsonValue>;
 	updatedAt: string;
@@ -148,7 +243,7 @@ export interface ReadWorkspaceKernelFileProjectionResult {
 	itemId: string;
 	format: WorkspaceKernelFileProjectionFormat;
 	status: WorkspaceKernelFileProjectionStatus;
-	content: string | null;
+	objectKey: string | null;
 	provider: string | null;
 	providerMode: string | null;
 	errorMessage: string | null;
@@ -157,7 +252,7 @@ export interface ReadWorkspaceKernelFileProjectionResult {
 	updatedAt: string;
 }
 
-export interface WriteWorkspaceKernelItemArgs {
+export interface CommitWorkspaceDocumentCheckpointArgs {
 	itemId: string;
 	content: string;
 	actorUserId?: string | null;
@@ -165,10 +260,16 @@ export interface WriteWorkspaceKernelItemArgs {
 }
 
 export interface CreateWorkspaceKernelFileFromUploadArgs {
+	id: string;
 	parentId?: string | null;
 	fileName: string;
 	fileSize: number;
 	objectKey: string;
+	preview: {
+		objectKey: string;
+		sizeBytes: number;
+		sourceHash: string;
+	};
 	contentType?: string | null;
 	assetKind: WorkspaceFileAssetKind;
 	source?: {
@@ -184,9 +285,4 @@ export interface CreateWorkspaceKernelFileFromUploadArgs {
 export interface DeleteWorkspaceKernelItemsResult {
 	itemIds: string[];
 	deletedItemIds: string[];
-}
-
-export interface ListWorkspaceKernelEventsArgs {
-	afterRevision: number;
-	limit?: number;
 }

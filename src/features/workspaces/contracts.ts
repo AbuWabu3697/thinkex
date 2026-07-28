@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+import {
+	workspaceItemTypeSchema,
+	type WorkspaceItemType,
+} from "#/features/workspaces/workspace-item-registry";
+
+export { workspaceItemTypeSchema };
+export type { WorkspaceItemType };
+
 export type JsonValue =
 	| string
 	| number
@@ -190,7 +198,11 @@ export const workspaceSummarySchema = z.object({
 	membershipRole: workspaceMembershipRoleSchema,
 });
 
-export const workspaceItemTypeSchema = z.enum(["folder", "document", "file", "flashcard", "quiz"]);
+export const workspaceItemFactsSchema = z.object({
+	itemId: z.string(),
+	pageCount: z.number().int().positive().optional(),
+	relationshipCount: z.number().int().nonnegative(),
+});
 
 export const workspaceItemSummarySchema = z.object({
 	id: z.string(),
@@ -210,7 +222,7 @@ export const workspaceItemSummarySchema = z.object({
 
 export const createWorkspaceItemInputSchema = z
 	.object({
-		id: z.uuid().optional(),
+		id: z.uuid(),
 		workspaceId: z.string().min(1),
 		parentId: z.string().min(1).nullable().optional(),
 		type: workspaceItemTypeSchema,
@@ -293,6 +305,7 @@ export const workspaceIdInputSchema = z.object({
 export const workspacePageSchema = z.object({
 	workspace: workspaceSummarySchema,
 	items: z.array(workspaceItemSummarySchema),
+	itemFacts: z.array(workspaceItemFactsSchema),
 	revision: z.number().int().nonnegative(),
 });
 
@@ -301,7 +314,7 @@ export type WorkspaceColor = z.infer<typeof workspaceColorSchema>;
 export type WorkspaceItemColor = z.infer<typeof workspaceColorSchema>;
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>;
 export type WorkspaceDetail = WorkspaceSummary;
-export type WorkspaceItemType = z.infer<typeof workspaceItemTypeSchema>;
+export type WorkspaceItemFacts = z.infer<typeof workspaceItemFactsSchema>;
 export type WorkspaceItemSummary = z.infer<typeof workspaceItemSummarySchema>;
 export type CreateWorkspaceItemInput = z.infer<typeof createWorkspaceItemInputSchema>;
 export type RenameWorkspaceItemInput = z.infer<typeof renameWorkspaceItemInputSchema>;
@@ -324,7 +337,7 @@ export type WorkspaceMemberSummary = z.infer<typeof workspaceMemberSummarySchema
 
 export const workspaceEmailInviteSummarySchema = z.object({
 	id: z.string().min(1),
-	email: z.string().email(),
+	email: z.email(),
 	role: workspaceMembershipRoleSchema,
 	createdAt: z.coerce.date(),
 });

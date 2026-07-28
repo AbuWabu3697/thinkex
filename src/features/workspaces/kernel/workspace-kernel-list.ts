@@ -1,4 +1,8 @@
-import type { WorkspaceItemSummary, WorkspaceItemType } from "#/features/workspaces/contracts";
+import type {
+	WorkspaceItemFacts,
+	WorkspaceItemSummary,
+	WorkspaceItemType,
+} from "#/features/workspaces/contracts";
 import {
 	joinWorkspacePathSegment,
 	resolveWorkspaceKernelCwd,
@@ -6,17 +10,25 @@ import {
 	type WorkspaceKernelTree,
 	type WorkspaceKernelPathErrorCode,
 } from "#/features/workspaces/kernel/workspace-kernel-paths";
+import {
+	resolveWorkspaceFileTypeFromItem,
+	type WorkspaceFileAssetKind,
+} from "#/features/workspaces/model/workspace-file";
 
 export interface ListWorkspaceKernelItemsResult {
 	path: string;
-	more: boolean;
+	total: number;
+	nextOffset?: number;
 	items: ListWorkspaceKernelItem[];
 	failed: ListWorkspaceKernelItemsFailure[];
 }
 
 export interface ListWorkspaceKernelItem {
+	modifiedAt: string;
+	pageCount?: number;
 	path: string;
-	type: WorkspaceItemType;
+	relationshipCount: number;
+	type: WorkspaceItemType | WorkspaceFileAssetKind;
 }
 
 export interface ListWorkspaceKernelItemsFailure {
@@ -24,21 +36,46 @@ export interface ListWorkspaceKernelItemsFailure {
 	path: string;
 }
 
-interface WorkspaceKernelListedItems {
-	items: ListWorkspaceKernelItem[];
-	truncated: boolean;
+interface WorkspaceKernelListSelection {
+	failed: ListWorkspaceKernelItemsFailure[];
+	path: string;
+	rows: WorkspaceKernelListRow[];
+	total: number;
+	nextOffset?: number;
+}
+
+interface WorkspaceKernelListRow {
+	item: WorkspaceItemSummary;
+	path: string;
 }
 
 export function listWorkspaceKernelTreeItems(input: {
+	getItemFacts: (items: WorkspaceItemSummary[]) => WorkspaceItemFacts[];
 	tree: WorkspaceKernelTree;
+	offset?: number;
 	path?: string;
 	recursive?: boolean;
 	limit?: number;
 }): ListWorkspaceKernelItemsResult {
+	const selection = selectWorkspaceKernelTreeItems(input);
+	return formatWorkspaceKernelListSelection(
+		selection,
+		input.getItemFacts(selection.rows.map((row) => row.item)),
+	);
+}
+
+function selectWorkspaceKernelTreeItems(input: {
+	tree: WorkspaceKernelTree;
+	offset?: number;
+	path?: string;
+	recursive?: boolean;
+	limit?: number;
+}): WorkspaceKernelListSelection {
 	try {
 		const cwd = resolveWorkspaceKernelCwd(input.path ?? "/", input.tree);
 		const boundedLimit = clampWorkspaceListLimit(input.limit);
-		const listing = collectWorkspaceKernelListItems({
+		const listing = collectWorkspaceKernelListRows({
+			offset: input.offset ?? 0,
 			parentId: cwd.parentId,
 			basePath: cwd.path,
 			recursive: input.recursive ?? false,
@@ -48,18 +85,18 @@ export function listWorkspaceKernelTreeItems(input: {
 
 		return {
 			path: cwd.path,
-			more: listing.truncated,
-			items: listing.items,
+			total: listing.total,
+			...(listing.nextOffset !== undefined ? { nextOffset: listing.nextOffset } : {}),
+			rows: listing.rows,
 			failed: [],
 		};
 	} catch (error) {
 		if (error instanceof WorkspaceKernelPathError) {
 			const path = input.path?.trim() || "/";
-
 			return {
 				path,
-				more: false,
-				items: [],
+				total: 0,
+				rows: [],
 				failed: [
 					{
 						code: error.code,
@@ -73,24 +110,45 @@ export function listWorkspaceKernelTreeItems(input: {
 	}
 }
 
-function collectWorkspaceKernelListItems({
+function formatWorkspaceKernelListSelection(
+	selection: WorkspaceKernelListSelection,
+	itemFacts: WorkspaceItemFacts[],
+): ListWorkspaceKernelItemsResult {
+	const itemFactsById = new Map(itemFacts.map((facts) => [facts.itemId, facts]));
+	return {
+		failed: selection.failed,
+		items: selection.rows.map((row) =>
+			formatWorkspaceKernelListItem({
+				facts: itemFactsById.get(row.item.id),
+				item: row.item,
+				path: row.path,
+			}),
+		),
+		...(selection.nextOffset !== undefined ? { nextOffset: selection.nextOffset } : {}),
+		path: selection.path,
+		total: selection.total,
+	};
+}
+
+function collectWorkspaceKernelListRows({
+	offset,
 	parentId,
 	basePath,
 	recursive,
 	limit,
 	childrenByParentId,
 }: {
+	offset: number;
 	parentId: string | null;
 	basePath: string;
 	recursive: boolean;
 	limit: number;
 	childrenByParentId: Map<string | null, WorkspaceItemSummary[]>;
-}): WorkspaceKernelListedItems {
-	const items: ListWorkspaceKernelItem[] = [];
+}): Pick<WorkspaceKernelListSelection, "nextOffset" | "rows" | "total"> {
+	const rows: WorkspaceKernelListRow[] = [];
 	const visitedIds = new Set<string>();
-	let truncated = false;
 
-	const visit = (currentParentId: string | null, relativeParentPath: string): boolean => {
+	const visit = (currentParentId: string | null, relativeParentPath: string) => {
 		for (const child of childrenByParentId.get(currentParentId) ?? []) {
 			if (visitedIds.has(child.id)) {
 				continue;
@@ -99,42 +157,39 @@ function collectWorkspaceKernelListItems({
 			visitedIds.add(child.id);
 
 			const relativePath = joinWorkspacePathSegment(relativeParentPath, child.name);
+			rows.push({
+				item: child,
+				path: toAbsoluteWorkspaceListPath(basePath, relativePath),
+			});
 
-			if (items.length >= limit) {
-				truncated = true;
-				return false;
-			}
-
-			items.push(
-				formatWorkspaceKernelListItem({
-					item: child,
-					path: toAbsoluteWorkspaceListPath(basePath, relativePath),
-				}),
-			);
-
-			if (recursive && !visit(child.id, relativePath)) {
-				return false;
+			if (recursive) {
+				visit(child.id, relativePath);
 			}
 		}
-
-		return true;
 	};
 
 	visit(parentId, "");
+	const pageRows = rows.slice(offset, offset + limit);
+	const nextOffset = offset + pageRows.length;
 
 	return {
-		items,
-		truncated,
+		rows: pageRows,
+		total: rows.length,
+		...(nextOffset < rows.length ? { nextOffset } : {}),
 	};
 }
 
 function formatWorkspaceKernelListItem(input: {
+	facts?: WorkspaceItemFacts;
 	item: WorkspaceItemSummary;
 	path: string;
 }): ListWorkspaceKernelItem {
 	return {
+		modifiedAt: input.item.updatedAt,
+		...(input.facts?.pageCount ? { pageCount: input.facts.pageCount } : {}),
 		path: input.path,
-		type: input.item.type,
+		relationshipCount: input.facts?.relationshipCount ?? 0,
+		type: resolveWorkspaceFileTypeFromItem(input.item)?.assetKind ?? input.item.type,
 	};
 }
 

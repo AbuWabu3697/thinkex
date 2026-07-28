@@ -1,0 +1,50 @@
+import { WorkspaceFileUploadError } from "#/features/workspaces/model/workspace-file";
+
+export async function assertPreparedPdfPreviewResponse(response: Response): Promise<void> {
+	if (response.ok) {
+		return;
+	}
+
+	if (response.status >= 500) {
+		throw new Error(`Workspace file processor failed with status ${response.status}.`);
+	}
+
+	const payload = await readValidationFailure(response);
+
+	if (response.status === 413 || payload.code === "UPLOAD_TOO_LARGE") {
+		throw new WorkspaceFileUploadError({
+			code: "UPLOAD_TOO_LARGE",
+			message: "This PDF exceeds the supported upload limit.",
+			status: 413,
+		});
+	}
+
+	if (payload.code === "PASSWORD_PROTECTED_PDF") {
+		throw new WorkspaceFileUploadError({
+			code: "PASSWORD_PROTECTED_PDF",
+			message:
+				"Password-protected PDFs aren’t supported. Remove the password and upload the PDF again.",
+			status: 422,
+		});
+	}
+	if (payload.code !== "INVALID_PDF" && payload.code !== "INVALID_FILE") {
+		throw new Error(`Workspace file processor returned status ${response.status}.`);
+	}
+
+	throw new WorkspaceFileUploadError({
+		code: "INVALID_PDF",
+		message: "This PDF is damaged or invalid and could not be opened.",
+		status: 422,
+	});
+}
+
+async function readValidationFailure(response: Response) {
+	const payload: unknown = await response.json().catch(() => null);
+
+	if (typeof payload !== "object" || payload === null) {
+		return { code: null };
+	}
+
+	const code = "code" in payload && typeof payload.code === "string" ? payload.code : null;
+	return { code };
+}

@@ -11,6 +11,8 @@ import type {
 } from "@cloudflare/think";
 
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
+import type { AIToolOutcome } from "#/features/workspaces/ai/ai-tool-outcome";
+import { getAIThreadOrchestrationTelemetryOutput } from "#/features/workspaces/ai/ai-thread-orchestration";
 import {
 	buildAiTelemetryInputFromPrompt,
 	buildAiTelemetryInputFromStep,
@@ -32,7 +34,10 @@ import {
 	capturePostHogServerEvent,
 	capturePostHogServerException,
 } from "#/integrations/posthog/server";
-import { emptyTelemetryRequestContext } from "#/integrations/posthog/server-context";
+import {
+	getTelemetryRuntimeContext,
+	type TelemetryRequestContext,
+} from "#/integrations/posthog/server-context";
 import type { PostHogTelemetryScheduler } from "#/integrations/posthog/scheduler";
 
 function parseGatewayModel(gatewayModel: string) {
@@ -118,7 +123,7 @@ interface AIThreadPostHogRecorderOptions {
 }
 
 interface AgentPostHogRuntime {
-	requestContext: typeof emptyTelemetryRequestContext;
+	requestContext: TelemetryRequestContext;
 	schedule?: PostHogTelemetryScheduler;
 }
 
@@ -130,7 +135,7 @@ export class AIThreadPostHogRecorder {
 	constructor(options: AIThreadPostHogRecorderOptions = {}) {
 		this.schedule = options.schedule;
 		this.serverEventRuntime = {
-			requestContext: emptyTelemetryRequestContext,
+			requestContext: getTelemetryRuntimeContext(),
 			schedule: options.schedule,
 		};
 	}
@@ -193,7 +198,7 @@ export class AIThreadPostHogRecorder {
 		});
 	}
 
-	recordToolFinished(ctx: ToolCallResultContext) {
+	recordToolFinished(ctx: ToolCallResultContext, outcome: AIToolOutcome) {
 		const turn = this.turn;
 		if (!turn) {
 			return;
@@ -214,12 +219,18 @@ export class AIThreadPostHogRecorder {
 			spanName: ctx.toolName,
 			parentId: turn.currentGenerationSpanId ?? turn.turnRootSpanId,
 			inputState: ctx.input,
-			outputState: ctx.success ? ctx.output : undefined,
+			outputState: ctx.success
+				? getAIThreadToolTelemetryOutput(ctx.toolName, ctx.output)
+				: undefined,
 			latencySeconds: ctx.durationMs / 1000,
-			isError: !ctx.success,
+			isError: outcome.status !== "success",
 			error: ctx.success ? undefined : ctx.error,
 			properties: {
 				...turnTelemetryProperties(turn),
+				failure_codes: outcome.failureCodes,
+				failure_count: outcome.failedCount,
+				outcome: outcome.status,
+				runtime_success: ctx.success,
 				tool_call_id: ctx.toolCallId,
 				step_number: ctx.stepNumber,
 			},
@@ -232,7 +243,11 @@ export class AIThreadPostHogRecorder {
 			properties: {
 				...turnTelemetryProperties(turn),
 				tool_name: ctx.toolName,
-				success: ctx.success,
+				failure_codes: outcome.failureCodes,
+				failure_count: outcome.failedCount,
+				outcome: outcome.status,
+				runtime_success: ctx.success,
+				success: outcome.status === "success",
 				duration_ms: ctx.durationMs,
 			},
 			...this.serverEventRuntime,
@@ -520,4 +535,8 @@ export class AIThreadPostHogRecorder {
 			...this.serverEventRuntime,
 		});
 	}
+}
+
+function getAIThreadToolTelemetryOutput(toolName: string, output: unknown) {
+	return toolName === "orchestrate" ? getAIThreadOrchestrationTelemetryOutput(output) : output;
 }

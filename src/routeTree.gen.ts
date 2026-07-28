@@ -20,6 +20,7 @@ import { Route as AccountDeletedRouteImport } from './routes/account-deleted'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as BlogRssRouteImport } from './routes/blog.rss'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
@@ -30,9 +31,10 @@ import { Route as ApiPosthogSurveyFeedbackRouteImport } from './routes/api/posth
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedWorkspacesWorkspaceIdRouteImport } from './routes/_protected/workspaces.$workspaceId'
 import { Route as ApiV1WorkspacesWorkspaceIdFileUploadRouteImport } from './routes/api/v1/workspaces.$workspaceId.file-upload'
-import { Route as ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRouteImport } from './routes/api/v1/workspaces.$workspaceId.chat-attachment-normalization'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
+import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments'
+import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments.$attachmentId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -88,6 +90,11 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BlogRoute,
 } as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -141,12 +148,6 @@ const ApiV1WorkspacesWorkspaceIdFileUploadRoute =
     path: '/$workspaceId/file-upload',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
-const ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute =
-  ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRouteImport.update({
-    id: '/$workspaceId/chat-attachment-normalization',
-    path: '/$workspaceId/chat-attachment-normalization',
-    getParentRoute: () => ApiV1WorkspacesRoute,
-  } as any)
 const ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute =
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport.update({
     id: '/$workspaceId/files/$itemId/preview',
@@ -159,6 +160,21 @@ const ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute =
     path: '/$workspaceId/files/$itemId/content',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
+const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute =
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport.update({
+    id: '/$workspaceId/ai-threads/$threadId/attachments',
+    path: '/$workspaceId/ai-threads/$threadId/attachments',
+    getParentRoute: () => ApiV1WorkspacesRoute,
+  } as any)
+const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute =
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRouteImport.update(
+    {
+      id: '/$attachmentId',
+      path: '/$attachmentId',
+      getParentRoute: () =>
+        ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -175,15 +191,17 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/rss': typeof BlogRssRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/blog/': typeof BlogIndexRoute
   '/workspaces/$workspaceId': typeof ProtectedWorkspacesWorkspaceIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
-  '/api/v1/workspaces/$workspaceId/chat-attachment-normalization': typeof ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -199,15 +217,17 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/rss': typeof BlogRssRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/blog': typeof BlogIndexRoute
   '/workspaces/$workspaceId': typeof ProtectedWorkspacesWorkspaceIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
-  '/api/v1/workspaces/$workspaceId/chat-attachment-normalization': typeof ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -226,15 +246,17 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/rss': typeof BlogRssRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/blog/': typeof BlogIndexRoute
   '/_protected/workspaces/$workspaceId': typeof ProtectedWorkspacesWorkspaceIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
-  '/api/v1/workspaces/$workspaceId/chat-attachment-normalization': typeof ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
+  '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -253,15 +275,17 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/blog/rss'
     | '/invite/$token'
+    | '/oauth/consent'
     | '/blog/'
     | '/workspaces/$workspaceId'
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
-    | '/api/v1/workspaces/$workspaceId/chat-attachment-normalization'
     | '/api/v1/workspaces/$workspaceId/file-upload'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -277,15 +301,17 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/blog/rss'
     | '/invite/$token'
+    | '/oauth/consent'
     | '/blog'
     | '/workspaces/$workspaceId'
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
-    | '/api/v1/workspaces/$workspaceId/chat-attachment-normalization'
     | '/api/v1/workspaces/$workspaceId/file-upload'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
   id:
     | '__root__'
     | '/'
@@ -303,15 +329,17 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/blog/rss'
     | '/invite/$token'
+    | '/oauth/consent'
     | '/blog/'
     | '/_protected/workspaces/$workspaceId'
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
-    | '/api/v1/workspaces/$workspaceId/chat-attachment-normalization'
     | '/api/v1/workspaces/$workspaceId/file-upload'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
+    | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -326,6 +354,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  OauthConsentRoute: typeof OauthConsentRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPosthogSurveyFeedbackRoute: typeof ApiPosthogSurveyFeedbackRoute
   ApiV1WorkspacesRoute: typeof ApiV1WorkspacesRouteWithChildren
@@ -410,6 +439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof BlogRoute
     }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -480,13 +516,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
-    '/api/v1/workspaces/$workspaceId/chat-attachment-normalization': {
-      id: '/api/v1/workspaces/$workspaceId/chat-attachment-normalization'
-      path: '/$workspaceId/chat-attachment-normalization'
-      fullPath: '/api/v1/workspaces/$workspaceId/chat-attachment-normalization'
-      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRouteImport
-      parentRoute: typeof ApiV1WorkspacesRoute
-    }
     '/api/v1/workspaces/$workspaceId/files/$itemId/preview': {
       id: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
       path: '/$workspaceId/files/$itemId/preview'
@@ -500,6 +529,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/workspaces/$workspaceId/files/$itemId/content'
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
+    }
+    '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': {
+      id: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+      path: '/$workspaceId/ai-threads/$threadId/attachments'
+      fullPath: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport
+      parentRoute: typeof ApiV1WorkspacesRoute
+    }
+    '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': {
+      id: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
+      path: '/$attachmentId'
+      fullPath: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRouteImport
+      parentRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute
     }
   }
 }
@@ -534,18 +577,33 @@ const BlogRouteChildren: BlogRouteChildren = {
 
 const BlogRouteWithChildren = BlogRoute._addFileChildren(BlogRouteChildren)
 
+interface ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteChildren {
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
+}
+
+const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteChildren: ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteChildren =
+  {
+    ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute:
+      ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute,
+  }
+
+const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren =
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute._addFileChildren(
+    ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteChildren,
+  )
+
 interface ApiV1WorkspacesRouteChildren {
-  ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute: typeof ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute
   ApiV1WorkspacesWorkspaceIdFileUploadRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
 }
 
 const ApiV1WorkspacesRouteChildren: ApiV1WorkspacesRouteChildren = {
-  ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute:
-    ApiV1WorkspacesWorkspaceIdChatAttachmentNormalizationRoute,
   ApiV1WorkspacesWorkspaceIdFileUploadRoute:
     ApiV1WorkspacesWorkspaceIdFileUploadRoute,
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute:
+    ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren,
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute:
     ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute,
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute:
@@ -568,6 +626,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   InviteTokenRoute: InviteTokenRoute,
+  OauthConsentRoute: OauthConsentRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPosthogSurveyFeedbackRoute: ApiPosthogSurveyFeedbackRoute,
   ApiV1WorkspacesRoute: ApiV1WorkspacesRouteWithChildren,
