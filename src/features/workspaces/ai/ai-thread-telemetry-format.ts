@@ -52,6 +52,9 @@ export function buildAiTelemetryInputFromStep(ctx: StepContext) {
 		return request.messages;
 	}
 
+	// Last-resort fallback: AI SDK v7 stopped populating request.body by default
+	// (see include: { requestBody } option). The earlier ctx.messages /
+	// request.messages paths are what fire in practice through Think.
 	const body = request.body;
 	if (!body || typeof body !== "object") {
 		return [];

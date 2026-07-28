@@ -34,7 +34,7 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 			modelId,
 			timeZone: getClientTimeZone(),
 		}),
-		experimental_throttle: AI_CHAT_RENDER_THROTTLE_MS,
+		throttle: AI_CHAT_RENDER_THROTTLE_MS,
 	});
 	const {
 		clearError,
