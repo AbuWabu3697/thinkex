@@ -1,5 +1,5 @@
 import { FileQuestion, type LucideIcon } from "lucide-react";
-import { createContext, type ReactNode, use, useState } from "react";
+import { createContext, type ReactNode, use, useCallback, useState } from "react";
 
 import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import { getWorkspaceItemDisplay } from "#/features/workspaces/model/item-display";
@@ -11,6 +11,7 @@ type WorkspaceLocationPresentation = {
 	Icon: LucideIcon;
 	iconClassName: string;
 	label: string;
+	locatorLabel?: string;
 };
 
 type WorkspacePdfPageRevealRequest = {
@@ -40,27 +41,27 @@ export function WorkspaceLocationProvider({
 	readonly navigate: (location: WorkspaceLocation) => string | undefined;
 }) {
 	const [revealRequest, setRevealRequest] = useState<WorkspacePdfPageRevealRequest | null>(null);
-	const consumeRevealRequest = (request: WorkspacePdfPageRevealRequest) => {
+	const consumeRevealRequest = useCallback((request: WorkspacePdfPageRevealRequest) => {
 		setRevealRequest((current) => (current === request ? null : current));
-	};
+	}, []);
 	const value: WorkspaceLocationContextValue = {
 		consumeRevealRequest,
 		getPresentation(location) {
 			const item = itemsById.get(location.itemId);
 			const itemName = item?.name ?? "Source unavailable";
-			const label =
-				location.kind === "pdf-page" ? `${itemName} · p. ${location.pageNumber}` : itemName;
+			const locatorLabel = location.kind === "pdf-page" ? `p. ${location.pageNumber}` : undefined;
 
 			if (!item) {
 				return {
 					Icon: FileQuestion,
 					iconClassName: "text-muted-foreground",
-					label,
+					label: itemName,
+					locatorLabel,
 				};
 			}
 
 			const { Icon, iconClassName } = getWorkspaceItemDisplay(item);
-			return { Icon, iconClassName, label };
+			return { Icon, iconClassName, label: itemName, locatorLabel };
 		},
 		reveal(location) {
 			const viewInstanceId = navigate(location);
