@@ -9,6 +9,7 @@ import {
 	type WorkspaceReference,
 } from "#/features/workspaces/locations/workspace-location";
 import { MarkdownCodeBlock } from "#/features/workspaces/components/ai-chat/ai-chat-code-block";
+import { normalizeLlmMarkdown } from "#/features/workspaces/components/ai-chat/normalize-llm-markdown";
 import { WorkspaceCitation } from "#/features/workspaces/components/ai-chat/WorkspaceCitation";
 import { cn } from "#/lib/utils";
 
@@ -66,6 +67,7 @@ function StreamdownWorkspaceCitation(citationProps: StreamdownCitationProps) {
 }
 
 export function AiChatMessageResponse({
+	children,
 	className,
 	components,
 	isStreaming = false,
@@ -77,6 +79,8 @@ export function AiChatMessageResponse({
 		...components,
 		citation: StreamdownWorkspaceCitation,
 	};
+	const normalizedChildren =
+		typeof children === "string" ? normalizeLlmMarkdown(children) : children;
 
 	return (
 		<WorkspaceCitationLocationsContext value={workspaceCitationLocations}>
@@ -91,7 +95,9 @@ export function AiChatMessageResponse({
 				{...props}
 				allowedTags={streamdownAllowedTags}
 				literalTagContent={streamdownLiteralTagContent}
-			/>
+			>
+				{normalizedChildren}
+			</Streamdown>
 		</WorkspaceCitationLocationsContext>
 	);
 }
