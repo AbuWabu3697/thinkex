@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import type { WorkspaceSummary } from "#/features/workspaces/contracts";
+import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import type { WorkspaceDragCommand } from "#/features/workspaces/model/drag";
 import { getWorkspaceTabSearch } from "#/features/workspaces/model/tabs";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
@@ -213,6 +214,28 @@ export function useWorkspaceNavigation({
 
 		navigateToTab(tab);
 	};
+	const revealWorkspaceLocation = (location: WorkspaceLocation) => {
+		const item = itemsById.get(location.itemId);
+		if (!item) {
+			return false;
+		}
+
+		if (activeTab?.viewItemId === item.id) {
+			return true;
+		}
+
+		const matchingTab = session?.tabs.find((tab) => tab.viewItemId === item.id);
+		if (matchingTab) {
+			activateWorkspaceTab(matchingTab);
+		} else if (activeTab && !activeTab.viewItemId) {
+			const tab = replaceActiveTabView({ item });
+			navigateToTab(tab);
+		} else {
+			openItemInNewTab({ item });
+		}
+
+		return true;
+	};
 	const openWorkspaceRoot = () => {
 		if (!activeTab?.viewItemId) {
 			return;
@@ -246,6 +269,7 @@ export function useWorkspaceNavigation({
 		itemsById,
 		openItem,
 		openWorkspaceRoot,
+		revealWorkspaceLocation,
 		scopedItems,
 		session,
 		validItemIds,

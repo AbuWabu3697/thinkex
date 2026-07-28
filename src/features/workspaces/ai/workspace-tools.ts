@@ -2,6 +2,9 @@ import type { ToolSet } from "ai";
 
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
 import { defineAIThreadTool } from "#/features/workspaces/ai/ai-thread-tool";
+import { workspaceReadItemsOutputSchema } from "#/features/workspaces/content/workspace-content-contract";
+import { createWorkspaceReadItemsModelOutput } from "#/features/workspaces/content/workspace-read-references";
+import type { WorkspaceReferenceRecord } from "#/features/workspaces/locations/workspace-location";
 import {
 	workspaceToolDefinitions,
 	getWorkspaceToolScopes,
@@ -16,10 +19,12 @@ import {
 type WorkspaceThreadToolConfig = {
 	definition: WorkspaceToolDefinition;
 	getThreadContext: () => Promise<AIThreadContext | null>;
+	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 };
 
 function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 	const { definition } = input;
+	const isWorkspaceRead = definition.name === "workspace_read_items";
 
 	return defineAIThreadTool({
 		description: definition.description,
@@ -27,10 +32,20 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 		inputExamples: definition.inputExamples,
 		outputSchema: definition.outputSchema,
 		strict: true,
+		...(isWorkspaceRead
+			? {
+					toModelOutput: ({ output }) => ({
+						type: "json" as const,
+						value: createWorkspaceReadItemsModelOutput(
+							workspaceReadItemsOutputSchema.parse(output),
+						),
+					}),
+				}
+			: {}),
 		execute: async (args, context) => {
 			const thread = await requireThreadContext(input.getThreadContext);
 
-			return await definition.execute(
+			const output = await definition.execute(
 				args,
 				createThreadWorkspaceAccessContext(
 					thread,
@@ -38,12 +53,22 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 					context.invocationId,
 				),
 			);
+
+			if (isWorkspaceRead && input.onWorkspaceReferences) {
+				const parsed = workspaceReadItemsOutputSchema.safeParse(output);
+				if (parsed.success) {
+					input.onWorkspaceReferences(parsed.data.references);
+				}
+			}
+
+			return output;
 		},
 	});
 }
 
 export function createAIThreadWorkspaceTools(input: {
 	getThreadContext: () => Promise<AIThreadContext | null>;
+	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 }): ToolSet {
 	return Object.fromEntries(
 		workspaceToolDefinitions.map((definition) => [
@@ -51,6 +76,7 @@ export function createAIThreadWorkspaceTools(input: {
 			createWorkspaceThreadTool({
 				definition,
 				getThreadContext: input.getThreadContext,
+				onWorkspaceReferences: input.onWorkspaceReferences,
 			}),
 		]),
 	) as ToolSet;
