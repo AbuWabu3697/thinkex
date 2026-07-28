@@ -65,5 +65,5 @@ minimumReleaseAgeExclude:
   - vite-plus@0.2.2
 
 patchedDependencies:
-  "@cloudflare/think@0.14.0": patches/@cloudflare__think@0.14.0.patch
+  "@cloudflare/think@0.15.0": patches/@cloudflare__think@0.15.0.patch
   "@embedpdf/plugin-zoom@2.14.4": patches/@embedpdf__plugin-zoom@2.14.4.patch
