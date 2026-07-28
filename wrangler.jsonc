@@ -11,6 +11,11 @@
 	},
 	"workers_dev": true,
 	"preview_urls": true,
+	// Do not send our npm dependency list to Cloudflare on every deploy.
+	// See wrangler 4.110 release notes (added the opt-in default).
+	"dependencies_instrumentation": {
+		"enabled": false,
+	},
 	"observability": {
 		"enabled": true,
 		"logs": {
