@@ -439,13 +439,6 @@ const AI_THREAD_TITLE_OUTPUT_SCHEMA = z.object({
 		.trim()
 		.min(1)
 		.max(80)
-		.refine(
-			(value) => {
-				const words = value.split(/\s+/).filter(Boolean).length;
-				return words >= 2 && words <= 6;
-			},
-			{ message: "Title must be 2 to 6 words." },
-		)
 		.describe("Two to six word chat title. No quotes, no trailing punctuation."),
 });
 
