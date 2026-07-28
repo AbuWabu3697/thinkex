@@ -1,9 +1,11 @@
 import { FileQuestion, type LucideIcon } from "lucide-react";
-import { createContext, type ReactNode, use } from "react";
+import { createContext, type ReactNode, use, useState } from "react";
 
 import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import { getWorkspaceItemDisplay } from "#/features/workspaces/model/item-display";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
+
+type WorkspacePdfPageLocation = Extract<WorkspaceLocation, { kind: "pdf-page" }>;
 
 type WorkspaceLocationPresentation = {
 	Icon: LucideIcon;
@@ -11,12 +13,19 @@ type WorkspaceLocationPresentation = {
 	label: string;
 };
 
-type WorkspaceLocationActions = {
-	getPresentation: (location: WorkspaceLocation) => WorkspaceLocationPresentation;
-	reveal: (location: WorkspaceLocation) => boolean;
+type WorkspacePdfPageRevealRequest = {
+	location: WorkspacePdfPageLocation;
+	viewInstanceId: string;
 };
 
-const WorkspaceLocationContext = createContext<WorkspaceLocationActions | null>(null);
+type WorkspaceLocationContextValue = {
+	consumeRevealRequest: (request: WorkspacePdfPageRevealRequest) => void;
+	getPresentation: (location: WorkspaceLocation) => WorkspaceLocationPresentation;
+	reveal: (location: WorkspaceLocation) => boolean;
+	revealRequest: WorkspacePdfPageRevealRequest | null;
+};
+
+const WorkspaceLocationContext = createContext<WorkspaceLocationContextValue | null>(null);
 
 /**
  * Connects location-aware UI to the current workspace's items and navigation.
@@ -24,13 +33,18 @@ const WorkspaceLocationContext = createContext<WorkspaceLocationActions | null>(
 export function WorkspaceLocationProvider({
 	children,
 	itemsById,
-	reveal,
+	navigate,
 }: {
 	readonly children: ReactNode;
 	readonly itemsById: ReadonlyMap<string, WorkspaceItem>;
-	readonly reveal: WorkspaceLocationActions["reveal"];
+	readonly navigate: (location: WorkspaceLocation) => string | undefined;
 }) {
-	const value: WorkspaceLocationActions = {
+	const [revealRequest, setRevealRequest] = useState<WorkspacePdfPageRevealRequest | null>(null);
+	const consumeRevealRequest = (request: WorkspacePdfPageRevealRequest) => {
+		setRevealRequest((current) => (current === request ? null : current));
+	};
+	const value: WorkspaceLocationContextValue = {
+		consumeRevealRequest,
 		getPresentation(location) {
 			const item = itemsById.get(location.itemId);
 			const itemName = item?.name ?? "Source unavailable";
@@ -48,7 +62,15 @@ export function WorkspaceLocationProvider({
 			const { Icon, iconClassName } = getWorkspaceItemDisplay(item);
 			return { Icon, iconClassName, label };
 		},
-		reveal,
+		reveal(location) {
+			const viewInstanceId = navigate(location);
+
+			setRevealRequest(
+				viewInstanceId && location.kind === "pdf-page" ? { location, viewInstanceId } : null,
+			);
+			return Boolean(viewInstanceId);
+		},
+		revealRequest,
 	};
 
 	return <WorkspaceLocationContext value={value}>{children}</WorkspaceLocationContext>;
@@ -64,4 +86,16 @@ export function useWorkspaceLocationActions() {
 	}
 
 	return value;
+}
+
+/**
+ * Returns the latest PDF-page reveal request when it targets this mounted view.
+ */
+export function useWorkspacePdfPageRevealRequest(viewInstanceId: string) {
+	const { consumeRevealRequest, revealRequest } = useWorkspaceLocationActions();
+
+	return {
+		consume: consumeRevealRequest,
+		request: revealRequest?.viewInstanceId === viewInstanceId ? revealRequest : null,
+	};
 }

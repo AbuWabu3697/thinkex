@@ -27,11 +27,12 @@ import type {
 	WorkspaceItemType,
 	WorkspaceSummary,
 } from "#/features/workspaces/contracts";
+import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
+import { WorkspaceLocationProvider } from "#/features/workspaces/locations/workspace-location-context";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { isWorkspaceItemView } from "#/features/workspaces/model/view";
 import { workspaceItemRequiresHeavyViewerRuntime } from "#/features/workspaces/model/workspace-file";
 import { getWorkspaceMobileChatSurfaceMode } from "#/features/workspaces/model/workspace-ui";
-import { WorkspaceLocationProvider } from "#/features/workspaces/locations/workspace-location-context";
 import { useWorkspaceNavigation } from "#/features/workspaces/navigation/useWorkspaceNavigation";
 import { useWorkspaceRealtime } from "#/features/workspaces/realtime/use-workspace-presence";
 import { useWorkspacePersistedStoresHydrated } from "#/features/workspaces/state/persisted-store-hydration";
@@ -125,6 +126,15 @@ export function WorkspaceShell({
 	const { chatSurfaceMode, presentation } = normalizedUiSession;
 	const mobileChatSurfaceMode = getWorkspaceMobileChatSurfaceMode(chatSurfaceMode);
 	const hasHeavyViewerRuntimeItems = scopedItems.some(workspaceItemRequiresHeavyViewerRuntime);
+	const navigateToWorkspaceLocation = (location: WorkspaceLocation) => {
+		const viewInstanceId = revealWorkspaceLocation(location);
+
+		if (viewInstanceId && chatSurfaceMode === "fullscreen") {
+			setChatSurfaceMode(workspace.id, "hidden");
+		}
+
+		return viewInstanceId;
+	};
 	const createWorkspaceItem = (input: { type: WorkspaceItemType; parentId: string | null }) => {
 		if (!getWorkspaceMemberCapabilities(workspace.membershipRole).canMutateContent) {
 			return;
@@ -292,7 +302,7 @@ export function WorkspaceShell({
 
 	return (
 		<WorkspaceMutationAccessProvider membershipRole={workspace.membershipRole}>
-			<WorkspaceLocationProvider itemsById={itemsById} reveal={revealWorkspaceLocation}>
+			<WorkspaceLocationProvider itemsById={itemsById} navigate={navigateToWorkspaceLocation}>
 				{hasHeavyViewerRuntimeItems ? (
 					<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
 				) : (

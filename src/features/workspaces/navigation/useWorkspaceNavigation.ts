@@ -217,24 +217,26 @@ export function useWorkspaceNavigation({
 	const revealWorkspaceLocation = (location: WorkspaceLocation) => {
 		const item = itemsById.get(location.itemId);
 		if (!item) {
-			return false;
+			return undefined;
 		}
 
 		if (activeTab?.viewItemId === item.id) {
-			return true;
+			return activeTab.id;
 		}
 
 		const matchingTab = session?.tabs.find((tab) => tab.viewItemId === item.id);
 		if (matchingTab) {
 			activateWorkspaceTab(matchingTab);
-		} else if (activeTab && !activeTab.viewItemId) {
-			const tab = replaceActiveTabView({ item });
-			navigateToTab(tab);
-		} else {
-			openItemInNewTab({ item });
+			return matchingTab.id;
 		}
 
-		return true;
+		if (activeTab && !activeTab.viewItemId) {
+			const tab = replaceActiveTabView({ item });
+			navigateToTab(tab);
+			return tab.id;
+		}
+
+		return openItemInNewTab({ item }).id;
 	};
 	const openWorkspaceRoot = () => {
 		if (!activeTab?.viewItemId) {

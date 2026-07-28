@@ -14,7 +14,7 @@ import { cn } from "#/lib/utils";
 
 interface WorkspaceFileViewerComponentProps {
 	item: WorkspaceItem;
-	toolbarSlotId?: string;
+	viewInstanceId: string;
 	workspaceId: string;
 }
 
@@ -28,7 +28,7 @@ const workspaceFileViewers: Record<
 
 interface WorkspaceFileViewerProps {
 	item: WorkspaceItem;
-	toolbarSlotId: string;
+	viewInstanceId: string;
 	workspaceId: string;
 	onDeleteItem: (item: WorkspaceItem) => void;
 	onMoveItem: (item: WorkspaceItem) => void;
@@ -37,7 +37,7 @@ interface WorkspaceFileViewerProps {
 
 export default function WorkspaceFileViewer({
 	item,
-	toolbarSlotId,
+	viewInstanceId,
 	workspaceId,
 	onDeleteItem,
 	onMoveItem,
@@ -48,7 +48,7 @@ export default function WorkspaceFileViewer({
 	const viewCapabilities = useWorkspaceViewCapabilities();
 	const viewerContent = Viewer ? (
 		<Suspense fallback={<WorkspaceFileViewerSkeleton />}>
-			<Viewer item={item} toolbarSlotId={toolbarSlotId} workspaceId={workspaceId} />
+			<Viewer item={item} viewInstanceId={viewInstanceId} workspaceId={workspaceId} />
 		</Suspense>
 	) : (
 		<div className="flex h-full items-center justify-center bg-background">

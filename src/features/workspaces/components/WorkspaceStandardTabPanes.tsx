@@ -45,7 +45,7 @@ export default function WorkspaceStandardTabPanes({
 							onCloseItemView={canCloseItemView ? onCloseItemView : undefined}
 						>
 							<WorkspaceContent
-								instanceId={tab.id}
+								viewInstanceId={tab.id}
 								items={scopedItems}
 								activeItem={tab.viewItemId ? itemsById.get(tab.viewItemId) : undefined}
 								workspace={workspace}
