@@ -26,6 +26,7 @@ import {
 	type AiChatToolActivity,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
 import type { AiChatToolChildActivity } from "#/features/workspaces/components/ai-chat/ai-chat-codemode-activity";
+import type { AiChatToolReceiptSegment } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 import {
 	getToolSourceHostname,
 	getToolSourcePreviews,
@@ -141,6 +142,7 @@ function ActivitySummary({
 		presentation: AiToolPresentation;
 		status: AiChatToolActivity["status"];
 		summary: string;
+		segments?: AiChatToolReceiptSegment[];
 	};
 	canExpand?: boolean;
 	sourcePreviews: ToolSourcePreview[];
@@ -158,9 +160,11 @@ function ActivitySummary({
 			<span className="grid size-3.5 shrink-0 place-items-center self-center text-muted-foreground/70">
 				<ToolActivityIcon icon={presentation.icon} />
 			</span>
-			<span className={cn("min-w-0 truncate font-medium", isRunning && "shimmer")}>
-				{activity.summary}
-			</span>
+			<ActivitySummaryText
+				summary={activity.summary}
+				segments={activity.segments}
+				isRunning={isRunning}
+			/>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
 			<ToolStatusIcon status={activity.status} />
 			{canExpand ? (
@@ -170,6 +174,49 @@ function ActivitySummary({
 				/>
 			) : null}
 		</div>
+	);
+}
+
+function ActivitySummaryText({
+	summary,
+	segments,
+	isRunning,
+}: {
+	summary: string;
+	segments: AiChatToolReceiptSegment[] | undefined;
+	isRunning: boolean;
+}) {
+	if (!segments || segments.length === 0) {
+		return (
+			<span className={cn("min-w-0 truncate font-medium", isRunning && "shimmer")}>{summary}</span>
+		);
+	}
+	// Row-level flex handles the layout: text segments stay their intrinsic
+	// width, name segments take remaining space and truncate first. Wrapping
+	// span binds the segments so cross-segment styling (font-medium, shimmer)
+	// applies uniformly without introducing sibling gaps within the summary.
+	return (
+		<span className={cn("inline-flex min-w-0 items-baseline font-medium", isRunning && "shimmer")}>
+			{segments.map((segment, index) =>
+				segment.kind === "name" ? (
+					<span
+						// biome-ignore lint/suspicious/noArrayIndexKey: segments are index-stable per receipt
+						key={index}
+						className="min-w-0 truncate"
+					>
+						{segment.value}
+					</span>
+				) : (
+					<span
+						// biome-ignore lint/suspicious/noArrayIndexKey: segments are index-stable per receipt
+						key={index}
+						className="shrink-0 whitespace-pre"
+					>
+						{segment.value}
+					</span>
+				),
+			)}
+		</span>
 	);
 }
 

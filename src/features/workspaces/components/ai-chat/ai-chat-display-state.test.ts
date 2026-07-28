@@ -44,6 +44,11 @@ describe("Code Mode tool groups", () => {
 				},
 				status: "completed",
 				summary: "Found 0 sources for “notes”",
+				segments: [
+					{ kind: "text", value: "Found 0 sources for “" },
+					{ kind: "name", value: "notes" },
+					{ kind: "text", value: "”" },
+				],
 				toolName: "web_search",
 			},
 		]);
@@ -74,6 +79,11 @@ describe("Code Mode tool groups", () => {
 				},
 				status: "completed",
 				summary: "Found 0 sources for “hello”",
+				segments: [
+					{ kind: "text", value: "Found 0 sources for “" },
+					{ kind: "name", value: "hello" },
+					{ kind: "text", value: "”" },
+				],
 				toolName: "web_search",
 			},
 		]);

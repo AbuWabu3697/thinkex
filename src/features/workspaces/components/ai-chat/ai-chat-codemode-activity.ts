@@ -7,6 +7,7 @@ import {
 import {
 	getFinishedToolReceipt,
 	getRunningToolReceipt,
+	type AiChatToolReceiptSegment,
 	type AiChatToolReceiptStatus,
 } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 
@@ -15,6 +16,7 @@ export interface AiChatToolChildActivity {
 	presentation: AiToolPresentation;
 	status: AiChatToolReceiptStatus;
 	summary: string;
+	segments?: AiChatToolReceiptSegment[];
 	toolName: string;
 }
 
@@ -69,12 +71,24 @@ function toToolActivity(call: ToolLogEntry): AiChatToolChildActivity {
 					toolName: call.method,
 				});
 	const needsApproval = call.state === "pending" && call.requiresApproval;
+	const summary = needsApproval ? `Approval required · ${receipt.summary}` : receipt.summary;
+	// Prefix any segments with an "Approval required · " text segment so the
+	// truncation still targets the underlying name and the approval note stays
+	// intact on the left.
+	const segments =
+		needsApproval && receipt.segments
+			? ([
+					{ kind: "text", value: "Approval required · " },
+					...receipt.segments,
+				] as AiChatToolReceiptSegment[])
+			: receipt.segments;
 
 	return {
 		id: `${call.seq}:${call.connector}:${call.method}`,
 		presentation,
 		status: receipt.status,
-		summary: needsApproval ? `Approval required · ${receipt.summary}` : receipt.summary,
+		summary,
+		segments,
 		toolName: call.method,
 	};
 }
