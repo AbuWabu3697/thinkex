@@ -28,12 +28,6 @@ describe("rewriteAlternativeDelimiters", () => {
 		expect(rewriteAlternativeDelimiters("\\(a\nb\\)")).toBe("\\(a\nb\\)");
 	});
 
-	it("rewrites [/math] and [/inline] custom tags", () => {
-		expect(rewriteAlternativeDelimiters("[/math]a+b[/math] and [/inline]c[/inline]")).toBe(
-			"$$a+b$$ and $c$",
-		);
-	});
-
 	it("leaves text without alternative delimiters untouched", () => {
 		expect(rewriteAlternativeDelimiters("plain $x$ text")).toBe("plain $x$ text");
 	});

@@ -2,9 +2,8 @@
 // remark-math parses it. Two problems get solved together:
 //
 // 1. Alternative delimiter dialects. OpenAI-family models routinely emit
-//    `\(x\)` / `\[x\]` (and rarer `[/math]…[/math]` from some fine-tunes)
-//    which remark-math ignores, rendering them as literal text. We rewrite
-//    them to the `$…$` / `$$…$$` form remark-math parses.
+//    `\(x\)` / `\[x\]` which remark-math ignores, rendering them as literal
+//    text. We rewrite them to the `$…$` / `$$…$$` form remark-math parses.
 //
 // 2. Currency escape misses. `$` followed by a digit that the model didn't
 //    escape as `\$` is treated by remark-math with `singleDollarTextMath:
@@ -26,28 +25,31 @@
 const BRACKET_INLINE = /\\{1,2}\(([^\n]+?)\\{1,2}\)/g;
 // Display bracket math: \[…\] or \\[…\\]. May span lines (matrices, aligned envs).
 const BRACKET_DISPLAY = /\\{1,2}\[([\s\S]+?)\\{1,2}\]/g;
-// Custom tags a few fine-tunes emit.
-const CUSTOM_MATH_TAG = /\[\/math\]([\s\S]*?)\[\/math\]/g;
-const CUSTOM_INLINE_TAG = /\[\/inline\]([\s\S]*?)\[\/inline\]/g;
-// Currency-signature: an unescaped $ followed by a digit. The leading group
-// requires start-of-string or a char that is neither `\` (already escaped)
-// nor `$` (part of a $$ display pair). No lookbehind — Safari-safe.
-const CURRENCY_DOLLAR = /(^|[^\\$])((?:\\\\)*)\$(?=\d)/g;
+// Currency-signature: an unescaped `$` followed by something that structurally
+// looks like a monetary amount — digits with optional thousands separators, an
+// optional decimal, an optional k/M/B suffix, terminated by whitespace, a
+// non-word character, or end-of-input. Leading group requires start-of-string
+// or a char that is neither `\` (already escaped) nor `$` (part of `$$`).
+// No lookbehind — Safari-safe.
+const CURRENCY_DOLLAR =
+	/(^|[^\\$])((?:\\\\)*)\$(?=\d+(?:,\d{3})*(?:\.\d+)?(?:[KMBkmb])?(?:\s|$|[^a-zA-Z\d]))/g;
 
-// Placeholder marker used while transforms run. Space-padded so it never
-// creates or extends structural markdown characters when substituted back.
-const TOKEN = " MDMN";
-const RESTORE = / MDMN(\d+) /g;
+// Stow placeholders wrap the index in two Unicode Private Use Area characters
+// (U+E000–U+F8FF is reserved by the standard for private use; language models
+// do not emit these) so the restore regex cannot collide with real content.
+const TOKEN_OPEN = "";
+const TOKEN_CLOSE = "";
+const RESTORE = /(\d+)/g;
 
 function stowCodeRuns(text: string): { stripped: string; preserved: string[] } {
 	const preserved: string[] = [];
 	let s = text.replace(/```[\s\S]*?```/g, (match) => {
 		preserved.push(match);
-		return `${TOKEN}${preserved.length - 1} `;
+		return `${TOKEN_OPEN}${preserved.length - 1}${TOKEN_CLOSE}`;
 	});
 	s = s.replace(/(`+)[^`\n]+?\1/g, (match) => {
 		preserved.push(match);
-		return `${TOKEN}${preserved.length - 1} `;
+		return `${TOKEN_OPEN}${preserved.length - 1}${TOKEN_CLOSE}`;
 	});
 	return { stripped: s, preserved };
 }
@@ -56,10 +58,21 @@ function restoreCodeRuns(text: string, preserved: string[]): string {
 	return text.replace(RESTORE, (_, i: string) => preserved[Number(i)] ?? "");
 }
 
-// True when the body between two adjacent `$` marks looks like a real math
-// expression the model intended (algebra, LaTeX macros, or a bare numeric
-// like `6` used inline). Anything else is treated as currency prose.
-function bodyLooksLikeMath(body: string): boolean {
+/**
+ * True when the body between two adjacent `$` marks looks like a real math
+ * expression the model intended. Used to decide whether a currency-signature
+ * `$` should be escaped or left as a math opener.
+ *
+ * | Body                                | Verdict | Reason                        |
+ * | ----------------------------------- | ------- | ----------------------------- |
+ * | `6`, `5.99`, `1,299`                | math    | bare numeric literal          |
+ * | `x^2 + 5x`, `n = 3`                 | math    | algebra with short variables  |
+ * | `\frac{a}{b}`, `\sum_{i=1}^n`       | math    | LaTeX macro present           |
+ * | `5 total`, `today, or `, `5 and 6`  | prose   | 3+ letter English word        |
+ * | `45 + `, `= 60`, `1,299–`           | prose   | dangling operator (cut off)   |
+ * | `**bold**`, blank lines, >200 chars | prose   | markdown structural / too long |
+ */
+function mathLikeInlineBody(body: string): boolean {
 	const t = body.trim();
 	if (!t) return false;
 	if (t.length > 200) return false;
@@ -88,9 +101,7 @@ function bodyLooksLikeMath(body: string): boolean {
 export function rewriteAlternativeDelimiters(text: string): string {
 	return text
 		.replace(BRACKET_INLINE, (_, body: string) => `$${body.trim()}$`)
-		.replace(BRACKET_DISPLAY, (_, body: string) => `$$${body.trim()}$$`)
-		.replace(CUSTOM_MATH_TAG, (_, body: string) => `$$${body.trim()}$$`)
-		.replace(CUSTOM_INLINE_TAG, (_, body: string) => `$${body.trim()}$`);
+		.replace(BRACKET_DISPLAY, (_, body: string) => `$$${body.trim()}$$`);
 }
 
 // Escape currency-signature `$` so `singleDollarTextMath: true` does not
@@ -114,7 +125,7 @@ export function escapeCurrencyDollars(text: string): string {
 				break;
 			}
 		}
-		if (closeIdx !== -1 && bodyLooksLikeMath(scan.slice(0, closeIdx))) continue;
+		if (closeIdx !== -1 && mathLikeInlineBody(scan.slice(0, closeIdx))) continue;
 		positions.push(dollarPos);
 	}
 	if (positions.length === 0) return text;

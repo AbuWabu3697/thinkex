@@ -3,6 +3,10 @@ import { createMathPlugin } from "@streamdown/math";
 import { createContext, type ComponentProps, use } from "react";
 import { Streamdown, type StreamdownProps } from "streamdown";
 import "katex/dist/katex.min.css";
+// Installs a global copy listener so selecting rendered math yields its
+// LaTeX source (`$…$` / `$$…$$`) on the clipboard instead of the glyph
+// soup KaTeX renders visually. Matches ChatGPT and Claude.ai's behavior.
+import "katex/contrib/copy-tex";
 import {
 	parseWorkspaceReference,
 	type WorkspaceLocation,
