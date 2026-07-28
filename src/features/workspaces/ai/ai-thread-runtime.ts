@@ -189,11 +189,14 @@ function createSandboxTools(workspace: WorkspaceLike): ToolSet {
 	const sandboxTools: ToolSet = {};
 
 	if (tools.bash) {
+		// v7 typed description as string | ((options) => string) — the widened
+		// tool union in ToolSet does not narrow the intersection cleanly, so
+		// cast the override object back to the runtime tool shape.
 		sandboxTools.sandbox_bash = {
 			...tools.bash,
 			description:
 				"Run a sandboxed Bash script against private sandbox files. Use this for shell-style scratch work inside the assistant sandbox only. This does not run against the actual ThinkEx workspace.",
-		};
+		} as ToolSet[string];
 	}
 
 	return sandboxTools;

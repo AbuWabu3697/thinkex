@@ -16,12 +16,16 @@ interface AIThreadToolRuntime<INPUT, OUTPUT> {
 
 const AI_THREAD_TOOL_RUNTIME = Symbol("AI thread tool runtime");
 
-type AIThreadTool<INPUT, OUTPUT> = Tool<INPUT, OUTPUT> & {
+// The Tool<any, any, any> intersection makes the wrapped tool assignable to
+// AI SDK v7 ToolSet entries, which type as a union of Tool variants using
+// any/never for the type params. Concrete INPUT/OUTPUT are preserved in the
+// runtime metadata that hangs off the symbol key.
+type AIThreadTool<INPUT, OUTPUT> = Tool<any, any, any> & {
 	[AI_THREAD_TOOL_RUNTIME]: AIThreadToolRuntime<INPUT, OUTPUT>;
 };
 
 type AIThreadToolDefinition<INPUT, OUTPUT> = Pick<
-	Tool<INPUT, OUTPUT>,
+	Tool<INPUT, OUTPUT, Record<string, unknown>>,
 	| "description"
 	| "inputExamples"
 	| "inputSchema"
@@ -76,13 +80,16 @@ export function defineAIThreadTool<INPUT, OUTPUT>(
 			return validatedOutput.value;
 		},
 	};
-	const aiTool = tool<INPUT, OUTPUT>({
+	const aiTool = tool<INPUT, OUTPUT, Record<string, unknown>>({
 		...definition,
-		execute: (input: INPUT, options: ToolExecutionOptions) =>
+		execute: (input: INPUT, options: ToolExecutionOptions<unknown>) =>
 			runtime.execute(input, directExecutionContext(options)),
-	} as unknown as Tool<INPUT, OUTPUT>);
+	} as unknown as Tool<INPUT, OUTPUT, Record<string, unknown>>);
 
-	return Object.assign(aiTool, { [AI_THREAD_TOOL_RUNTIME]: runtime });
+	return Object.assign(aiTool, { [AI_THREAD_TOOL_RUNTIME]: runtime }) as AIThreadTool<
+		INPUT,
+		OUTPUT
+	>;
 }
 
 export function requireAIThreadToolRuntime(
@@ -96,7 +103,9 @@ export function requireAIThreadToolRuntime(
 	return (aiTool as AIThreadTool<unknown, unknown>)[AI_THREAD_TOOL_RUNTIME];
 }
 
-function directExecutionContext(options: ToolExecutionOptions): AIThreadToolExecutionContext {
+function directExecutionContext(
+	options: ToolExecutionOptions<unknown>,
+): AIThreadToolExecutionContext {
 	return {
 		abortSignal: options.abortSignal,
 		invocationId: options.toolCallId,

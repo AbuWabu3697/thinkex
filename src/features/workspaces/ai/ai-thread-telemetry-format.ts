@@ -128,13 +128,21 @@ export function extractAiTelemetryTokenUsage(usage: unknown): AiTelemetryTokenUs
 	const record = usage as Record<string, unknown>;
 	const inputTokens = getTokenValue(record.inputTokens) ?? getTokenValue(record.promptTokens);
 	const outputTokens = getTokenValue(record.outputTokens) ?? getTokenValue(record.completionTokens);
+	// AI SDK v7 moved cache + reasoning breakdowns under inputTokenDetails /
+	// outputTokenDetails; keep v6 top-level fallbacks so historical telemetry
+	// records replayed through this normalizer still resolve.
 	const cacheReadInputTokens =
-		getTokenValue(record.cachedInputTokens) ?? getNestedTokenValue(record.inputTokens, "cacheRead");
+		getNestedTokenValue(record.inputTokenDetails, "cacheReadTokens") ??
+		getTokenValue(record.cachedInputTokens) ??
+		getNestedTokenValue(record.inputTokens, "cacheRead");
 	const cacheCreationInputTokens =
+		getNestedTokenValue(record.inputTokenDetails, "cacheWriteTokens") ??
 		getTokenValue(record.cacheCreationInputTokens) ??
 		getNestedTokenValue(record.inputTokens, "cacheWrite");
 	const reasoningTokens =
-		getTokenValue(record.reasoningTokens) ?? getNestedTokenValue(record.outputTokens, "reasoning");
+		getNestedTokenValue(record.outputTokenDetails, "reasoningTokens") ??
+		getTokenValue(record.reasoningTokens) ??
+		getNestedTokenValue(record.outputTokens, "reasoning");
 	const totalTokens = getTokenValue(record.totalTokens);
 
 	return dropUndefined({

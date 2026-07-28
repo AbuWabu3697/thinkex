@@ -84,7 +84,7 @@ class AIThreadToolSetConnector extends CodemodeConnector {
 					sources.set(methodName, toolName);
 
 					const connectorTool: ConnectorTool = {
-						description: aiTool.description,
+						description: typeof aiTool.description === "function" ? undefined : aiTool.description,
 						inputSchema: await runtime.inputSchema.jsonSchema,
 						outputSchema: await runtime.outputSchema.jsonSchema,
 						...(aiTool.needsApproval !== undefined && aiTool.needsApproval !== false

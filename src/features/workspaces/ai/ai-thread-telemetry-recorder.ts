@@ -42,7 +42,7 @@ export class AIThreadTelemetryRecorder {
 	async recordTurnStarted(input: {
 		ctx: TurnContext;
 		modelId: WorkspaceAiChatModelId;
-		system: string;
+		instructions: string;
 		thread: AIThreadContext;
 		tools: unknown;
 	}) {

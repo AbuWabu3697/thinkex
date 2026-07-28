@@ -11,9 +11,10 @@ import {
 
 const directOptions = {
 	abortSignal: new AbortController().signal,
+	context: {},
 	messages: [],
 	toolCallId: "direct-call",
-} satisfies ToolExecutionOptions;
+} satisfies ToolExecutionOptions<unknown>;
 
 describe("AI thread tool", () => {
 	it("uses one validated execution path for direct and Code Mode calls", async () => {
