@@ -2,7 +2,14 @@ import { createWorkspaceStateBackend, type WorkspaceFsLike } from "@cloudflare/s
 import type { WorkspaceLike } from "@cloudflare/think/tools/workspace";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
-import { addToolInputExamplesMiddleware, createGateway, generateText, wrapLanguageModel } from "ai";
+import {
+	addToolInputExamplesMiddleware,
+	createGateway,
+	generateText,
+	Output,
+	wrapLanguageModel,
+} from "ai";
+import { z } from "zod";
 
 import type {
 	AIThreadContext,
@@ -189,11 +196,14 @@ function createSandboxTools(workspace: WorkspaceLike): ToolSet {
 	const sandboxTools: ToolSet = {};
 
 	if (tools.bash) {
+		// v7 typed description as string | ((options) => string) — the widened
+		// tool union in ToolSet does not narrow the intersection cleanly, so
+		// cast the override object back to the runtime tool shape.
 		sandboxTools.sandbox_bash = {
 			...tools.bash,
 			description:
 				"Run a sandboxed Bash script against private sandbox files. Use this for shell-style scratch work inside the assistant sandbox only. This does not run against the actual ThinkEx workspace.",
-		};
+		} as ToolSet[string];
 	}
 
 	return sandboxTools;
@@ -381,13 +391,7 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 		return undefined;
 	}
 
-	const prompt = [
-		"Write a concise chat title for this first user message.",
-		"Return only the title. No quotes. No punctuation at the end.",
-		"Use 2 to 6 words.",
-		"",
-		firstUserMessage,
-	].join("\n");
+	const prompt = firstUserMessage;
 	const startedAt = Date.now();
 	const result = await generateText({
 		model: getWorkspaceAiLanguageModelForGatewayModel(AI_THREAD_TITLE_GATEWAY_MODEL, input.env),
@@ -409,18 +413,34 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 				thinkingConfig: { thinkingLevel: "low" },
 			},
 		} as WorkspaceAiProviderOptions,
+		instructions:
+			"Produce a concise chat title for the user message. Two to six words. No quotes, no trailing punctuation.",
 		prompt,
 		temperature: 0.2,
+		output: Output.object({
+			schema: AI_THREAD_TITLE_OUTPUT_SCHEMA,
+			name: "chat_title",
+			description: "A concise 2-6 word title summarizing the chat.",
+		}),
 	});
 
 	return {
-		title: result.text,
+		title: result.output?.title ?? "",
 		gatewayModel: AI_THREAD_TITLE_GATEWAY_MODEL,
 		prompt,
 		usage: result.usage,
 		latencySeconds: (Date.now() - startedAt) / 1000,
 	};
 }
+
+const AI_THREAD_TITLE_OUTPUT_SCHEMA = z.object({
+	title: z
+		.string()
+		.trim()
+		.min(1)
+		.max(80)
+		.describe("Two to six word chat title. No quotes, no trailing punctuation."),
+});
 
 export { getAIThreadSoulPrompt } from "#/features/workspaces/ai/ai-thread-soul-prompt";
 

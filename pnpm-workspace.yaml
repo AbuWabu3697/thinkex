@@ -11,7 +11,7 @@ trustPolicyExclude:
 overrides:
   dompurify: 3.4.11
   vite: npm:@voidzero-dev/vite-plus-core@0.2.2
-  vitest: 4.1.9
+  vitest: 4.1.10
 
 peerDependencyRules:
   allowedVersions:
@@ -49,21 +49,21 @@ allowBuilds:
   workerd: true
 
 minimumReleaseAgeExclude:
-  - "@cloudflare/codemode@0.4.4"
-  - "@cloudflare/shell@0.4.2"
-  - "@cloudflare/think@0.14.0"
-  - agents@0.18.0
-  - "@voidzero-dev/vite-plus-core@0.2.2"
-  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.2"
-  - "@voidzero-dev/vite-plus-darwin-x64@0.2.2"
-  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.2"
-  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.2"
-  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.2"
-  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.2"
-  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.2"
-  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.2"
-  - vite-plus@0.2.2
+  - "@cloudflare/codemode@0.5.0"
+  - "@cloudflare/shell@0.4.3"
+  - "@cloudflare/think@0.15.0"
+  - agents@0.19.0
+  - "@voidzero-dev/vite-plus-core@0.2.6"
+  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.6"
+  - "@voidzero-dev/vite-plus-darwin-x64@0.2.6"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.6"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.6"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.6"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.6"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.6"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.6"
+  - vite-plus@0.2.6
 
 patchedDependencies:
-  "@cloudflare/think@0.14.0": patches/@cloudflare__think@0.14.0.patch
+  "@cloudflare/think@0.15.0": patches/@cloudflare__think@0.15.0.patch
   "@embedpdf/plugin-zoom@2.14.4": patches/@embedpdf__plugin-zoom@2.14.4.patch

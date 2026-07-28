@@ -64,7 +64,7 @@ export interface AIInspectorRunView {
 	finishedAt?: number;
 	status: "running" | "completed" | "failed";
 	modelId?: string;
-	system?: string;
+	instructions?: string;
 	thread?: unknown;
 	body?: unknown;
 	tools: AIInspectorToolDefinitionView[];

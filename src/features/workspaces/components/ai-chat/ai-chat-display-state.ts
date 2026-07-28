@@ -18,6 +18,7 @@ import {
 import {
 	getFinishedToolReceipt,
 	getRunningToolReceipt,
+	type AiChatToolReceiptSegment,
 } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 
 export type AssistantPendingKind = "thinking" | "working" | "recovering";
@@ -40,6 +41,7 @@ export interface AiChatToolActivity {
 	presentation: AiToolPresentation;
 	status: "completed" | "failed" | "running";
 	summary: string;
+	segments?: AiChatToolReceiptSegment[];
 	toolName: string;
 }
 
@@ -199,6 +201,7 @@ function getLegacyCodemodeChildren(
 						presentation: activity.presentation,
 						status: activity.status,
 						summary: activity.summary,
+						segments: activity.segments,
 						toolName: activity.toolName,
 					},
 				]
@@ -249,6 +252,7 @@ export function getToolActivityForPart(part: AiChatToolPart): AiChatToolActivity
 		presentation,
 		status: receipt.status,
 		summary: receipt.summary,
+		segments: receipt.segments,
 		toolName,
 	};
 }
@@ -265,7 +269,11 @@ function getToolPartName(part: AiChatToolPart) {
 function getToolActivityReceipt(
 	part: AiChatToolPart,
 	toolName: string,
-): { status: AiChatToolActivity["status"]; summary: string } {
+): {
+	status: AiChatToolActivity["status"];
+	summary: string;
+	segments?: AiChatToolReceiptSegment[];
+} {
 	switch (part.state) {
 		case "output-available":
 			return getFinishedToolReceipt({
@@ -282,13 +290,16 @@ function getToolActivityReceipt(
 				toolInput: part.input,
 				toolName,
 			});
-		default:
+		default: {
+			const running = getRunningToolReceipt({
+				toolInput: part.input,
+				toolName,
+			});
 			return {
 				status: "running",
-				summary: getRunningToolReceipt({
-					toolInput: part.input,
-					toolName,
-				}).summary,
+				summary: running.summary,
+				segments: running.segments,
 			};
+		}
 	}
 }

@@ -86,14 +86,14 @@ function ContextPanel({ run }: { run: AIInspectorRunView }) {
 					<JsonBlock value={run.error} />
 				</InspectorBlock>
 			) : null}
-			{run.system ? <TextDisclosure title="System prompt" text={run.system} /> : null}
+			{run.instructions ? <TextDisclosure title="System prompt" text={run.instructions} /> : null}
 			{messages && messages.length > 0 ? (
 				<JsonDisclosure title="Turn input" value={messages.map((message) => message.raw)} />
 			) : null}
 			<AvailableToolsDisclosure tools={run.tools} />
 			{run.body ? <JsonDisclosure title="Request body" value={run.body} /> : null}
 			{run.thread ? <JsonDisclosure title="Thread context" value={run.thread} /> : null}
-			{!run.system && (!messages || messages.length === 0) ? (
+			{!run.instructions && (!messages || messages.length === 0) ? (
 				<EmptyState>No run context captured.</EmptyState>
 			) : null}
 		</div>

@@ -199,7 +199,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				};
 			}
 
-			const system = getAIThreadSystemPromptForWorkspace(ctx.system, thread.promptScope, {
+			const instructions = getAIThreadSystemPromptForWorkspace(ctx.system, thread.promptScope, {
 				timeZone: getBodyString(ctx.body, "timeZone"),
 				workspaceAiContext: ctx.body?.workspaceAiContext,
 			});
@@ -223,7 +223,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			await this.telemetry.recordTurnStarted({
 				ctx,
 				modelId,
-				system,
+				instructions,
 				thread,
 				tools: activeTools,
 			});
@@ -242,7 +242,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 					modelId,
 					thread,
 				}),
-				system,
+				instructions,
 				...turnToolConfig,
 			};
 		}
@@ -459,7 +459,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						tags: ["task:compaction"],
 					}),
 					prompt,
-					system: AI_THREAD_COMPACTION_SYSTEM_PROMPT,
+					instructions: AI_THREAD_COMPACTION_SYSTEM_PROMPT,
 				});
 			} catch (error) {
 				await this._recordAuxiliaryError({
