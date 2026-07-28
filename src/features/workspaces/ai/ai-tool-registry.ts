@@ -93,9 +93,11 @@ function readTool(ui: AiToolPresentationInput, codemode = true): AiToolDefinitio
 }
 
 function writeTool(ui: AiToolPresentationInput): AiToolDefinition {
-	// Code Mode exposes only an execution ID, not a stable per-call ID. Keep
-	// mutations direct until it can preserve workspace operation idempotency.
-	return toolDefinition("write", false, ui);
+	// Code Mode's durable log is what makes a mutation safe to replay: an
+	// applied call returns its recorded result on resume instead of executing
+	// again. Workspace operation IDs never deduplicated anything, so keeping
+	// mutations out of Code Mode only gave up that guarantee.
+	return toolDefinition("write", true, ui);
 }
 
 function toolDefinition(
