@@ -45,7 +45,7 @@ export function AiChatMessagePartView({
 	}
 
 	if (isAiChatToolGroupPart(part)) {
-		return <AiChatToolActivityRow attempts={part.attempts} part={part.part} />;
+		return <AiChatToolActivityRow nestedChildren={part.children} part={part.part} />;
 	}
 
 	if (isToolUIPart(part)) {

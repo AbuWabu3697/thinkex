@@ -23,26 +23,22 @@ import {
 
 export type AssistantPendingKind = "thinking" | "working" | "recovering";
 
-export interface AiChatToolAttempt {
-	children: AiChatToolChildActivity[];
-	part: AiChatToolPart;
-}
-
 /**
- * One row for every `orchestrate` call in a message. `attempts` is ordered and
- * always non-empty; the last attempt is the one the row header describes, and
- * its children are the activity trail shown when a single attempt is expanded.
+ * Every `orchestrate` call in a message collapses into one row: the header
+ * describes the last call — the model's most recent title, so it reads as
+ * current activity — and `children` is the whole message's activity trail in
+ * execution order, regardless of which call produced each entry.
  */
 export interface AiChatToolGroupPart {
 	type: "data-tool-group";
-	attempts: AiChatToolAttempt[];
+	children: AiChatToolChildActivity[];
 	part: AiChatToolPart;
 }
 
 export type AiChatRenderablePart = AiChatMessagePart | AiChatToolGroupPart;
 
 export function isAiChatToolGroupPart(part: AiChatRenderablePart): part is AiChatToolGroupPart {
-	return part.type === "data-tool-group" && "attempts" in part;
+	return part.type === "data-tool-group" && "children" in part;
 }
 
 export type AssistantRowDisplay =
@@ -170,12 +166,16 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 
 	const loggedChildren = getCodemodeCallActivities(codemodePart.output);
 	const groupsSiblingTools = loggedChildren === undefined;
-	const codemodeChildren = loggedChildren ?? getLegacyCodemodeChildren(parts, codemodePart);
-	const attempts = codemodeParts.map((part) => ({
-		part,
-		children:
-			getCodemodeCallActivities(part.output) ?? (part === codemodePart ? codemodeChildren : []),
-	}));
+	// Each call logs its own `seq`, so ids repeat across calls. Namespace them by
+	// the call that produced them to keep the merged trail's keys unique.
+	const codemodeChildren = groupsSiblingTools
+		? getLegacyCodemodeChildren(parts, codemodePart)
+		: codemodeParts.flatMap((part) =>
+				(getCodemodeCallActivities(part.output) ?? []).map((child) => ({
+					...child,
+					id: `${part.toolCallId}:${child.id}`,
+				})),
+			);
 
 	const result: AiChatRenderablePart[] = [];
 
@@ -196,7 +196,7 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 			result.push({
 				type: "data-tool-group",
 				part,
-				attempts,
+				children: codemodeChildren,
 			});
 			continue;
 		}

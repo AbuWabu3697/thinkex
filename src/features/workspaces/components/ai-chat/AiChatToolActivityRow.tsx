@@ -25,7 +25,6 @@ import {
 import {
 	getToolActivityForPart,
 	type AiChatToolActivity,
-	type AiChatToolAttempt,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
 import type { AiChatToolChildActivity } from "#/features/workspaces/components/ai-chat/ai-chat-codemode-activity";
 import type { AiChatToolReceiptSegment } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
@@ -42,10 +41,10 @@ const DETAIL_SOURCE_LIMIT = 8;
 const EMPTY_TOOL_CHILDREN: AiChatToolChildActivity[] = [];
 
 export function AiChatToolActivityRow({
-	attempts,
+	nestedChildren = EMPTY_TOOL_CHILDREN,
 	part,
 }: {
-	attempts?: AiChatToolAttempt[];
+	nestedChildren?: AiChatToolChildActivity[];
 	part: AiChatToolPart;
 }) {
 	const shouldReduceMotion = useReducedMotion();
@@ -55,17 +54,6 @@ export function AiChatToolActivityRow({
 		return null;
 	}
 
-	if (attempts && attempts.length > 1) {
-		return (
-			<ToolActivityMotion disabled={shouldReduceMotion}>
-				<ToolAttemptGroup attempts={attempts} activity={activity} />
-			</ToolActivityMotion>
-		);
-	}
-
-	// A single attempt renders as an ordinary row whose trail is that attempt's
-	// activity; a plain tool part has no attempts and no trail.
-	const nestedChildren = attempts?.at(-1)?.children ?? EMPTY_TOOL_CHILDREN;
 	const details = getActivityDetails(activity);
 	const inlineContent = getInlineActivityContent(activity);
 	const sourcePreviews = getToolSourcePreviews(activity);
@@ -131,73 +119,6 @@ function ToolActivityMotion({
 	);
 }
 
-function ToolAttemptGroup({
-	activity,
-	attempts,
-}: {
-	activity: AiChatToolActivity;
-	attempts: AiChatToolAttempt[];
-}) {
-	return (
-		<Collapsible className="group/attempts w-full max-w-xl">
-			<CollapsibleTrigger className="inline-flex max-w-full items-center gap-1.5 text-left">
-				<ActivitySummary activity={activity} showCompletedStatus={false} sourcePreviews={[]} />
-				<ChevronDown
-					className="size-3.5 shrink-0 text-muted-foreground/70 transition-transform group-data-[panel-open]/attempts:rotate-180"
-					aria-hidden="true"
-				/>
-			</CollapsibleTrigger>
-			<CollapsibleContent className="mt-1 w-full space-y-0.5 px-0.5">
-				{attempts.map((attempt) => (
-					<ToolAttemptRow key={attempt.part.toolCallId} attempt={attempt} />
-				))}
-			</CollapsibleContent>
-		</Collapsible>
-	);
-}
-
-function ToolAttemptRow({ attempt }: { attempt: AiChatToolAttempt }) {
-	const activity = getToolActivityForPart(attempt.part);
-
-	if (!activity) {
-		return null;
-	}
-
-	const hasChildren = attempt.children.length > 0;
-	const row = (
-		<div
-			className={cn(
-				"flex min-w-0 items-center rounded-md px-1 py-1.5",
-				hasChildren && "transition-colors hover:bg-muted/25",
-			)}
-		>
-			<ActivitySummary
-				activity={activity}
-				canExpand={hasChildren}
-				showCompletedStatus={false}
-				sourcePreviews={[]}
-			/>
-		</div>
-	);
-
-	if (!hasChildren) {
-		return row;
-	}
-
-	return (
-		<Collapsible className="group/collapsible">
-			<CollapsibleTrigger className="block w-full text-left">{row}</CollapsibleTrigger>
-			<CollapsibleContent className="ml-3 border-border/60 border-l py-1 pl-2">
-				<div className="space-y-0.5">
-					{attempt.children.map((child) => (
-						<ActivitySummary key={child.id} activity={child} sourcePreviews={[]} />
-					))}
-				</div>
-			</CollapsibleContent>
-		</Collapsible>
-	);
-}
-
 function getInlineActivityContent(activity: AiChatToolActivity) {
 	if (activity.toolName !== "compute" || activity.status === "running") {
 		return null;
@@ -217,7 +138,6 @@ function getActivityDetails(activity: AiChatToolActivity) {
 function ActivitySummary({
 	activity,
 	canExpand = false,
-	showCompletedStatus = true,
 	sourcePreviews,
 }: {
 	activity: {
@@ -227,7 +147,6 @@ function ActivitySummary({
 		segments?: AiChatToolReceiptSegment[];
 	};
 	canExpand?: boolean;
-	showCompletedStatus?: boolean;
 	sourcePreviews: ToolSourcePreview[];
 }) {
 	const isRunning = activity.status === "running";
@@ -249,9 +168,7 @@ function ActivitySummary({
 				isRunning={isRunning}
 			/>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
-			{showCompletedStatus || activity.status !== "completed" ? (
-				<ToolStatusIcon status={activity.status} />
-			) : null}
+			<ToolStatusIcon status={activity.status} />
 			{canExpand ? (
 				<ChevronDown
 					className="size-3.5 shrink-0 self-center text-muted-foreground/70 transition-transform group-data-[panel-open]/collapsible:rotate-180"
