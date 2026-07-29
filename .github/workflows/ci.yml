@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 30
     env:
       CLOUDFLARE_VITE_FORCE_LOCAL: "true"
+      # Staging-shaped verify build (no production-only survey id).
+      POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+      POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+      VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
+      VITE_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_POSTHOG_PROJECT_TOKEN }}
 
     steps:
       - uses: actions/checkout@v7

@@ -17,7 +17,7 @@ export default defineConfig(({ command }) => {
 				ciCheck: "vp check",
 				ciTest: "vp test --run",
 				ciBuild: {
-					command: "node --run build:app",
+					command: "node --run build:staging",
 					untrackedEnv: ["INIT_CWD"],
 					input: [{ auto: true }, "!dist/**"],
 					output: ["dist/**"],
