@@ -31,7 +31,7 @@ import {
 } from "#/features/workspaces/ai/models";
 import { createAIThreadCodeRunTools } from "#/features/workspaces/ai/code-run-tools";
 import {
-	AI_THREAD_BROWSER_GUIDANCE,
+	AI_THREAD_BROWSER_POLICY,
 	createAIThreadBrowserHandoffTool,
 	AI_THREAD_BROWSER_HANDOFF_TOOL_NAME,
 } from "#/features/workspaces/ai/ai-thread-browser";
@@ -256,7 +256,7 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		"- Use `codemode.step(name, fn)` for nondeterministic work outside connector calls.",
 		"- Some methods may require approval. If the run pauses, tell the user what is pending and wait. Do not re-issue the code.",
 		"- Keep non-connector logic deterministic so resume can replay it.",
-		...AI_THREAD_BROWSER_GUIDANCE.map((instruction) => `- ${instruction}`),
+		...AI_THREAD_BROWSER_POLICY.map((instruction) => `- ${instruction}`),
 		"- Do not use `fetch`. Use connector SDKs.",
 		"",
 		"## Snippets",

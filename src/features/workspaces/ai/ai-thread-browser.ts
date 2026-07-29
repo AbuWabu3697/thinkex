@@ -36,21 +36,35 @@ const MODEL_HIDDEN_BROWSER_TOOLS = new Set([
  * connector reuse this list so browser behavior cannot drift depending on
  * whether the model has inspected the connector yet.
  */
-export const AI_THREAD_BROWSER_GUIDANCE = [
-	"Use web search and page-reading tools for simple research. Use CDP only for rendered interaction, JavaScript applications, screenshots, or authenticated work.",
+/**
+ * What the model must know *before* it decides to reach for a browser at all:
+ * when browsing is the right tool, and the rules it cannot violate once it is.
+ * This is the only browser text carried in the always-on orchestrate
+ * description, so it stays short — every turn pays for it, including the ones
+ * that never open a page.
+ */
+export const AI_THREAD_BROWSER_POLICY = [
+	"Use web search and page-reading tools for simple research. Use `cdp.*` only for rendered interaction, JavaScript applications, screenshots, or authenticated work.",
 	"Navigate only public HTTP(S) pages. Never navigate to localhost, private or link-local IP addresses, or internal-only hostnames.",
+	"For login, MFA, CAPTCHA, private input, payments, external publishing or sending, destructive deletion, and account or security changes, open the exact page and call tools.browser_handoff({ instructions }) before the consequential step. Calling it is mandatory — a chat message saying you paused does not pause the run.",
+	"Never ask the user to put credentials or private form values in chat. They enter them only in Browser Live View.",
+	"ThinkEx owns browser session lifecycle and Live View. Never request, return, or mention a Live View URL, browser session ID, target handle, JWT, or WebSocket URL.",
+] as const;
+
+/**
+ * How to actually drive CDP. Only reaches the model through the connector's
+ * own instructions, which it reads on discovery — the point at which it is
+ * already writing browser code and these details start to matter.
+ */
+const AI_THREAD_BROWSER_MECHANICS = [
 	"Issue CDP calls sequentially. Never run them with Promise.all.",
 	"Browser- and Target-scoped commands need no sessionId; page-scoped commands require the stable handle from cdp.attachToTarget({ targetId }).",
+	"There is no cdp.newTab. Open a tab with Target.createTarget, then attach before any page-scoped command.",
 	"The CDP namespace is request/response only: use cdp.send, cdp.attachToTarget, cdp.spec, and the debug-log helpers. It has no cdp.on, cdp.off, or event-subscription API.",
 	"Never wait for CDP events. When page readiness matters, poll document.readyState with sequential Runtime.evaluate calls.",
 	"Do not use saved snippets or codemode.run for browser work. Issue CDP calls directly in the current execution so the target and session are live when a handoff pauses.",
 	"If the shared browser session is disconnected or a CDP command fails because the session is gone, call cdp.resetSession() once and retry the failed operation. Do not repeatedly reset a healthy session.",
 	"Start with one tab, close tabs you no longer need, and keep at most five tabs open.",
-	"For login, MFA, CAPTCHA, private input, payments, external publishing or sending, destructive deletion, and account or security changes, open the exact page and call tools.browser_handoff({ instructions }) before the consequential step.",
-	"When the user must interact in Live View before you can continue, calling tools.browser_handoff is mandatory. Call it immediately after opening the exact page; a chat message saying you paused or handed off does not pause the run.",
-	"Never ask the user to put credentials or private form values in chat. They enter them only in Browser Live View.",
-	"ThinkEx owns browser session lifecycle and Live View. Never request, return, or mention a Live View URL, browser session ID, target handle, JWT, or WebSocket URL.",
-	"There is no cdp.newTab. Open a tab with Target.createTarget, then attach before any page-scoped command.",
 ] as const;
 
 const AI_THREAD_BROWSER_SESSION_OPTIONS = {
@@ -109,7 +123,10 @@ export function createAIThreadBrowserConnector(ctx: DurableObjectState, browser:
 
 class AIThreadBrowserConnector extends BrowserConnector {
 	protected override instructions() {
-		return AI_THREAD_BROWSER_GUIDANCE.join("\n");
+		// Discovery is the moment of use, so repeat the policy here alongside the
+		// mechanics: it costs nothing on turns that never open a browser, and the
+		// rules matter most immediately before the model writes CDP calls.
+		return [...AI_THREAD_BROWSER_POLICY, ...AI_THREAD_BROWSER_MECHANICS].join("\n");
 	}
 
 	protected override tools() {
