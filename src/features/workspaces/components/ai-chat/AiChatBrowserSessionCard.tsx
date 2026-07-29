@@ -44,18 +44,17 @@ export function AiChatBrowserSessionCard({
 		queryFn: browser.getLiveView,
 		queryKey: ["workspace-ai-browser-live-view", browser.sessionKey],
 		// Every fetch mints fresh signed Live View URLs, so a refresh swaps the
-		// iframe's src and reloads it — wiping out whatever the person was in the
-		// middle of typing. Refreshes stop while the view is open or a handoff is
-		// waiting on them; an already-open Live View keeps streaming past the
-		// URL's expiry, which only gates opening it in the first place.
+		// iframe's src and reloads it. That only costs something once someone is
+		// interacting: refreshes stop when the expanded view is showing a live
+		// tab, and nowhere else. The closed card's preview is non-interactive, so
+		// reloading it wipes out nothing, and a handoff that outlives the URL's
+		// expiry still has a working link when the person finally opens it. An
+		// already-open Live View keeps streaming past the expiry, which only
+		// gates opening the URL in the first place.
 		refetchInterval: (query) => {
-			if (open) {
-				return false;
-			}
-
 			const data = query.state.data;
 			const hasTarget = Boolean(data?.targets.length);
-			if (isWaitingForUser && hasTarget) {
+			if (open && hasTarget) {
 				return false;
 			}
 

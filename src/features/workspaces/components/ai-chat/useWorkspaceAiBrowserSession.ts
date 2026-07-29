@@ -46,19 +46,14 @@ export function useWorkspaceAiBrowserSession(input: {
 	});
 	const action = useMutation({
 		mutationFn: async (
-			request:
-				| { executionId?: string; kind: "stop" }
-				| { approved: boolean; executionId: string; kind: "resolve" },
+			request: { kind: "stop" } | { approved: boolean; executionId: string; kind: "resolve" },
 		) => {
 			if (request.kind === "resolve") {
 				await input.agent.call("resolveBrowserHandoff", [request.executionId, request.approved]);
 				return;
 			}
 
-			await input.agent.call(
-				"stopBrowserSession",
-				request.executionId ? [request.executionId] : [],
-			);
+			await input.agent.call("stopBrowserSession");
 		},
 		onSettled: async () => {
 			await stateQuery.refetch();
@@ -86,10 +81,7 @@ export function useWorkspaceAiBrowserSession(input: {
 		},
 		sessionKey: `${input.threadId}:${presence?.startedAt ?? "none"}`,
 		stopBrowser: async () => {
-			await action.mutateAsync({
-				executionId: handoff?.executionId,
-				kind: "stop",
-			});
+			await action.mutateAsync({ kind: "stop" });
 		},
 	};
 }

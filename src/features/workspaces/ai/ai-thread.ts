@@ -202,19 +202,8 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		}
 
 		@callable()
-		async stopBrowserSession(executionId?: string): Promise<void> {
-			try {
-				if (executionId) {
-					const handoff = await this._getBrowserHandoff(executionId);
-					if (handoff) {
-						assertAIThreadExecutionResolved(
-							await super.rejectExecution(executionId, "Browser handoff was stopped by the user."),
-						);
-					}
-				}
-			} finally {
-				await this._browserConnector().closeSession();
-			}
+		async stopBrowserSession(): Promise<void> {
+			await this._endBrowserSession("Browser handoff was stopped by the user.");
 		}
 
 		async beforeTurn(ctx: TurnContext): Promise<TurnConfig | undefined> {
@@ -420,9 +409,30 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			return createAIThreadBrowserConnector(this.ctx, this.env.BROWSER);
 		}
 
+		/**
+		 * Ending a session always resolves whatever handoff it parked. Leaving one
+		 * pending keeps the chat polling and offering "Done, continue" for a run
+		 * whose browser is already gone, and the agent is the only party that can
+		 * name the pending execution without racing its own poll.
+		 */
+		private async _endBrowserSession(rejectionReason: string) {
+			try {
+				const handoff = await this._getBrowserHandoff();
+				if (handoff) {
+					await this._resolveBrowserHandoff(handoff.executionId, false, rejectionReason);
+				}
+			} finally {
+				await this._browserConnector().closeSession();
+			}
+		}
+
 		private async _cleanupBrowserSession(reason: "turn_aborted" | "turn_failed") {
 			try {
-				await this.stopBrowserSession();
+				await this._endBrowserSession(
+					reason === "turn_aborted"
+						? "The run was stopped before the browser handoff could be completed."
+						: "The run failed before the browser handoff could be completed.",
+				);
 			} catch (error) {
 				recordOperationalFailure({
 					error,
