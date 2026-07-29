@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const aiThreadActivityTitleSchema = z
 	.string()
+	.trim()
 	.min(1)
 	.describe(
 		"What this run does in 3-6 words of plain present-tense English. Name the work, not code, tools, connectors, sandboxes, or APIs. Examples: “Rewriting the intro section”, “Finding sources to cite”, “Charting revenue by month”.",
