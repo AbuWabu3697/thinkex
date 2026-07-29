@@ -1,6 +1,5 @@
 import {
 	AlertTriangle,
-	CheckCircle2,
 	ChevronDown,
 	Code2,
 	FileText,
@@ -362,19 +361,20 @@ function ToolActivityIcon({ icon }: { icon: AiToolActivityIconKind }) {
 }
 
 function ToolStatusIcon({ status }: { status: AiChatToolActivity["status"] }) {
-	const className = cn(
-		"size-3.5 shrink-0 text-muted-foreground/70",
-		status === "running" && "animate-spin",
-		status === "completed" && "text-success",
-	);
-
 	if (status === "running") {
-		return <LoaderCircle className={className} aria-hidden="true" />;
+		return (
+			<LoaderCircle
+				className="size-3.5 shrink-0 animate-spin text-muted-foreground/70"
+				aria-hidden="true"
+			/>
+		);
 	}
 
-	return status === "failed" ? (
-		<AlertTriangle className={className} aria-hidden="true" />
-	) : (
-		<CheckCircle2 className={className} aria-hidden="true" />
-	);
+	if (status === "failed") {
+		return (
+			<AlertTriangle className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+		);
+	}
+
+	return null;
 }
