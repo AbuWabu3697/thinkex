@@ -38,10 +38,6 @@ export async function normalizeImageToJpeg(
 	return translateImageNormalizationErrors(async () => {
 		const bytes = await normalizeWithProfile(env, body, workspaceProfile, maxBytes);
 
-		if (!bytes) {
-			throw createImageOutputTooLargeError(maxBytes);
-		}
-
 		return {
 			body: new Blob([bytes], { type: jpegContentType }).stream(),
 			sizeBytes: bytes.byteLength,
@@ -57,15 +53,11 @@ export async function normalizeChatImageToJpeg(
 	return translateImageNormalizationErrors(async () => {
 		const bytes = await normalizeWithProfile(env, body, chatProfile, maxBytes);
 
-		if (bytes) {
-			return {
-				bytes,
-				contentType: jpegContentType,
-				sizeBytes: bytes.byteLength,
-			};
-		}
-
-		throw createImageOutputTooLargeError(maxBytes);
+		return {
+			bytes,
+			contentType: jpegContentType,
+			sizeBytes: bytes.byteLength,
+		};
 	});
 }
 
@@ -74,7 +66,7 @@ async function normalizeWithProfile(
 	body: ReadableStream<Uint8Array>,
 	profile: ImageProfile,
 	maxBytes: number,
-): Promise<ArrayBuffer | null> {
+): Promise<ArrayBuffer> {
 	let transformer = env.IMAGES.input(body);
 
 	if (profile.dimension) {
@@ -98,7 +90,7 @@ async function normalizeWithProfile(
 async function readStreamWithinLimit(
 	body: ReadableStream<Uint8Array>,
 	maxBytes: number,
-): Promise<ArrayBuffer | null> {
+): Promise<ArrayBuffer> {
 	const reader = body.getReader();
 	const chunks: Uint8Array[] = [];
 	let totalBytes = 0;
@@ -111,7 +103,7 @@ async function readStreamWithinLimit(
 			}
 			if (totalBytes + value.byteLength > maxBytes) {
 				await reader.cancel("Image output exceeds the byte limit.");
-				return null;
+				throw createImageOutputTooLargeError(maxBytes);
 			}
 
 			chunks.push(value);
