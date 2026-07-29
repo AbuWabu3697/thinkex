@@ -219,47 +219,55 @@ function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 	};
 }
 
+/**
+ * Collapse each *contiguous* run of CDP traffic into one browser receipt.
+ *
+ * Grouping every CDP call in the execution instead would reorder the
+ * transcript: a tool call made between two browser stretches would render
+ * after browsing that actually happened later, and two unrelated visits would
+ * merge into a single row.
+ */
 function normalizeCalls(rawCalls: z.output<typeof rawOrchestrationCallSchema>[]) {
 	const calls: ReturnType<typeof normalizeCall>[] = [];
-	const browserCalls: z.output<typeof rawOrchestrationCallSchema>[] = [];
-	let browserCallIndex = 0;
+	let browserRun: z.output<typeof rawOrchestrationCallSchema>[] = [];
+
+	const flushBrowserRun = () => {
+		if (browserRun.length === 0) {
+			return;
+		}
+
+		const browserCall = normalizeBrowserCalls(browserRun);
+		if (browserCall) {
+			calls.push(browserCall);
+		}
+		browserRun = [];
+	};
 
 	for (const call of rawCalls) {
 		if (call.connector === "cdp") {
-			if (browserCalls.length === 0) {
-				browserCallIndex = calls.length;
-			}
-			browserCalls.push(call);
+			browserRun.push(call);
 			continue;
 		}
 
+		flushBrowserRun();
 		calls.push(normalizeCall(call));
 	}
-
-	if (browserCalls.length > 0) {
-		const browserCall = normalizeBrowserCalls(browserCalls);
-		if (browserCall) {
-			calls.splice(browserCallIndex, 0, browserCall);
-		}
-	}
+	flushBrowserRun();
 
 	return calls;
 }
 
 function normalizeBrowserCalls(calls: z.output<typeof rawOrchestrationCallSchema>[]) {
 	const state = getBrowserCallState(calls);
-	// An in-flight CDP call has no result yet, and getOrchestrationCallOutcome
-	// reads any state other than applied/pending as a failure — folding one in
-	// would report `codemode_tool_error` for work that has not failed and drag
-	// the whole turn's outcome down with it. Only settled calls decide the
-	// outcome; `executing` decides the status on its own, because
-	// getOrchestrationCallStatus recognizes `pending` as the sole running state
-	// and this group never reports `pending` (CDP calls need no approval).
-	const outcome = aggregateAIToolOutcomes(
-		calls
-			.filter((call) => call.state !== "executing")
-			.map((call) => getOrchestrationCallOutcome("browser_execute", call.state, call.result)),
-	);
+	// One row, one verdict: the outcome follows the same "where did the run end
+	// up" rule as the state. Aggregating every call instead would report
+	// `codemode_tool_error` for a reset-and-retry that already recovered, and
+	// would count an in-flight call — which has no result yet, and which
+	// getOrchestrationCallOutcome reads as a failure — as a failure.
+	const decidingCall = state === "executing" ? undefined : calls.at(-1);
+	const outcome: AIToolOutcome = decidingCall
+		? getOrchestrationCallOutcome("browser_execute", decidingCall.state, decidingCall.result)
+		: { failureCodes: [], failedCount: 0, status: "success" };
 	const status =
 		state === "executing" ? ("running" as const) : getOrchestrationCallStatus(state, outcome);
 	const summary = summarizeAIThreadBrowserActivity(calls, status);
@@ -278,17 +286,23 @@ function normalizeBrowserCalls(calls: z.output<typeof rawOrchestrationCallSchema
 	};
 }
 
+/**
+ * The browser guidance tells the model to call `cdp.resetSession()` once and
+ * retry when a reused session has gone away, so a failed call followed by a
+ * successful one is the *supported* recovery path, not a failure. The durable
+ * log keeps the original error forever, so the group has to be judged by where
+ * the run ended up: anything still in flight reads as running, and an error
+ * counts only when nothing after it succeeded.
+ */
 function getBrowserCallState(
 	calls: z.output<typeof rawOrchestrationCallSchema>[],
 ): z.output<typeof orchestrationCallStateSchema> {
-	if (calls.some((call) => call.state === "error" || call.state === "reverted")) {
-		return "error";
-	}
 	if (calls.some((call) => call.state === "executing" || call.state === "pending")) {
 		return "executing";
 	}
 
-	return "applied";
+	const lastSettled = calls.at(-1);
+	return lastSettled?.state === "error" || lastSettled?.state === "reverted" ? "error" : "applied";
 }
 
 function getOrchestrationCallStatus(
