@@ -34,7 +34,7 @@ describe("Code Mode tool groups", () => {
 		const parts = getDisplayableParts(createMessage([createOrchestratePart(output), siblingTool]));
 		const group = parts[0] as AiChatToolGroupPart;
 
-		expect(group.children).toEqual([
+		expect(getGroupChildren(group)).toEqual([
 			{
 				id: "1:tools:web_search",
 				presentation: {
@@ -69,7 +69,7 @@ describe("Code Mode tool groups", () => {
 
 		const [group] = getDisplayableParts(message) as AiChatToolGroupPart[];
 
-		expect(group.children).toEqual([
+		expect(getGroupChildren(group)).toEqual([
 			{
 				id: "tool-1",
 				presentation: {
@@ -108,7 +108,7 @@ describe("Code Mode tool groups", () => {
 			createMessage([createOrchestratePart(output)]),
 		) as AiChatToolGroupPart[];
 
-		expect(group.children).toEqual([]);
+		expect(getGroupChildren(group)).toEqual([]);
 	});
 
 	it("does not absorb sibling tools when a durable call log is malformed", () => {
@@ -124,10 +124,15 @@ describe("Code Mode tool groups", () => {
 		);
 		const group = parts[0] as AiChatToolGroupPart;
 
-		expect(group.children).toEqual([]);
+		expect(getGroupChildren(group)).toEqual([]);
 		expect(parts[1]).toMatchObject({ toolCallId: "direct-tool-1" });
 	});
 });
+
+/** The trail a single-attempt group renders — the last attempt's activity. */
+function getGroupChildren(group: AiChatToolGroupPart) {
+	return group.attempts.at(-1)?.children;
+}
 
 function createMessage(parts: unknown[]) {
 	return {

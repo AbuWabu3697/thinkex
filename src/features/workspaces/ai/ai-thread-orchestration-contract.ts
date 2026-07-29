@@ -7,6 +7,7 @@ import {
 	getAIToolOutputOutcome,
 	type AIToolOutcome,
 } from "#/features/workspaces/ai/ai-tool-outcome";
+import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
 
 const orchestrationCallStateSchema = z.enum([
 	"executing",
@@ -122,7 +123,7 @@ export function normalizeAIThreadOrchestrationOutput(output: unknown): AIThreadO
 		return invalidOrchestrationOutput(output);
 	}
 
-	const calls = parsed.data.calls.map(normalizeCall);
+	const calls = normalizeCalls(parsed.data.calls);
 	const childOutcome = aggregateAIToolOutcomes(calls.map((call) => call.outcome));
 
 	if (parsed.data.status === "completed") {
@@ -216,6 +217,78 @@ function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 		outcome,
 		summary: summarizeOrchestrationCall(outcome),
 	};
+}
+
+function normalizeCalls(rawCalls: z.output<typeof rawOrchestrationCallSchema>[]) {
+	const calls: ReturnType<typeof normalizeCall>[] = [];
+	const browserCalls: z.output<typeof rawOrchestrationCallSchema>[] = [];
+	let browserCallIndex = 0;
+
+	for (const call of rawCalls) {
+		if (call.connector === "cdp") {
+			if (browserCalls.length === 0) {
+				browserCallIndex = calls.length;
+			}
+			browserCalls.push(call);
+			continue;
+		}
+
+		calls.push(normalizeCall(call));
+	}
+
+	if (browserCalls.length > 0) {
+		const browserCall = normalizeBrowserCalls(browserCalls);
+		if (browserCall) {
+			calls.splice(browserCallIndex, 0, browserCall);
+		}
+	}
+
+	return calls;
+}
+
+function normalizeBrowserCalls(calls: z.output<typeof rawOrchestrationCallSchema>[]) {
+	const state = getBrowserCallState(calls);
+	// An in-flight CDP call has no result yet, and getOrchestrationCallOutcome
+	// reads any state other than applied/pending as a failure — folding one in
+	// would report `codemode_tool_error` for work that has not failed and drag
+	// the whole turn's outcome down with it. Only settled calls decide the
+	// outcome; `executing` decides the status on its own, because
+	// getOrchestrationCallStatus recognizes `pending` as the sole running state
+	// and this group never reports `pending` (CDP calls need no approval).
+	const outcome = aggregateAIToolOutcomes(
+		calls
+			.filter((call) => call.state !== "executing")
+			.map((call) => getOrchestrationCallOutcome("browser_execute", call.state, call.result)),
+	);
+	const status =
+		state === "executing" ? ("running" as const) : getOrchestrationCallStatus(state, outcome);
+	const summary = summarizeAIThreadBrowserActivity(calls, status);
+	if (!summary) {
+		return undefined;
+	}
+
+	return {
+		id: `${calls[0]?.seq ?? 0}:cdp:browser_execute`,
+		toolName: "browser_execute",
+		state,
+		status,
+		requiresApproval: false,
+		outcome,
+		summary,
+	};
+}
+
+function getBrowserCallState(
+	calls: z.output<typeof rawOrchestrationCallSchema>[],
+): z.output<typeof orchestrationCallStateSchema> {
+	if (calls.some((call) => call.state === "error" || call.state === "reverted")) {
+		return "error";
+	}
+	if (calls.some((call) => call.state === "executing" || call.state === "pending")) {
+		return "executing";
+	}
+
+	return "applied";
 }
 
 function getOrchestrationCallStatus(

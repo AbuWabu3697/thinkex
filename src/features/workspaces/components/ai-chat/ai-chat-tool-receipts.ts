@@ -137,9 +137,9 @@ export function getRunningToolReceipt(input: {
 		case "research_discover":
 			return receipt.running("Finding sources for ", ...name(getString(toolInput.query)));
 		case "compute":
-			return receipt.running("Running Python");
+			return activityTitleReceipt("running", toolInput) ?? receipt.running("Running Python");
 		case "orchestrate":
-			return receipt.running("Working through the task");
+			return activityTitleReceipt("running", toolInput) ?? receipt.running("Working");
 		default:
 			return receipt.running(`Running ${formatToolNameFallback(input.toolName)}`);
 	}
@@ -193,9 +193,9 @@ export function getFinishedToolReceipt(input: {
 		case "research_deepen":
 			return summarizeResearchDeepen(input.output, input.toolInput);
 		case "orchestrate":
-			return summarizeCodemode(input.output);
+			return summarizeCodemode(input.output, input.toolInput);
 		case "compute":
-			return summarizeCompute(input.output);
+			return summarizeCompute(input.output, input.toolInput);
 		default:
 			return receipt.completed(summarizeUnknownResult(input.output, input.toolName));
 	}
@@ -445,22 +445,49 @@ function summarizeRunningResearchDeepen(input: Record<string, unknown>): AiChatT
 	return receipt.running("Researching ", ...name(paper));
 }
 
-function summarizeCodemode(output: unknown): AiChatToolReceipt {
+/**
+ * `orchestrate` and `compute` are the only tools whose arguments carry no noun
+ * to build a row from — the input is an opaque blob of code — so the model
+ * names the work itself in a leading `title` field and the row shows that
+ * instead of the mechanism. The derived summaries below stay as the fallback
+ * for a title that has not streamed in yet, or a model that skipped the field.
+ *
+ * States the title must not mask (a paused approval, a failed run) are settled
+ * by their callers before this is consulted.
+ */
+function activityTitleReceipt(
+	status: Exclude<AiChatToolReceiptStatus, "failed">,
+	toolInput: unknown,
+): AiChatToolReceipt | undefined {
+	const title = getString(asRecord(toolInput).title)?.trim();
+	if (!title) return undefined;
+
+	return status === "running" ? receipt.running(title) : receipt.completed(title);
+}
+
+function summarizeCodemode(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 	const status = getString(record.status);
 
 	if (status === "paused") return receipt.completed("Needs input");
 	if (status === "error") return receipt.failed("Couldn’t work through the task");
+
+	const titled = activityTitleReceipt("completed", toolInput);
+	if (titled) return titled;
+
 	if (status === "completed")
 		return receipt.completed(summarizeUnknownResult(record.result, "orchestrate"));
 
 	return receipt.completed(summarizeUnknownResult(output, "orchestrate"));
 }
 
-function summarizeCompute(output: unknown): AiChatToolReceipt {
+function summarizeCompute(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 
 	if (record.error) return receipt.failed("Couldn’t compute");
+
+	const titled = activityTitleReceipt("completed", toolInput);
+	if (titled) return titled;
 
 	const results = getArray(record.results);
 	const imageCount = results.filter((result) => {

@@ -23,13 +23,27 @@ import {
 
 export type AssistantPendingKind = "thinking" | "working" | "recovering";
 
-export interface AiChatToolGroupPart {
-	type: "data-tool-group";
+export interface AiChatToolAttempt {
 	children: AiChatToolChildActivity[];
 	part: AiChatToolPart;
 }
 
+/**
+ * One row for every `orchestrate` call in a message. `attempts` is ordered and
+ * always non-empty; the last attempt is the one the row header describes, and
+ * its children are the activity trail shown when a single attempt is expanded.
+ */
+export interface AiChatToolGroupPart {
+	type: "data-tool-group";
+	attempts: AiChatToolAttempt[];
+	part: AiChatToolPart;
+}
+
 export type AiChatRenderablePart = AiChatMessagePart | AiChatToolGroupPart;
+
+export function isAiChatToolGroupPart(part: AiChatRenderablePart): part is AiChatToolGroupPart {
+	return part.type === "data-tool-group" && "attempts" in part;
+}
 
 export type AssistantRowDisplay =
 	| { kind: "content"; parts: AiChatRenderablePart[] }
@@ -145,9 +159,10 @@ export function getAssistantRowDisplay(
 
 export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePart[] {
 	const parts = message.parts.filter(isDisplayableMessagePart);
-	const codemodePart = parts.find(
+	const codemodeParts = parts.filter(
 		(part): part is AiChatToolPart => isToolUIPart(part) && getToolPartName(part) === "orchestrate",
 	);
+	const codemodePart = codemodeParts.at(-1);
 
 	if (!codemodePart) {
 		return parts;
@@ -156,10 +171,18 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 	const loggedChildren = getCodemodeCallActivities(codemodePart.output);
 	const groupsSiblingTools = loggedChildren === undefined;
 	const codemodeChildren = loggedChildren ?? getLegacyCodemodeChildren(parts, codemodePart);
+	const attempts = codemodeParts.map((part) => ({
+		part,
+		children:
+			getCodemodeCallActivities(part.output) ?? (part === codemodePart ? codemodeChildren : []),
+	}));
 
 	const result: AiChatRenderablePart[] = [];
 
 	for (const part of parts) {
+		if (isToolUIPart(part) && getToolPartName(part) === "orchestrate" && part !== codemodePart) {
+			continue;
+		}
 		if (
 			groupsSiblingTools &&
 			isToolUIPart(part) &&
@@ -173,7 +196,7 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 			result.push({
 				type: "data-tool-group",
 				part,
-				children: codemodeChildren,
+				attempts,
 			});
 			continue;
 		}
@@ -189,24 +212,33 @@ function getLegacyCodemodeChildren(
 	codemodePart: AiChatToolPart,
 ): AiChatToolChildActivity[] {
 	return parts.flatMap((part) => {
-		if (!isToolUIPart(part) || part === codemodePart || !isVisibleToolPart(part)) {
+		if (
+			!isToolUIPart(part) ||
+			part === codemodePart ||
+			getToolPartName(part) === "orchestrate" ||
+			!isVisibleToolPart(part)
+		) {
 			return [];
 		}
 
-		const activity = getToolActivityForPart(part);
-		return activity
-			? [
-					{
-						id: part.toolCallId,
-						presentation: activity.presentation,
-						status: activity.status,
-						summary: activity.summary,
-						segments: activity.segments,
-						toolName: activity.toolName,
-					},
-				]
-			: [];
+		return getToolPartActivities(part);
 	});
+}
+
+function getToolPartActivities(part: AiChatToolPart): AiChatToolChildActivity[] {
+	const activity = getToolActivityForPart(part);
+	return activity
+		? [
+				{
+					id: part.toolCallId,
+					presentation: activity.presentation,
+					status: activity.status,
+					summary: activity.summary,
+					segments: activity.segments,
+					toolName: activity.toolName,
+				},
+			]
+		: [];
 }
 
 export function isDisplayableMessagePart(part: AiChatMessagePart): boolean {

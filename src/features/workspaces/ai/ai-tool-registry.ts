@@ -1,4 +1,4 @@
-export type AiToolActivityIconKind = "code" | "edit" | "file" | "search" | "web";
+export type AiToolActivityIconKind = "code" | "edit" | "file" | "search" | "web" | "work";
 export type AiToolAccess = "read" | "write";
 export type AiToolVisibility = "hidden" | "visible";
 
@@ -24,7 +24,9 @@ function defineAiToolRegistry<const TRegistry extends Record<string, AiToolDefin
 
 export const AI_TOOL_REGISTRY = defineAiToolRegistry({
 	sandbox_bash: readTool({ icon: "code", title: "Sandbox", visibility: "hidden" }, false),
-	orchestrate: readTool({ icon: "code", title: "Work through task" }, false),
+	orchestrate: readTool({ icon: "work", title: "Work through task" }, false),
+	browser_execute: readTool({ icon: "web", title: "Browse web" }, false),
+	browser_handoff: readTool({ icon: "web", title: "Browser handoff", visibility: "hidden" }),
 	compute: readTool({ icon: "code", title: "Run Python" }),
 	web_search: readTool({ icon: "search", title: "Search web" }),
 	web_markdown: readTool({ icon: "web", title: "Read webpage" }),
