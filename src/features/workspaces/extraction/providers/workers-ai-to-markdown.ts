@@ -1,4 +1,5 @@
-import { convertImageStreamToChatJpeg } from "#/features/workspaces/conversion/image-file-converter";
+import { normalizeChatImageToJpeg } from "#/features/workspaces/conversion/image-normalizer";
+import { WORKSPACE_AI_CHAT_ATTACHMENT_POLICY } from "#/features/workspaces/ai/chat-attachment-policy";
 import type {
 	MarkdownExtractionProvider,
 	MarkdownExtractionResult,
@@ -9,17 +10,15 @@ export function createWorkersAiToMarkdownProvider(env: Env): MarkdownExtractionP
 	return {
 		id: "workers_ai_to_markdown",
 		async extract(input) {
-			const conversion = await convertImageStreamToChatJpeg(env, {
-				body: input.body,
-				contentType: input.contentType,
-				fileName: input.fileName,
-				sizeBytes: input.sizeBytes,
-			});
-			const bytes = await new Response(conversion.body).arrayBuffer();
+			const conversion = await normalizeChatImageToJpeg(
+				env,
+				input.openBody,
+				WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.maxNormalizedFileSize,
+			);
 			const result = await env.AI.toMarkdown(
 				{
 					name: input.fileName,
-					blob: new Blob([bytes], {
+					blob: new Blob([conversion.bytes], {
 						type: "image/jpeg",
 					}),
 				},

@@ -7,8 +7,8 @@ import {
 	getChatAttachmentContentUrl,
 	getChatAttachmentObjectKey,
 } from "#/features/workspaces/ai/chat-attachment-storage";
-import { convertImageFileToChatJpeg } from "#/features/workspaces/conversion/image-file-converter";
 import { WorkspaceFileConversionError } from "#/features/workspaces/conversion/errors";
+import { normalizeChatImageToJpeg } from "#/features/workspaces/conversion/image-normalizer";
 import {
 	observeWorkspaceFileIntake,
 	type WorkspaceFileIntakeObservation,
@@ -72,21 +72,13 @@ async function executeChatAttachmentUpload(
 			);
 		}
 
-		const normalized = await convertImageFileToChatJpeg(env, {
-			file,
-			fileName: file.name,
-		});
+		const normalized = await normalizeChatImageToJpeg(
+			env,
+			async () => file.stream(),
+			WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.maxNormalizedFileSize,
+		);
 		observation.conversion = "image_to_jpeg";
 		observation.outputBytes = normalized.sizeBytes;
-
-		if (normalized.sizeBytes > WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.maxNormalizedFileSize) {
-			return apiError(
-				requestId,
-				413,
-				"ATTACHMENT_TOO_LARGE",
-				"This image is too detailed to attach after optimization.",
-			);
-		}
 
 		const attachmentId = crypto.randomUUID();
 		const identity = { attachmentId, threadId, workspaceId };

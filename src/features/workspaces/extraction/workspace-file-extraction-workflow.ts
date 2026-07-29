@@ -73,6 +73,13 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 						body: object.body,
 						fileName: source.fileName,
 						contentType: source.contentType,
+						openBody: () =>
+							reopenWorkspaceFileSource(
+								this.env.WORKSPACE_KERNEL_FILES,
+								source.objectKey,
+								source.sizeBytes,
+								object.etag,
+							),
 						sizeBytes: source.sizeBytes,
 						sourceHash: object.etag,
 						mode: route.mode,
@@ -236,6 +243,24 @@ export class WorkspaceFileExtractionWorkflow extends WorkflowEntrypoint<
 
 		return result;
 	}
+}
+
+async function reopenWorkspaceFileSource(
+	bucket: R2Bucket,
+	objectKey: string,
+	expectedSizeBytes: number,
+	expectedEtag: string,
+) {
+	const object = await bucket.get(objectKey);
+
+	if (!object) {
+		throw new Error("Workspace file source object was not found during extraction.");
+	}
+	if (object.size !== expectedSizeBytes || object.etag !== expectedEtag) {
+		throw new Error("Workspace file source changed during extraction.");
+	}
+
+	return object.body;
 }
 
 interface StagedPageExtractionResult {
