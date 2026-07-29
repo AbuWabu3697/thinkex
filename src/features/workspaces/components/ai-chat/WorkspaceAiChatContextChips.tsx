@@ -16,7 +16,7 @@ import { useWorkspaceSelectionStore } from "#/features/workspaces/state/workspac
 import { cn } from "#/lib/utils";
 
 const CONTEXT_CHIP_REMOVE_BUTTON_CLASSNAME =
-	"-mr-1 size-5 shrink-0 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive";
+	"-mr-0.5 size-5 shrink-0 rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive";
 
 export default function WorkspaceAiChatContextChips({
 	context,
@@ -225,7 +225,7 @@ function getWorkspaceAiChatContextChipIcon(item: WorkspaceItem): {
 
 function getWorkspaceAiChatContextChipClassName(className?: string) {
 	return cn(
-		"flex min-h-6 min-w-0 max-w-48 items-center gap-1 rounded-full bg-muted px-1 py-0.5 text-xs dark:bg-input/30",
+		"flex h-6 min-w-0 max-w-48 items-center gap-1 rounded-full bg-muted px-1.5 text-xs dark:bg-input/30",
 		"outline-none focus-visible:ring-2 focus-visible:ring-ring",
 		className,
 	);

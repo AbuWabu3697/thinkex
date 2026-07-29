@@ -106,14 +106,14 @@ function AiChatImageAttachment({
 				{onRemove ? (
 					<button
 						aria-label={`Remove ${label}`}
-						className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/75"
+						className="absolute top-1 right-1 z-10 flex size-5 items-center justify-center rounded-full bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
 						onClick={(event) => {
 							event.stopPropagation();
 							onRemove();
 						}}
 						type="button"
 					>
-						<XIcon className="size-3.5" />
+						<XIcon className="size-3" />
 					</button>
 				) : null}
 			</div>
@@ -190,12 +190,13 @@ function AiChatAttachmentRemoveAction({
 		<AttachmentActions>
 			<AttachmentAction
 				aria-label={`Remove ${getAttachmentLabel(data)}`}
+				className="size-5 rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
 				onClick={(event) => {
 					event.stopPropagation();
 					onRemove();
 				}}
 			>
-				<XIcon />
+				<XIcon className="size-3" />
 			</AttachmentAction>
 		</AttachmentActions>
 	);
