@@ -45,9 +45,7 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
-      - name: Verify branch quality gates
-        run: vp run check && vp run test
-
+      # Quality gates live on PRs (`validate` / `vp run verify`); staging deploys ship the staging bundle.
       - name: Build staging bundle
         env:
           CLOUDFLARE_VITE_FORCE_LOCAL: "true"
