@@ -1,24 +1,36 @@
-import { WorkspaceFileConversionError } from "#/features/workspaces/conversion/errors";
+import {
+	WorkspaceFileConversionError,
+	type WorkspaceFileConversionFailure,
+} from "#/features/workspaces/conversion/errors";
 import type { SizedResponseBody } from "#/lib/http/sized-response-body";
-import { requireSizedResponseBody } from "#/lib/http/sized-response-body";
 
 const jpegContentType = "image/jpeg";
+const workspaceProfile = { quality: 92 } as const;
 const chatProfiles = [
 	{ dimension: 2048, quality: 85 },
 	{ dimension: 1024, quality: 70 },
 ] as const;
 
-export type OpenImageBody = () => Promise<ReadableStream<Uint8Array>>;
+type ImageProfile = {
+	dimension?: number;
+	quality: number;
+};
 
-export interface NormalizedChatImage {
+type OpenImageBody = () => Promise<ReadableStream<Uint8Array>>;
+
+interface NormalizedChatImage {
 	bytes: ArrayBuffer;
 	contentType: typeof jpegContentType;
 	sizeBytes: number;
 }
 
-export class ImageNormalizationError extends WorkspaceFileConversionError {
-	constructor(message: string) {
-		super(message, "Unable to convert this image right now.");
+class ImageNormalizationError extends WorkspaceFileConversionError {
+	constructor(
+		message: string,
+		failure: WorkspaceFileConversionFailure = "conversion_failed",
+		options?: ErrorOptions,
+	) {
+		super(message, "Unable to convert this image right now.", failure, options);
 		this.name = "ImageNormalizationError";
 	}
 }
@@ -26,17 +38,18 @@ export class ImageNormalizationError extends WorkspaceFileConversionError {
 export async function normalizeImageToJpeg(
 	env: Cloudflare.Env,
 	body: ReadableStream<Uint8Array>,
+	maxBytes: number,
 ): Promise<SizedResponseBody> {
-	return translateImageNormalizationErrors(async () => {
-		const result = await env.IMAGES.input(body).output({
-			anim: false,
-			background: "#ffffff",
-			format: jpegContentType,
-			quality: 92,
-		});
+	const bytes = await normalizeWithProfile(env, async () => body, workspaceProfile, maxBytes);
 
-		return requireSizedResponseBody(result.response(), createEmptyImageError);
-	});
+	if (!bytes) {
+		throw createImageOutputTooLargeError(maxBytes);
+	}
+
+	return {
+		body: new Blob([bytes], { type: jpegContentType }).stream(),
+		sizeBytes: bytes.byteLength,
+	};
 }
 
 export async function normalizeChatImageToJpeg(
@@ -44,52 +57,47 @@ export async function normalizeChatImageToJpeg(
 	openBody: OpenImageBody,
 	maxBytes: number,
 ): Promise<NormalizedChatImage> {
-	return translateImageNormalizationErrors(async () => {
-		for (const profile of chatProfiles) {
-			const result = await env.IMAGES.input(await openBody())
-				.transform({
-					fit: "scale-down",
-					height: profile.dimension,
-					width: profile.dimension,
-				})
-				.output({
-					anim: false,
-					background: "#ffffff",
-					format: jpegContentType,
-					quality: profile.quality,
-				});
-			const bytes = await readBodyWithinLimit(result.response(), maxBytes);
+	for (const profile of chatProfiles) {
+		const bytes = await normalizeWithProfile(env, openBody, profile, maxBytes);
 
-			if (bytes) {
-				return {
-					bytes,
-					contentType: jpegContentType,
-					sizeBytes: bytes.byteLength,
-				};
-			}
+		if (bytes) {
+			return {
+				bytes,
+				contentType: jpegContentType,
+				sizeBytes: bytes.byteLength,
+			};
 		}
+	}
 
-		throw new ImageNormalizationError(
-			"Cloudflare Images could not produce a JPEG within the chat attachment limit.",
-		);
-	});
+	throw createImageOutputTooLargeError(maxBytes);
 }
 
-async function readBodyWithinLimit(
-	response: Response,
+async function normalizeWithProfile(
+	env: Cloudflare.Env,
+	openBody: OpenImageBody,
+	profile: ImageProfile,
 	maxBytes: number,
 ): Promise<ArrayBuffer | null> {
-	if (!response.body) {
-		throw createEmptyImageError();
-	}
+	return translateImageNormalizationErrors(async () => {
+		let transformer = env.IMAGES.input(await openBody());
 
-	const contentLength = Number(response.headers.get("content-length"));
-	if (Number.isSafeInteger(contentLength) && contentLength > maxBytes) {
-		await response.body.cancel("Image output exceeds the byte limit.");
-		return null;
-	}
+		if (profile.dimension) {
+			transformer = transformer.transform({
+				fit: "scale-down",
+				height: profile.dimension,
+				width: profile.dimension,
+			});
+		}
 
-	return readStreamWithinLimit(response.body, maxBytes);
+		const result = await transformer.output({
+			anim: false,
+			background: "#ffffff",
+			format: jpegContentType,
+			quality: profile.quality,
+		});
+
+		return readStreamWithinLimit(result.image(), maxBytes);
+	});
 }
 
 async function readStreamWithinLimit(
@@ -136,6 +144,13 @@ function createEmptyImageError() {
 	return new ImageNormalizationError("Image conversion returned an empty JPEG.");
 }
 
+function createImageOutputTooLargeError(maxBytes: number) {
+	return new ImageNormalizationError(
+		`Cloudflare Images output exceeds the ${maxBytes}-byte limit.`,
+		"output_too_large",
+	);
+}
+
 async function translateImageNormalizationErrors<T>(run: () => Promise<T>): Promise<T> {
 	try {
 		return await run();
@@ -146,6 +161,8 @@ async function translateImageNormalizationErrors<T>(run: () => Promise<T>): Prom
 
 		throw new ImageNormalizationError(
 			error instanceof Error ? error.message : "Image normalization failed.",
+			"conversion_failed",
+			{ cause: error },
 		);
 	}
 }

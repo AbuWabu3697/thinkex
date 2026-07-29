@@ -191,7 +191,11 @@ async function convertWorkspaceFileUpload(
 
 	return {
 		contentType: "image/jpeg",
-		response: await normalizeImageToJpeg(input.env, input.uploadedObject.body),
+		response: await normalizeImageToJpeg(
+			input.env,
+			input.uploadedObject.body,
+			workspaceFileUploadLimits.maxImageFileBytes,
+		),
 	};
 }
 

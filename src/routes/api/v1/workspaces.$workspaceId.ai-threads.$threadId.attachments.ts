@@ -104,6 +104,14 @@ async function executeChatAttachmentUpload(
 	} catch (error) {
 		observation.error = error;
 		if (error instanceof WorkspaceFileConversionError) {
+			if (error.failure === "output_too_large") {
+				return apiError(
+					requestId,
+					413,
+					"ATTACHMENT_TOO_LARGE",
+					"This image is too detailed to attach after optimization.",
+				);
+			}
 			return apiError(requestId, 422, "CONVERSION_FAILED", error.userMessage);
 		}
 

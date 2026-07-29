@@ -354,6 +354,14 @@ function workspaceUploadErrorResponse(requestId: string, error: unknown) {
 	}
 
 	if (error instanceof WorkspaceFileConversionError) {
+		if (error.failure === "output_too_large") {
+			return apiError(
+				requestId,
+				413,
+				"SELECTION_TOO_LARGE",
+				"This image is too detailed to upload after optimization.",
+			);
+		}
 		return apiError(requestId, 422, "CONVERSION_FAILED", error.userMessage);
 	}
 
