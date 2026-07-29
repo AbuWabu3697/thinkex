@@ -21,6 +21,7 @@ import {
 	AttachmentTrigger,
 } from "#/components/ui/attachment";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
+import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import type {
 	AttachmentData,
@@ -51,7 +52,7 @@ export function AiChatAttachmentItem({
 	data: AttachmentData;
 	onRemove?: () => void;
 }) {
-	if (isPreviewableImageAttachment(data)) {
+	if (isImageAttachment(data)) {
 		return <AiChatImageAttachment data={data} onRemove={onRemove} />;
 	}
 
@@ -64,57 +65,63 @@ export function AiChatAttachmentItem({
 	);
 }
 
-function isPreviewableImageAttachment(
-	data: AttachmentData,
-): data is FileAttachmentData & { status: "ready"; url: string } {
-	return (
-		data.type === "file" &&
-		data.status === "ready" &&
-		getMediaCategory(data) === "image" &&
-		Boolean(data.url)
-	);
+function isImageAttachment(data: AttachmentData): data is FileAttachmentData {
+	return data.type === "file" && getMediaCategory(data) === "image";
 }
 
 function AiChatImageAttachment({
 	data,
 	onRemove,
 }: {
-	data: FileAttachmentData & { status: "ready"; url: string };
+	data: FileAttachmentData;
 	onRemove?: () => void;
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const label = getAttachmentLabel(data);
+	const imageUrl = data.status === "ready" ? data.url : undefined;
 
 	return (
 		<>
 			<Attachment
-				className="cursor-zoom-in focus-within:ring-2"
+				className={imageUrl ? "cursor-zoom-in focus-within:ring-2" : undefined}
 				orientation="vertical"
 				size="default"
+				state={getAttachmentState(data)}
 			>
 				<AttachmentMedia variant="image">
-					<img
-						alt={label}
-						className="size-full object-cover"
-						height={96}
-						src={data.url}
-						width={96}
-					/>
+					{imageUrl ? (
+						<img
+							alt={label}
+							className="size-full object-cover"
+							height={96}
+							src={imageUrl}
+							width={96}
+						/>
+					) : (
+						<>
+							<Skeleton aria-hidden="true" className="size-full rounded-none bg-foreground/10" />
+							<span className="sr-only">Preparing {label}</span>
+						</>
+					)}
 				</AttachmentMedia>
-				<AttachmentTrigger aria-label={`Preview ${label}`} onClick={() => setIsOpen(true)} />
+				{imageUrl ? (
+					<AttachmentTrigger aria-label={`Preview ${label}`} onClick={() => setIsOpen(true)} />
+				) : null}
 				<AiChatAttachmentRemoveAction data={data} onRemove={onRemove} />
 			</Attachment>
 
-			<Dialog open={isOpen} onOpenChange={setIsOpen}>
-				<DialogContent className="max-w-[min(96vw,900px)] gap-4 p-4 sm:max-w-4xl">
-					<DialogHeader className="pr-8">
-						<DialogTitle className="truncate text-base">{label}</DialogTitle>
-					</DialogHeader>
-					<div className="flex max-h-[78vh] min-h-0 items-center justify-center overflow-hidden rounded-lg bg-muted/40">
-						<img alt={label} className="max-h-[78vh] max-w-full object-contain" src={data.url} />
-					</div>
-				</DialogContent>
-			</Dialog>
+			{imageUrl ? (
+				<Dialog open={isOpen} onOpenChange={setIsOpen}>
+					<DialogContent className="max-w-[min(96vw,900px)] gap-4 p-4 sm:max-w-4xl">
+						<DialogHeader className="pr-8">
+							<DialogTitle className="truncate text-base">{label}</DialogTitle>
+						</DialogHeader>
+						<div className="flex max-h-[78vh] min-h-0 items-center justify-center overflow-hidden rounded-lg bg-muted/40">
+							<img alt={label} className="max-h-[78vh] max-w-full object-contain" src={imageUrl} />
+						</div>
+					</DialogContent>
+				</Dialog>
+			) : null}
 		</>
 	);
 }
