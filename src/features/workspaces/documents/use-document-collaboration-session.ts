@@ -173,12 +173,22 @@ function createActiveDocumentSession(input: {
 		};
 		notifyDocumentSessionSubscribers(session);
 	};
+	/**
+	 * Persistence is an optimization, so a failed write must stay silent rather
+	 * than surfacing as an unhandled rejection on every sync — IndexedDB is
+	 * unavailable in private windows and can be over quota anywhere.
+	 */
+	const rememberServerSync = () => {
+		void session.persistence.set(localDocumentReadyKey, localDocumentReadyValue).catch(() => {
+			// The live collaboration session remains canonical.
+		});
+	};
 	const handleSync = (synced: boolean) => {
 		if (!synced) {
 			return;
 		}
 
-		void session.persistence.set(localDocumentReadyKey, localDocumentReadyValue);
+		rememberServerSync();
 		markReady();
 	};
 
@@ -187,7 +197,7 @@ function createActiveDocumentSession(input: {
 			provider: session.provider,
 			ydoc: session.ydoc,
 		};
-		void session.persistence.set(localDocumentReadyKey, localDocumentReadyValue);
+		rememberServerSync();
 	}
 
 	void session.persistence.whenSynced
