@@ -23,6 +23,12 @@ import {
 
 export type AssistantPendingKind = "thinking" | "working" | "recovering";
 
+/**
+ * Every `orchestrate` call in a message collapses into one row: the header
+ * describes the last call — the model's most recent title, so it reads as
+ * current activity — and `children` is the whole message's activity trail in
+ * execution order, regardless of which call produced each entry.
+ */
 export interface AiChatToolGroupPart {
 	type: "data-tool-group";
 	children: AiChatToolChildActivity[];
@@ -30,6 +36,10 @@ export interface AiChatToolGroupPart {
 }
 
 export type AiChatRenderablePart = AiChatMessagePart | AiChatToolGroupPart;
+
+export function isAiChatToolGroupPart(part: AiChatRenderablePart): part is AiChatToolGroupPart {
+	return part.type === "data-tool-group" && "children" in part;
+}
 
 export type AssistantRowDisplay =
 	| { kind: "content"; parts: AiChatRenderablePart[] }
@@ -145,9 +155,10 @@ export function getAssistantRowDisplay(
 
 export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePart[] {
 	const parts = message.parts.filter(isDisplayableMessagePart);
-	const codemodePart = parts.find(
+	const codemodeParts = parts.filter(
 		(part): part is AiChatToolPart => isToolUIPart(part) && getToolPartName(part) === "orchestrate",
 	);
+	const codemodePart = codemodeParts.at(-1);
 
 	if (!codemodePart) {
 		return parts;
@@ -155,11 +166,23 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 
 	const loggedChildren = getCodemodeCallActivities(codemodePart.output);
 	const groupsSiblingTools = loggedChildren === undefined;
-	const codemodeChildren = loggedChildren ?? getLegacyCodemodeChildren(parts, codemodePart);
+	// Each call logs its own `seq`, so ids repeat across calls. Namespace them by
+	// the call that produced them to keep the merged trail's keys unique.
+	const codemodeChildren = groupsSiblingTools
+		? getLegacyCodemodeChildren(parts, codemodePart)
+		: codemodeParts.flatMap((part) =>
+				(getCodemodeCallActivities(part.output) ?? []).map((child) => ({
+					...child,
+					id: `${part.toolCallId}:${child.id}`,
+				})),
+			);
 
 	const result: AiChatRenderablePart[] = [];
 
 	for (const part of parts) {
+		if (isToolUIPart(part) && getToolPartName(part) === "orchestrate" && part !== codemodePart) {
+			continue;
+		}
 		if (
 			groupsSiblingTools &&
 			isToolUIPart(part) &&
@@ -189,24 +212,33 @@ function getLegacyCodemodeChildren(
 	codemodePart: AiChatToolPart,
 ): AiChatToolChildActivity[] {
 	return parts.flatMap((part) => {
-		if (!isToolUIPart(part) || part === codemodePart || !isVisibleToolPart(part)) {
+		if (
+			!isToolUIPart(part) ||
+			part === codemodePart ||
+			getToolPartName(part) === "orchestrate" ||
+			!isVisibleToolPart(part)
+		) {
 			return [];
 		}
 
-		const activity = getToolActivityForPart(part);
-		return activity
-			? [
-					{
-						id: part.toolCallId,
-						presentation: activity.presentation,
-						status: activity.status,
-						summary: activity.summary,
-						segments: activity.segments,
-						toolName: activity.toolName,
-					},
-				]
-			: [];
+		return getToolPartActivities(part);
 	});
+}
+
+function getToolPartActivities(part: AiChatToolPart): AiChatToolChildActivity[] {
+	const activity = getToolActivityForPart(part);
+	return activity
+		? [
+				{
+					id: part.toolCallId,
+					presentation: activity.presentation,
+					status: activity.status,
+					summary: activity.summary,
+					segments: activity.segments,
+					toolName: activity.toolName,
+				},
+			]
+		: [];
 }
 
 export function isDisplayableMessagePart(part: AiChatMessagePart): boolean {

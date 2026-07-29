@@ -21,6 +21,7 @@ describe("content security policy", () => {
 		expect(policy).not.toContain("*.r2.cloudflarestorage.com");
 		expect(policy).not.toContain("connect-src https:");
 		expect(policy).not.toContain("'unsafe-eval'");
+		expect(policy).toContain("frame-src https://live.browser.run");
 		expect(policy).toContain("report-uri https://h.thinkex.app/report/?token=test");
 	});
 

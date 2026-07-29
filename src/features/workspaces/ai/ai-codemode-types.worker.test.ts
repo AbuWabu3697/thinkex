@@ -1,10 +1,12 @@
-import { generateTypes } from "@cloudflare/codemode/ai";
+import type { ToolSet } from "ai";
 import { describe, expect, it } from "vitest";
 
 import {
 	AI_TOOL_REGISTRY,
 	requireAiToolDefinition,
 } from "#/features/workspaces/ai/ai-tool-registry";
+import { generateAIThreadCodemodeTypes } from "#/features/workspaces/ai/ai-codemode-types";
+import { createAIThreadBrowserHandoffTool } from "#/features/workspaces/ai/ai-thread-browser";
 import { createAIThreadCodeRunTools } from "#/features/workspaces/ai/code-run-tools";
 import { createAIThreadResearchTools } from "#/features/workspaces/ai/research-tools";
 import { createAIThreadTimeTools } from "#/features/workspaces/ai/time-tools";
@@ -13,13 +15,17 @@ import { createAIThreadWebTools } from "#/features/workspaces/ai/web-tools";
 describe("AI Code Mode type generation", () => {
 	it("publishes concrete output types for every non-workspace nested tool", () => {
 		const env = {} as Cloudflare.Env;
-		const tools = {
+		const tools: ToolSet = {
+			browser_handoff: createAIThreadBrowserHandoffTool(),
 			...createAIThreadCodeRunTools({ env, sandboxId: "test-thread" }),
 			...createAIThreadResearchTools(env),
 			...createAIThreadTimeTools(),
 			...createAIThreadWebTools(env),
 		};
-		const declarations = generateTypes(tools, "tools");
+		// Exercise the generator the connector actually calls: the raw ToolSet has
+		// no output schemas, so asserting against `generateTypes` directly would
+		// pass on a type block the model never sees.
+		const declarations = generateAIThreadCodemodeTypes(tools, "tools");
 
 		expect(declarations).not.toMatch(/type \w+Output = unknown/);
 		for (const toolName of Object.keys(tools)) {
@@ -35,15 +41,20 @@ describe("AI Code Mode type generation", () => {
 
 	it("keeps every runtime tool factory synchronized with the registry", () => {
 		const env = {} as Cloudflare.Env;
-		const tools = {
+		const tools: ToolSet = {
+			browser_handoff: createAIThreadBrowserHandoffTool(),
 			...createAIThreadCodeRunTools({ env, sandboxId: "registry-test" }),
 			...createAIThreadResearchTools(env),
 			...createAIThreadTimeTools(),
 			...createAIThreadWebTools(env),
 		};
 		const runtimeNames = ["sandbox_bash", ...Object.keys(tools)].sort();
-		const registeredRuntimeNames = Object.keys(AI_TOOL_REGISTRY)
-			.filter((name) => name !== "orchestrate" && !name.startsWith("workspace_"))
+		const registeredRuntimeNames = Object.entries(AI_TOOL_REGISTRY)
+			.filter(
+				([name, definition]) =>
+					name !== "orchestrate" && !name.startsWith("workspace_") && !definition.presentationOnly,
+			)
+			.map(([name]) => name)
 			.sort();
 
 		for (const name of runtimeNames) {

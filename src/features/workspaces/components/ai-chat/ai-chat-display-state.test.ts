@@ -36,7 +36,7 @@ describe("Code Mode tool groups", () => {
 
 		expect(group.children).toEqual([
 			{
-				id: "1:tools:web_search",
+				id: "orchestrate-1:1:tools:web_search",
 				presentation: {
 					icon: "search",
 					title: "Search web",
@@ -111,6 +111,45 @@ describe("Code Mode tool groups", () => {
 		expect(group.children).toEqual([]);
 	});
 
+	it("merges every orchestration call in the message into one ordered trail", () => {
+		const callLog = (seq: number, query: string) => ({
+			status: "completed",
+			executionId: `execution-${seq}`,
+			result: null,
+			calls: [
+				{
+					seq,
+					connector: "tools",
+					method: "web_search",
+					args: { query },
+					result: { results: [] },
+					requiresApproval: false,
+					state: "applied",
+				},
+			],
+		});
+		const parts = getDisplayableParts(
+			createMessage([
+				createOrchestratePart(callLog(1, "first"), "orchestrate-1"),
+				createOrchestratePart(callLog(1, "second"), "orchestrate-2"),
+			]),
+		);
+
+		expect(parts).toHaveLength(1);
+		const group = parts[0] as AiChatToolGroupPart;
+		// Both calls log `seq: 1`, so ids must stay distinct for React keys.
+		expect(group.children.map((child) => child.id)).toEqual([
+			"orchestrate-1:1:tools:web_search",
+			"orchestrate-2:1:tools:web_search",
+		]);
+		expect(group.children.map((child) => child.summary)).toEqual([
+			"Found 0 sources for “first”",
+			"Found 0 sources for “second”",
+		]);
+		// The header describes the latest call, so the row reads as current work.
+		expect(group.part.toolCallId).toBe("orchestrate-2");
+	});
+
 	it("does not absorb sibling tools when a durable call log is malformed", () => {
 		const siblingTool = {
 			type: "tool-web_search",
@@ -137,10 +176,10 @@ function createMessage(parts: unknown[]) {
 	} as AiChatMessage;
 }
 
-function createOrchestratePart(output: unknown) {
+function createOrchestratePart(output: unknown, toolCallId = "orchestrate-1") {
 	return {
 		type: "tool-orchestrate",
-		toolCallId: "orchestrate-1",
+		toolCallId,
 		state: "output-available",
 		input: { code: "async () => null" },
 		output,

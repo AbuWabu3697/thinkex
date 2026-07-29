@@ -8,6 +8,7 @@ import {
 	LoaderCircle,
 	PencilLine,
 	Search,
+	Wrench,
 } from "lucide-react";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
@@ -40,11 +41,11 @@ const DETAIL_SOURCE_LIMIT = 8;
 const EMPTY_TOOL_CHILDREN: AiChatToolChildActivity[] = [];
 
 export function AiChatToolActivityRow({
-	part,
 	nestedChildren = EMPTY_TOOL_CHILDREN,
+	part,
 }: {
-	part: AiChatToolPart;
 	nestedChildren?: AiChatToolChildActivity[];
+	part: AiChatToolPart;
 }) {
 	const shouldReduceMotion = useReducedMotion();
 	const activity = getToolActivityForPart(part);
@@ -91,6 +92,7 @@ export function AiChatToolActivityRow({
 
 	return <ToolActivityMotion disabled={shouldReduceMotion}>{content}</ToolActivityMotion>;
 }
+
 function ToolActivityMotion({
 	children,
 	disabled,
@@ -351,6 +353,8 @@ function ToolActivityIcon({ icon }: { icon: AiToolActivityIconKind }) {
 			return <Search className="size-3.5" aria-hidden="true" />;
 		case "web":
 			return <Globe2 className="size-3.5" aria-hidden="true" />;
+		case "work":
+			return <Wrench className="size-3.5" aria-hidden="true" />;
 		default:
 			icon satisfies never;
 			return null;

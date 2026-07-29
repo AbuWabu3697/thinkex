@@ -25,7 +25,7 @@ import {
 } from "#/features/workspaces/documents/document-markdown-edits";
 import {
 	type DocumentSessionConnectionState,
-	resolveDocumentSessionConnectionAccess,
+	readForwardedDocumentSessionConnectionAccess,
 } from "#/features/workspaces/documents/document-session-connection-access";
 import {
 	coerceTiptapDocumentJson,
@@ -41,7 +41,6 @@ import {
 	getWorkspaceKernelFromEnv,
 	type WorkspaceKernelClient,
 } from "#/features/workspaces/kernel/workspace-kernel-access";
-import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { sha256Base64Url } from "#/lib/binary";
 
 const persistedYDocUpdateKey = "document-session:yjs-update";
@@ -83,23 +82,7 @@ export class DocumentSession extends YServer {
 		connection: Connection<DocumentSessionConnectionState>,
 		context: ConnectionContext,
 	) {
-		const room = getDocumentSessionRoomNameParts(this.name);
-		let access: Awaited<ReturnType<typeof resolveDocumentSessionConnectionAccess>>;
-
-		try {
-			access = await resolveDocumentSessionConnectionAccess(context.request, room.workspaceId);
-		} catch (error) {
-			recordOperationalFailure({
-				error,
-				event: "document_session_connection",
-				fields: {
-					item_id: room.itemId,
-					workspace_id: room.workspaceId,
-				},
-			});
-			connection.close(1011, "Document session unavailable");
-			return;
-		}
+		const access = readForwardedDocumentSessionConnectionAccess(context.request);
 
 		if (!access) {
 			connection.close(1011, "Unauthorized");
@@ -118,17 +101,16 @@ export class DocumentSession extends YServer {
 	}
 
 	override async onLoad() {
-		const room = getDocumentSessionRoomNameParts(this.name);
-		const kernel = await this.getWorkspaceKernel(room.workspaceId);
-		const [{ content }, persistedUpdate] = await Promise.all([
-			kernel.readDocumentCheckpoint({ itemId: room.itemId }),
-			this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey),
-		]);
+		const persistedUpdate = await this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey);
+
 		if (persistedUpdate) {
 			Y.applyUpdate(this.document, persistedUpdate, this);
 			return;
 		}
 
+		const room = getDocumentSessionRoomNameParts(this.name);
+		const kernel = await this.getWorkspaceKernel(room.workspaceId);
+		const { content } = await kernel.readDocumentCheckpoint({ itemId: room.itemId });
 		const snapshot = parseTiptapDocumentJson(content);
 		const seededDoc = prosemirrorJSONToYDoc(
 			getTiptapDocumentSchema(),

@@ -1,4 +1,4 @@
-export type AiToolActivityIconKind = "code" | "edit" | "file" | "search" | "web";
+export type AiToolActivityIconKind = "code" | "edit" | "file" | "search" | "web" | "work";
 export type AiToolAccess = "read" | "write";
 export type AiToolVisibility = "hidden" | "visible";
 
@@ -9,6 +9,12 @@ export interface AiToolModelPolicy {
 
 interface AiToolDefinition {
 	model: AiToolModelPolicy;
+	/**
+	 * True when the entry exists only to label activity in the transcript and
+	 * has no tool factory behind it — `browser_execute` is the receipt for a
+	 * stretch of collapsed CDP traffic, not something the model can call.
+	 */
+	presentationOnly: boolean;
 	ui: {
 		icon: AiToolActivityIconKind;
 		title: string;
@@ -24,7 +30,9 @@ function defineAiToolRegistry<const TRegistry extends Record<string, AiToolDefin
 
 export const AI_TOOL_REGISTRY = defineAiToolRegistry({
 	sandbox_bash: readTool({ icon: "code", title: "Sandbox", visibility: "hidden" }, false),
-	orchestrate: readTool({ icon: "code", title: "Work through task" }, false),
+	orchestrate: readTool({ icon: "work", title: "Work through task" }, false),
+	browser_execute: activityTool({ icon: "web", title: "Browse web" }),
+	browser_handoff: readTool({ icon: "web", title: "Browser handoff", visibility: "hidden" }),
 	compute: readTool({ icon: "code", title: "Run Python" }),
 	web_search: readTool({ icon: "search", title: "Search web" }),
 	web_markdown: readTool({ icon: "web", title: "Read webpage" }),
@@ -92,6 +100,11 @@ function readTool(ui: AiToolPresentationInput, codemode = true): AiToolDefinitio
 	return toolDefinition("read", codemode, ui);
 }
 
+/** A transcript label with no tool behind it. See `presentationOnly`. */
+function activityTool(ui: AiToolPresentationInput): AiToolDefinition {
+	return { ...toolDefinition("read", false, ui), presentationOnly: true };
+}
+
 function writeTool(ui: AiToolPresentationInput): AiToolDefinition {
 	// Code Mode's durable log is what makes a mutation safe to replay: an
 	// applied call returns its recorded result on resume instead of executing
@@ -107,6 +120,7 @@ function toolDefinition(
 ): AiToolDefinition {
 	return {
 		model: { access, codemode },
+		presentationOnly: false,
 		ui: {
 			icon: ui.icon,
 			title: ui.title,

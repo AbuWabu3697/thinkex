@@ -17,6 +17,7 @@ import {
 } from "#/components/ui/message-scroller";
 import { Message, MessageContent } from "#/components/ui/message";
 import { AiChatAssistantPending } from "#/features/workspaces/components/ai-chat/AiChatAssistantPending";
+import { AiChatBrowserSessionCard } from "#/features/workspaces/components/ai-chat/AiChatBrowserSessionCard";
 import {
 	aiChatMessageScrollerButtonClassName,
 	aiChatMessageScrollerContentClassName,
@@ -31,6 +32,7 @@ import {
 	isAiChatStreamActive,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
 import type { AiChatMessage } from "#/features/workspaces/components/ai-chat/types";
+import type { AiChatBrowserSessionController } from "#/features/workspaces/components/ai-chat/useWorkspaceAiBrowserSession";
 import { WorkspaceFloatingAskSelectionMenu } from "#/features/workspaces/components/WorkspaceFloatingAskSelectionMenu";
 import { stageComposerQuote } from "#/features/workspaces/composer/workspace-composer-actions";
 import { createAssistantResponseSelectedQuote } from "#/features/workspaces/model/workspace-selected-quotes";
@@ -91,8 +93,10 @@ type AiChatListRow =
 
 interface AiChatMessageListProps {
 	assistantError?: AiChatAssistantErrorState | null;
+	browser: AiChatBrowserSessionController;
 	messages: AiChatMessage[];
 	onRegenerateLastResponse?: () => void;
+	onStopBrowser: () => void;
 	presentation: AiChatPresentation;
 	sentMessageAnimationId?: string | null;
 	workspaceId: string;
@@ -100,8 +104,10 @@ interface AiChatMessageListProps {
 
 export default function AiChatMessageList({
 	assistantError,
+	browser,
 	messages,
 	onRegenerateLastResponse,
+	onStopBrowser,
 	presentation,
 	sentMessageAnimationId,
 	workspaceId,
@@ -171,6 +177,26 @@ export default function AiChatMessageList({
 										/>
 									</AiChatMessageScrollerItem>
 								))}
+								{browser.hasSession || browser.handoff ? (
+									<AiChatMessageScrollerItem
+										enableLayoutMotion={!shouldReduceMotion}
+										entryAnimation={shouldReduceMotion ? null : "tail"}
+										messageId="browser-session"
+										scrollAnchor={false}
+									>
+										<AiChatTranscriptRail>
+											<Message>
+												<MessageContent>
+													<AiChatBrowserSessionCard
+														browser={browser}
+														isChatBusy={presentation.isBusy}
+														onStop={onStopBrowser}
+													/>
+												</MessageContent>
+											</Message>
+										</AiChatTranscriptRail>
+									</AiChatMessageScrollerItem>
+								) : null}
 							</LazyMotion>
 						</MessageScrollerContent>
 					</MessageScrollerViewport>

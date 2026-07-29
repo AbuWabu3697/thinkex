@@ -1,5 +1,6 @@
 import type { ToolLogEntry } from "@cloudflare/codemode";
 
+import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
 import {
 	getAiToolPresentation,
 	type AiToolPresentation,
@@ -30,16 +31,43 @@ const callStatusByState = {
 
 export function getCodemodeCallActivities(output: unknown): AiChatToolChildActivity[] | undefined {
 	const calls = getCalls(output);
-	return calls?.flatMap((call) => {
+	if (!calls) {
+		return undefined;
+	}
+
+	const activities: AiChatToolChildActivity[] = [];
+	const browserCalls: ToolLogEntry[] = [];
+	let browserActivityIndex = 0;
+
+	for (const call of calls) {
 		if (isCompactToolActivity(call)) {
 			const presentation = getAiToolPresentation(call.toolName);
-			return presentation.visibility === "visible" ? [{ ...call, presentation }] : [];
+			if (presentation.visibility === "visible") {
+				activities.push({ ...call, presentation });
+			}
+			continue;
 		}
 
-		return isToolLogEntry(call) && getAiToolPresentation(call.method).visibility === "visible"
-			? [toToolActivity(call)]
-			: [];
-	});
+		if (!isToolLogEntry(call)) {
+			continue;
+		}
+		if (call.connector === "cdp") {
+			if (browserCalls.length === 0) {
+				browserActivityIndex = activities.length;
+			}
+			browserCalls.push(call);
+			continue;
+		}
+
+		if (getAiToolPresentation(call.method).visibility === "visible") {
+			activities.push(toToolActivity(call));
+		}
+	}
+	const browserActivity = toBrowserActivity(browserCalls);
+	if (browserActivity) {
+		activities.splice(browserActivityIndex, 0, browserActivity);
+	}
+	return activities;
 }
 
 function isCompactToolActivity(
@@ -91,6 +119,33 @@ function toToolActivity(call: ToolLogEntry): AiChatToolChildActivity {
 		segments,
 		toolName: call.method,
 	};
+}
+
+function toBrowserActivity(calls: readonly ToolLogEntry[]): AiChatToolChildActivity | undefined {
+	const status = getBrowserActivityStatus(calls);
+	const summary = summarizeAIThreadBrowserActivity(calls, status);
+	if (!summary) {
+		return undefined;
+	}
+
+	return {
+		id: `${calls[0]?.seq ?? 0}:cdp:browser_execute`,
+		presentation: getAiToolPresentation("browser_execute"),
+		status,
+		summary,
+		toolName: "browser_execute",
+	};
+}
+
+function getBrowserActivityStatus(
+	calls: readonly ToolLogEntry[],
+): AiChatToolChildActivity["status"] {
+	if (calls.some((call) => call.state === "error" || call.state === "reverted")) {
+		return "failed";
+	}
+	return calls.some((call) => call.state === "executing" || call.state === "pending")
+		? "running"
+		: "completed";
 }
 
 function getCalls(value: unknown): unknown[] | undefined {

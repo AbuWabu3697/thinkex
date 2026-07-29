@@ -37,6 +37,19 @@ const researchDeepenInputSchema = z.discriminatedUnion("mode", [
 	}),
 ]);
 
+/** Gemini requires custom-tool parameters to be a top-level object. */
+const researchDeepenModelInputSchema = z.object({
+	mode: z.enum(["passages", "related"]),
+	paper_id: z.string().trim().min(1).describe("Paper identifier."),
+	question: z.string().trim().min(1).optional().describe("Required for passage retrieval."),
+	relation: z
+		.enum(["similar", "citers", "references"])
+		.optional()
+		.describe("Required for related work."),
+	intent: z.string().trim().min(1).optional().describe("Required for related work."),
+	limit: z.number().int().min(1).max(50).optional().describe("Maximum results to return."),
+});
+
 const researchDiscoverInputExamples = [
 	{
 		input: {
@@ -72,6 +85,7 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 		research_deepen: defineAIThreadTool({
 			description: "Go deeper on one paper by reading relevant passages or finding related work.",
 			inputSchema: zodSchema(researchDeepenInputSchema),
+			modelInputSchema: researchDeepenModelInputSchema,
 			outputSchema: researchDeepenResultSchema,
 			strict: true,
 			execute: async (input: z.infer<typeof researchDeepenInputSchema>) => {
