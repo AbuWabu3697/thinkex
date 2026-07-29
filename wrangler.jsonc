@@ -34,6 +34,9 @@
 		"binding": "AI",
 		"remote": true,
 	},
+	"images": {
+		"binding": "IMAGES",
+	},
 	"worker_loaders": [
 		{
 			"binding": "LOADER",
@@ -98,12 +101,6 @@
 			"max_instances": 1,
 		},
 		{
-			"class_name": "ImageFileConverter",
-			"image": "./containers/image-converter/Dockerfile",
-			"instance_type": "lite",
-			"max_instances": 1,
-		},
-		{
 			"class_name": "WorkspaceFileProcessor",
 			"image": "./containers/liteparse/Dockerfile",
 			"instance_type": "standard-2",
@@ -132,10 +129,6 @@
 			{
 				"name": "OFFICE_PDF_CONVERTER",
 				"class_name": "OfficePdfConverter",
-			},
-			{
-				"name": "IMAGE_FILE_CONVERTER",
-				"class_name": "ImageFileConverter",
 			},
 			{
 				"name": "WORKSPACE_FILE_PROCESSOR",
@@ -180,6 +173,10 @@
 					"to": "WorkspaceFileProcessor",
 				},
 			],
+		},
+		{
+			"tag": "v10_remove_image_file_converter",
+			"deleted_classes": ["ImageFileConverter"],
 		},
 	],
 	"d1_databases": [
@@ -229,6 +226,9 @@
 				"binding": "AI",
 				"remote": true,
 			},
+			"images": {
+				"binding": "IMAGES",
+			},
 			"worker_loaders": [
 				{
 					"binding": "LOADER",
@@ -270,12 +270,6 @@
 					"max_instances": 2,
 				},
 				{
-					"class_name": "ImageFileConverter",
-					"image": "./containers/image-converter/Dockerfile",
-					"instance_type": "basic",
-					"max_instances": 1,
-				},
-				{
 					"class_name": "WorkspaceFileProcessor",
 					"image": "./containers/liteparse/Dockerfile",
 					"instance_type": "standard-2",
@@ -303,10 +297,6 @@
 					{
 						"name": "OFFICE_PDF_CONVERTER",
 						"class_name": "OfficePdfConverter",
-					},
-					{
-						"name": "IMAGE_FILE_CONVERTER",
-						"class_name": "ImageFileConverter",
 					},
 					{
 						"name": "WORKSPACE_FILE_PROCESSOR",
@@ -360,6 +350,9 @@
 				"binding": "AI",
 				"remote": true,
 			},
+			"images": {
+				"binding": "IMAGES",
+			},
 			"worker_loaders": [
 				{
 					"binding": "LOADER",
@@ -401,12 +394,6 @@
 					"max_instances": 2,
 				},
 				{
-					"class_name": "ImageFileConverter",
-					"image": "./containers/image-converter/Dockerfile",
-					"instance_type": "basic",
-					"max_instances": 1,
-				},
-				{
 					"class_name": "WorkspaceFileProcessor",
 					"image": "./containers/liteparse/Dockerfile",
 					"instance_type": "standard-2",
@@ -435,10 +422,6 @@
 					{
 						"name": "OFFICE_PDF_CONVERTER",
 						"class_name": "OfficePdfConverter",
-					},
-					{
-						"name": "IMAGE_FILE_CONVERTER",
-						"class_name": "ImageFileConverter",
 					},
 					{
 						"name": "WORKSPACE_FILE_PROCESSOR",

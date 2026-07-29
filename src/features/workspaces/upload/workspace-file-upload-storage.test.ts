@@ -6,14 +6,15 @@ import {
 } from "#/features/workspaces/model/workspace-file";
 import { finalizeWorkspaceFileUploadStorage } from "#/features/workspaces/upload/workspace-file-upload-storage";
 
-const { convertImageStreamToJpeg, convertOfficeStreamToPdf, createWorkspaceFilePreview } =
-	vi.hoisted(() => ({
-		convertImageStreamToJpeg: vi.fn(),
+const { normalizeImageToJpeg, convertOfficeStreamToPdf, createWorkspaceFilePreview } = vi.hoisted(
+	() => ({
+		normalizeImageToJpeg: vi.fn(),
 		convertOfficeStreamToPdf: vi.fn(),
 		createWorkspaceFilePreview: vi.fn(),
-	}));
-vi.mock("#/features/workspaces/conversion/image-file-converter", () => ({
-	convertImageStreamToJpeg,
+	}),
+);
+vi.mock("#/features/workspaces/conversion/image-normalizer", () => ({
+	normalizeImageToJpeg,
 }));
 vi.mock("#/features/workspaces/conversion/office-pdf-converter", () => ({
 	convertOfficeStreamToPdf,
@@ -45,7 +46,7 @@ beforeAll(() => {
 
 describe("workspace file upload storage", () => {
 	beforeEach(() => {
-		convertImageStreamToJpeg.mockReset();
+		normalizeImageToJpeg.mockReset();
 		convertOfficeStreamToPdf.mockReset();
 		createWorkspaceFilePreview.mockReset().mockResolvedValue({
 			body: stream(previewBytes),
@@ -90,7 +91,7 @@ describe("workspace file upload storage", () => {
 	it("streams conversion output to R2 and records source provenance", async () => {
 		const bucket = createR2Bucket();
 		const converted = new Uint8Array([9, 8, 7]);
-		convertImageStreamToJpeg.mockResolvedValue({
+		normalizeImageToJpeg.mockResolvedValue({
 			body: stream(converted),
 			sizeBytes: converted.byteLength,
 		});

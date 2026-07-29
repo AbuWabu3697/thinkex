@@ -12,7 +12,6 @@ import { buildContentSecurityPolicy } from "#/lib/http/content-security-policy";
 export { CodemodeRuntime } from "@cloudflare/codemode";
 export { Sandbox } from "@cloudflare/sandbox";
 export { AIThread, UserAIStore } from "#/features/workspaces/ai/user-ai-agents";
-export { ImageFileConverter } from "#/features/workspaces/conversion/image-file-converter";
 export { OfficePdfConverter } from "#/features/workspaces/conversion/office-pdf-converter";
 export { DocumentSession } from "#/features/workspaces/documents/document-session";
 export { WorkspaceFileExtractionWorkflow } from "#/features/workspaces/extraction/workspace-file-extraction-workflow";
