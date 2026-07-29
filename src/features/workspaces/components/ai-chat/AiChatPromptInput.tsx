@@ -47,7 +47,7 @@ import { cn } from "#/lib/utils";
 const PROMPT_INPUT_GROUP_CLASSNAME =
 	"h-auto flex-col border-border/70 bg-muted/30 shadow-none dark:bg-muted/30";
 const PROMPT_INPUT_INLINE_PADDING = "px-3.5";
-const PROMPT_INPUT_HEADER_PADDING = "px-3.5 pt-3 pb-1";
+const PROMPT_INPUT_HEADER_PADDING = "px-3.5 pb-1";
 const PROMPT_INPUT_FOOTER_PADDING = "pl-2 pr-3.5 pt-1 pb-2";
 const CHAT_ATTACHMENT_PICKER_ACCEPT = [
 	...new Set([WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.accept, ...workspaceUploadAccept.split(",")]),

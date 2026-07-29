@@ -18,7 +18,6 @@ import {
 	AttachmentGroup,
 	AttachmentMedia,
 	AttachmentTitle,
-	AttachmentTrigger,
 } from "#/components/ui/attachment";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { Skeleton } from "#/components/ui/skeleton";
@@ -82,14 +81,14 @@ function AiChatImageAttachment({
 
 	return (
 		<>
-			<Attachment
-				className={imageUrl ? "cursor-zoom-in focus-within:ring-2" : undefined}
-				orientation="vertical"
-				size="default"
-				state={getAttachmentState(data)}
-			>
-				<AttachmentMedia variant="image">
-					{imageUrl ? (
+			<div className="relative size-24 shrink-0" data-slot="attachment">
+				{imageUrl ? (
+					<button
+						aria-label={`Preview ${label}`}
+						className="size-full cursor-zoom-in overflow-hidden rounded-xl focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+						onClick={() => setIsOpen(true)}
+						type="button"
+					>
 						<img
 							alt={label}
 							className="size-full object-cover"
@@ -97,18 +96,27 @@ function AiChatImageAttachment({
 							src={imageUrl}
 							width={96}
 						/>
-					) : (
-						<>
-							<Skeleton aria-hidden="true" className="size-full rounded-none bg-foreground/10" />
-							<span className="sr-only">Preparing {label}</span>
-						</>
-					)}
-				</AttachmentMedia>
-				{imageUrl ? (
-					<AttachmentTrigger aria-label={`Preview ${label}`} onClick={() => setIsOpen(true)} />
+					</button>
+				) : (
+					<div className="size-full overflow-hidden rounded-xl">
+						<Skeleton aria-hidden="true" className="size-full rounded-none bg-foreground/10" />
+						<span className="sr-only">Preparing {label}</span>
+					</div>
+				)}
+				{onRemove ? (
+					<button
+						aria-label={`Remove ${label}`}
+						className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/75"
+						onClick={(event) => {
+							event.stopPropagation();
+							onRemove();
+						}}
+						type="button"
+					>
+						<XIcon className="size-3.5" />
+					</button>
 				) : null}
-				<AiChatAttachmentRemoveAction data={data} onRemove={onRemove} />
-			</Attachment>
+			</div>
 
 			{imageUrl ? (
 				<Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -131,20 +139,6 @@ function AiChatAttachmentMedia({ data }: { data: AttachmentData }) {
 		return (
 			<AttachmentMedia>
 				<Spinner className="size-3.5" />
-			</AttachmentMedia>
-		);
-	}
-
-	if (data.type === "file" && data.url && getMediaCategory(data) === "image") {
-		return (
-			<AttachmentMedia variant="image">
-				<img
-					alt={getAttachmentLabel(data)}
-					className="size-full object-cover"
-					height={40}
-					src={data.url}
-					width={40}
-				/>
 			</AttachmentMedia>
 		);
 	}
