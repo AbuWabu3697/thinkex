@@ -14,22 +14,23 @@ ThinkEx deploys from GitHub Actions to Cloudflare Workers. Deploy, migration, an
 
 ## CI
 
-The `CI` workflow runs on pull requests, pushes to `main`, and manual dispatch. It installs with Vite+ and runs:
+The `CI` workflow runs on pull requests, pushes to `main`, and manual dispatch.
+
+On pull requests (and non-`main` pushes), it installs with Vite+ and runs:
 
 ```bash
 vp run verify
 ```
 
-`verify` runs the repo's check, test, and build tasks using Vite Task caching.
+`verify` runs the repo's check, test, and build tasks using Vite Task caching. Merges into `main` require the `validate` check to pass.
 
 The separate `React Doctor` workflow runs on pull requests and pushes to `main`. It scans changed React files on pull requests, posts inline diagnostics, and records the React Doctor score without folding those comments into the main Vite+ verification job.
 
 ## Production Deploy
 
-The production workflow checks out the successful `main` commit, installs dependencies, runs quality gates, builds the production bundle, applies remote D1 migrations, and deploys the production Worker.
+Production deploy trusts PR `validate` and ships the production artifact: build, remote D1 migrations, then Worker deploy. Concurrent production deploys queue instead of cancelling mid-flight.
 
 ```bash
-vp run check && vp run test
 vp run build:production
 vp run db:migrate
 vp run deploy:worker
@@ -37,10 +38,9 @@ vp run deploy:worker
 
 ## Staging Deploy
 
-The staging workflow follows the same shape against staging bindings and routes:
+The staging workflow follows the same ship shape against staging bindings and routes:
 
 ```bash
-vp run check && vp run test
 vp run build:staging
 vp run db:migrate:staging
 vp run deploy:worker:staging
