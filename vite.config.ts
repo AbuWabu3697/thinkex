@@ -22,6 +22,12 @@ export default defineConfig(({ command }) => {
 					input: [{ auto: true }, "!dist/**"],
 					output: ["dist/**"],
 				},
+				ciBuildStaging: {
+					command: "node --run build:staging",
+					untrackedEnv: ["INIT_CWD"],
+					input: [{ auto: true }, "!dist/**"],
+					output: ["dist/**"],
+				},
 			},
 		},
 		lint: {

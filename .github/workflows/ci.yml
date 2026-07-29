@@ -42,8 +42,10 @@ jobs:
           restore-keys: |
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
+      # Keep shared `vp run verify` / ciBuild generic for local contributors.
+      # CI additionally compiles the staging-shaped Worker config (PostHog optional).
       - name: Verify
-        run: vp run verify
+        run: vp run ciCheck && vp run ciTest && vp run ciBuildStaging
 
       - name: Save Vite Task cache
         if: success()
@@ -91,7 +93,7 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
-      # Quality gates live on PRs (`validate` / `vp run verify`); required when merging via PR.
+      # Quality gates live on PRs (`validate`: check + test + staging-shaped build).
       - name: Build production bundle
         run: vp run build:production
 

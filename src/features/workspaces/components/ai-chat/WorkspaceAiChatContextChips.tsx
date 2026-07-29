@@ -225,7 +225,7 @@ function getWorkspaceAiChatContextChipIcon(item: WorkspaceItem): {
 
 function getWorkspaceAiChatContextChipClassName(className?: string) {
 	return cn(
-		"flex min-h-6 min-w-0 max-w-48 items-center gap-1 rounded-md bg-muted px-1 py-0.5 text-xs dark:bg-input/30",
+		"flex min-h-6 min-w-0 max-w-48 items-center gap-1 rounded-full bg-muted px-1 py-0.5 text-xs dark:bg-input/30",
 		"outline-none focus-visible:ring-2 focus-visible:ring-ring",
 		className,
 	);
