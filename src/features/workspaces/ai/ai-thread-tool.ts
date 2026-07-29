@@ -1,5 +1,13 @@
 import type { FlexibleSchema, Tool, ToolExecutionOptions } from "ai";
 import { asSchema, tool } from "ai";
+import { z } from "zod";
+
+export const aiThreadActivityTitleSchema = z
+	.string()
+	.min(1)
+	.describe(
+		"What this run does in 3-6 words of plain present-tense English. Name the work, not code, tools, connectors, sandboxes, or APIs. Examples: “Rewriting the intro section”, “Finding sources to cite”, “Charting revenue by month”.",
+	);
 
 export interface AIThreadToolExecutionContext {
 	abortSignal?: AbortSignal;
@@ -41,6 +49,7 @@ type AIThreadToolDefinition<INPUT, OUTPUT> = Pick<
 		input: INPUT,
 		context: AIThreadToolExecutionContext,
 	): OUTPUT | PromiseLike<OUTPUT>;
+	modelInputSchema?: FlexibleSchema<unknown>;
 	outputSchema: FlexibleSchema<OUTPUT>;
 };
 
@@ -52,7 +61,11 @@ type AIThreadToolDefinition<INPUT, OUTPUT> = Pick<
 export function defineAIThreadTool<INPUT, OUTPUT>(
 	definition: AIThreadToolDefinition<INPUT, OUTPUT>,
 ): AIThreadTool<INPUT, OUTPUT> {
+	const modelDefinition = getModelToolDefinition(definition);
 	const inputSchema = asSchema(definition.inputSchema);
+	const modelInputSchema = definition.modelInputSchema
+		? asSchema(definition.modelInputSchema)
+		: inputSchema;
 	const outputSchema = asSchema(definition.outputSchema);
 	const executeDefinition = definition.execute;
 
@@ -81,7 +94,8 @@ export function defineAIThreadTool<INPUT, OUTPUT>(
 		},
 	};
 	const aiTool = tool<INPUT, OUTPUT, Record<string, unknown>>({
-		...definition,
+		...modelDefinition,
+		inputSchema: modelInputSchema,
 		execute: (input: INPUT, options: ToolExecutionOptions<unknown>) =>
 			runtime.execute(input, directExecutionContext(options)),
 	} as unknown as Tool<INPUT, OUTPUT, Record<string, unknown>>);
@@ -90,6 +104,20 @@ export function defineAIThreadTool<INPUT, OUTPUT>(
 		INPUT,
 		OUTPUT
 	>;
+}
+
+/**
+ * Providers only need a tool's input contract. Keep output schemas inside
+ * ThinkEx, where they validate execution results without entering a
+ * provider-specific JSON Schema dialect.
+ */
+export function getModelToolDefinition<
+	T extends { modelInputSchema?: unknown; outputSchema?: unknown },
+>(definition: T): Omit<T, "modelInputSchema" | "outputSchema"> {
+	const { modelInputSchema, outputSchema, ...modelDefinition } = definition;
+	void modelInputSchema;
+	void outputSchema;
+	return modelDefinition;
 }
 
 export function requireAIThreadToolRuntime(
