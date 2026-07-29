@@ -1,4 +1,3 @@
-import { generateTypes } from "@cloudflare/codemode/ai";
 import type { ConnectorTool, ConnectorTools } from "@cloudflare/codemode";
 import { CodemodeConnector, sanitizeToolName } from "@cloudflare/codemode";
 import { createExecuteRuntime } from "@cloudflare/think/tools/execute";
@@ -6,6 +5,7 @@ import type { StateBackend } from "@cloudflare/shell";
 import type { Tool, ToolSet } from "ai";
 import { z } from "zod";
 
+import { generateAIThreadCodemodeTypes } from "#/features/workspaces/ai/ai-codemode-types";
 import { createAIThreadBrowserConnector } from "#/features/workspaces/ai/ai-thread-browser";
 import { normalizeAIThreadOrchestrationOutput } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
 import {
@@ -129,6 +129,6 @@ class AIThreadToolSetConnector extends CodemodeConnector {
 	}
 
 	async getTypeScriptTypes() {
-		return generateTypes(this.#toolSet, this.name());
+		return generateAIThreadCodemodeTypes(this.#toolSet, this.name());
 	}
 }
