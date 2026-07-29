@@ -6,17 +6,12 @@ import type { SizedResponseBody } from "#/lib/http/sized-response-body";
 
 const jpegContentType = "image/jpeg";
 const workspaceProfile = { quality: 92 } as const;
-const chatProfiles = [
-	{ dimension: 2048, quality: 85 },
-	{ dimension: 1024, quality: 70 },
-] as const;
+const chatProfile = { dimension: 1024, quality: 70 } as const;
 
 type ImageProfile = {
 	dimension?: number;
 	quality: number;
 };
-
-type OpenImageBody = () => Promise<ReadableStream<Uint8Array>>;
 
 interface NormalizedChatImage {
 	bytes: ArrayBuffer;
@@ -40,25 +35,27 @@ export async function normalizeImageToJpeg(
 	body: ReadableStream<Uint8Array>,
 	maxBytes: number,
 ): Promise<SizedResponseBody> {
-	const bytes = await normalizeWithProfile(env, async () => body, workspaceProfile, maxBytes);
+	return translateImageNormalizationErrors(async () => {
+		const bytes = await normalizeWithProfile(env, body, workspaceProfile, maxBytes);
 
-	if (!bytes) {
-		throw createImageOutputTooLargeError(maxBytes);
-	}
+		if (!bytes) {
+			throw createImageOutputTooLargeError(maxBytes);
+		}
 
-	return {
-		body: new Blob([bytes], { type: jpegContentType }).stream(),
-		sizeBytes: bytes.byteLength,
-	};
+		return {
+			body: new Blob([bytes], { type: jpegContentType }).stream(),
+			sizeBytes: bytes.byteLength,
+		};
+	});
 }
 
 export async function normalizeChatImageToJpeg(
 	env: Cloudflare.Env,
-	openBody: OpenImageBody,
+	body: ReadableStream<Uint8Array>,
 	maxBytes: number,
 ): Promise<NormalizedChatImage> {
-	for (const profile of chatProfiles) {
-		const bytes = await normalizeWithProfile(env, openBody, profile, maxBytes);
+	return translateImageNormalizationErrors(async () => {
+		const bytes = await normalizeWithProfile(env, body, chatProfile, maxBytes);
 
 		if (bytes) {
 			return {
@@ -67,37 +64,35 @@ export async function normalizeChatImageToJpeg(
 				sizeBytes: bytes.byteLength,
 			};
 		}
-	}
 
-	throw createImageOutputTooLargeError(maxBytes);
+		throw createImageOutputTooLargeError(maxBytes);
+	});
 }
 
 async function normalizeWithProfile(
 	env: Cloudflare.Env,
-	openBody: OpenImageBody,
+	body: ReadableStream<Uint8Array>,
 	profile: ImageProfile,
 	maxBytes: number,
 ): Promise<ArrayBuffer | null> {
-	return translateImageNormalizationErrors(async () => {
-		let transformer = env.IMAGES.input(await openBody());
+	let transformer = env.IMAGES.input(body);
 
-		if (profile.dimension) {
-			transformer = transformer.transform({
-				fit: "scale-down",
-				height: profile.dimension,
-				width: profile.dimension,
-			});
-		}
-
-		const result = await transformer.output({
-			anim: false,
-			background: "#ffffff",
-			format: jpegContentType,
-			quality: profile.quality,
+	if (profile.dimension) {
+		transformer = transformer.transform({
+			fit: "scale-down",
+			height: profile.dimension,
+			width: profile.dimension,
 		});
+	}
 
-		return readStreamWithinLimit(result.image(), maxBytes);
+	const result = await transformer.output({
+		anim: false,
+		background: "#ffffff",
+		format: jpegContentType,
+		quality: profile.quality,
 	});
+
+	return readStreamWithinLimit(result.image(), maxBytes);
 }
 
 async function readStreamWithinLimit(

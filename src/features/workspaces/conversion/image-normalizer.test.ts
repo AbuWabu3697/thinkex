@@ -30,33 +30,24 @@ describe("image normalizer", () => {
 		});
 	});
 
-	it("uses progressively smaller chat profiles until output fits one MiB", async () => {
-		const oversized = new Uint8Array(1024 * 1024 + 1);
+	it("uses one bounded profile for chat images", async () => {
 		const accepted = new Uint8Array([1, 2, 3, 4]);
-		const images = createImagesBinding([oversized, accepted]);
-		const openBody = createOpenBody();
+		const images = createImagesBinding([accepted]);
 
-		const result = await normalizeChatImageToJpeg(createEnv(images.binding), openBody, maxBytes);
+		const result = await normalizeChatImageToJpeg(
+			createEnv(images.binding),
+			stream(new Uint8Array([1, 2, 3])),
+			maxBytes,
+		);
 
 		expect(new Uint8Array(result.bytes)).toEqual(accepted);
-		expect(openBody).toHaveBeenCalledTimes(2);
-		expect(images.transform).toHaveBeenNthCalledWith(1, {
-			fit: "scale-down",
-			height: 2048,
-			width: 2048,
-		});
-		expect(images.transform).toHaveBeenNthCalledWith(2, {
+		expect(images.input).toHaveBeenCalledTimes(1);
+		expect(images.transform).toHaveBeenCalledWith({
 			fit: "scale-down",
 			height: 1024,
 			width: 1024,
 		});
-		expect(images.output).toHaveBeenNthCalledWith(1, {
-			anim: false,
-			background: "#ffffff",
-			format: "image/jpeg",
-			quality: 85,
-		});
-		expect(images.output).toHaveBeenNthCalledWith(2, {
+		expect(images.output).toHaveBeenCalledWith({
 			anim: false,
 			background: "#ffffff",
 			format: "image/jpeg",
@@ -69,7 +60,11 @@ describe("image normalizer", () => {
 		const images = createImagesBinding([cause]);
 
 		await expect(
-			normalizeChatImageToJpeg(createEnv(images.binding), createOpenBody(), maxBytes),
+			normalizeChatImageToJpeg(
+				createEnv(images.binding),
+				stream(new Uint8Array([1, 2, 3])),
+				maxBytes,
+			),
 		).rejects.toMatchObject({
 			cause,
 			message: "binding unavailable",
@@ -78,19 +73,21 @@ describe("image normalizer", () => {
 		} satisfies Partial<WorkspaceFileConversionError>);
 	});
 
-	it("rejects chat images that exceed the limit after both profiles", async () => {
+	it("rejects chat images that exceed the normalized output limit", async () => {
 		const oversized = new Uint8Array(1024 * 1024 + 1);
-		const images = createImagesBinding([oversized, oversized]);
-		const openBody = createOpenBody();
+		const images = createImagesBinding([oversized]);
 
 		await expect(
-			normalizeChatImageToJpeg(createEnv(images.binding), openBody, maxBytes),
+			normalizeChatImageToJpeg(
+				createEnv(images.binding),
+				stream(new Uint8Array([1, 2, 3])),
+				maxBytes,
+			),
 		).rejects.toMatchObject({
 			failure: "output_too_large",
 			name: "ImageNormalizationError",
 		} satisfies Partial<WorkspaceFileConversionError>);
-		expect(openBody).toHaveBeenCalledTimes(2);
-		expect(images.output).toHaveBeenCalledTimes(2);
+		expect(images.output).toHaveBeenCalledTimes(1);
 	});
 
 	it("bounds canonical workspace JPEG output", async () => {
@@ -114,7 +111,11 @@ describe("image normalizer", () => {
 						stream(new Uint8Array([1, 2, 3])),
 						maxBytes,
 					)
-				: normalizeChatImageToJpeg(createEnv(images.binding), createOpenBody(), maxBytes);
+				: normalizeChatImageToJpeg(
+						createEnv(images.binding),
+						stream(new Uint8Array([1, 2, 3])),
+						maxBytes,
+					);
 
 		await expect(result).rejects.toMatchObject({
 			message: "Image conversion returned an empty JPEG.",
@@ -123,10 +124,6 @@ describe("image normalizer", () => {
 		expect(images.image).toHaveBeenCalledTimes(1);
 	});
 });
-
-function createOpenBody() {
-	return vi.fn(async () => stream(new Uint8Array([1, 2, 3])));
-}
 
 function createImagesBinding(outputs: Array<Uint8Array | Error>) {
 	let outputIndex = 0;

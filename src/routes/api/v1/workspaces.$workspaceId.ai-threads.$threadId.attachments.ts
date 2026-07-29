@@ -74,7 +74,7 @@ async function executeChatAttachmentUpload(
 
 		const normalized = await normalizeChatImageToJpeg(
 			env,
-			async () => file.stream(),
+			file.stream(),
 			WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.maxNormalizedFileSize,
 		);
 		observation.conversion = "image_to_jpeg";

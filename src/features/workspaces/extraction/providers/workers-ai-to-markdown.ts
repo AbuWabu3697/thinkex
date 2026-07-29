@@ -12,7 +12,7 @@ export function createWorkersAiToMarkdownProvider(env: Env): MarkdownExtractionP
 		async extract(input) {
 			const conversion = await normalizeChatImageToJpeg(
 				env,
-				input.openBody,
+				input.body,
 				WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.maxNormalizedFileSize,
 			);
 			const result = await env.AI.toMarkdown(

@@ -39,7 +39,6 @@ export interface MarkdownExtractionInput {
 	body: ReadableStream<Uint8Array>;
 	fileName: string;
 	contentType: string;
-	openBody: () => Promise<ReadableStream<Uint8Array>>;
 	sizeBytes: number;
 	sourceHash: string;
 	mode: MarkdownExtractionProviderMode;
