@@ -1,10 +1,12 @@
 import { generateTypes } from "@cloudflare/codemode/ai";
+import type { ToolSet } from "ai";
 import { describe, expect, it } from "vitest";
 
 import {
 	AI_TOOL_REGISTRY,
 	requireAiToolDefinition,
 } from "#/features/workspaces/ai/ai-tool-registry";
+import { createAIThreadBrowserHandoffTool } from "#/features/workspaces/ai/ai-thread-browser";
 import { createAIThreadCodeRunTools } from "#/features/workspaces/ai/code-run-tools";
 import { createAIThreadResearchTools } from "#/features/workspaces/ai/research-tools";
 import { createAIThreadTimeTools } from "#/features/workspaces/ai/time-tools";
@@ -13,7 +15,8 @@ import { createAIThreadWebTools } from "#/features/workspaces/ai/web-tools";
 describe("AI Code Mode type generation", () => {
 	it("publishes concrete output types for every non-workspace nested tool", () => {
 		const env = {} as Cloudflare.Env;
-		const tools = {
+		const tools: ToolSet = {
+			browser_handoff: createAIThreadBrowserHandoffTool(),
 			...createAIThreadCodeRunTools({ env, sandboxId: "test-thread" }),
 			...createAIThreadResearchTools(env),
 			...createAIThreadTimeTools(),
@@ -35,7 +38,8 @@ describe("AI Code Mode type generation", () => {
 
 	it("keeps every runtime tool factory synchronized with the registry", () => {
 		const env = {} as Cloudflare.Env;
-		const tools = {
+		const tools: ToolSet = {
+			browser_handoff: createAIThreadBrowserHandoffTool(),
 			...createAIThreadCodeRunTools({ env, sandboxId: "registry-test" }),
 			...createAIThreadResearchTools(env),
 			...createAIThreadTimeTools(),

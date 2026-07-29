@@ -43,6 +43,7 @@ describe("AI thread orchestration", () => {
 		} as never);
 
 		createAIThreadOrchestrationTool({
+			browser: {} as Cloudflare.Env["BROWSER"],
 			ctx: {} as DurableObjectState,
 			description: "test",
 			loader: {} as WorkerLoader,

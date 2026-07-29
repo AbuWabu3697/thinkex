@@ -14,6 +14,7 @@ import type {
 	AiChatSendMessageOptions,
 	AiChatStatus,
 } from "#/features/workspaces/components/ai-chat/types";
+import { useWorkspaceAiBrowserSession } from "#/features/workspaces/components/ai-chat/useWorkspaceAiBrowserSession";
 
 interface UseWorkspaceAiChatOptions {
 	modelId: AiChatModelId;
@@ -66,6 +67,11 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 					? "ready"
 					: status;
 	const canSend = inputStatus === "ready" && !presentation.isBusy && !connectionError;
+	const browser = useWorkspaceAiBrowserSession({
+		agent,
+		isChatBusy: canStop,
+		threadId,
+	});
 
 	const sendMessage = (message: AiChatSendMessage, options?: AiChatSendMessageOptions) => {
 		if (message.parts.length === 0 || !canSend) {
@@ -86,6 +92,7 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 	};
 
 	return {
+		browser,
 		connectionError,
 		inputStatus,
 		messages,
