@@ -28,7 +28,7 @@ The separate `React Doctor` workflow runs on pull requests and pushes to `main`.
 
 ## Production Deploy
 
-Production deploy trusts PR `validate` when present and ships the production artifact: build, remote D1 migrations, then Worker deploy. Concurrent production deploys queue instead of cancelling mid-flight. Direct pushes to `main` are still allowed.
+Production deploy trusts PR `validate` when present and ships the production artifact: build, remote D1 migrations, then Worker deploy. Concurrent production and staging deploys queue instead of cancelling mid-flight. Direct pushes to `main` are still allowed.
 
 ```bash
 vp run build:production

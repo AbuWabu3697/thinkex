@@ -93,7 +93,7 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
-      # Quality gates live on PRs (`validate` / `vp run verify`); required when merging via PR.
+      # Quality gates live on PRs (`validate`: check + test + staging-shaped build).
       - name: Build production bundle
         run: vp run build:production
 
