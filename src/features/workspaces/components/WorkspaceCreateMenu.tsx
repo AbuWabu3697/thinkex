@@ -1,4 +1,4 @@
-import { FilePlus2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import {
 	DropdownMenu,
@@ -43,7 +43,7 @@ export default function WorkspaceCreateMenu({ parentId, onCreateItem }: Workspac
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger render={<WorkspaceToolbarTextButton />}>
-				<FilePlus2 />
+				<Plus className="size-4.5" />
 				<span className="hidden sm:inline">New</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-56">

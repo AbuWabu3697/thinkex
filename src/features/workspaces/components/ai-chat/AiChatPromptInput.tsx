@@ -1,4 +1,4 @@
-import { Bug, Mic, Plus } from "lucide-react";
+import { Bug, Mic, Paperclip } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 
 import {
@@ -70,7 +70,7 @@ function AiChatAttachmentButton() {
 			disabled={attachments.composerReady === false}
 			onClick={attachments.openFileDialog}
 		>
-			<Plus className="size-4.5" />
+			<Paperclip />
 		</PromptInputButton>
 	);
 }
