@@ -67,7 +67,7 @@ function AiChatAttachmentButton() {
 		<PromptInputButton
 			aria-label="Add attachments"
 			className={workspaceToolbarIconButtonClass}
-			disabled={attachments.composerReady === false}
+			disabled={!attachments.composerReady}
 			onClick={attachments.openFileDialog}
 		>
 			<Paperclip />

@@ -1,25 +1,25 @@
-export interface NormalizedChatAttachmentFile {
+export interface UploadedChatAttachment {
 	fileName: string;
 	mediaType: string;
 	url: string;
 }
 
-let normalizationQueue = Promise.resolve();
+let uploadQueue = Promise.resolve();
 
-export function normalizeWorkspaceAiChatAttachmentFile(input: {
+export function uploadWorkspaceAiChatAttachment(input: {
 	file: File;
 	threadId: string;
 	workspaceId: string;
-}): Promise<NormalizedChatAttachmentFile> {
-	const result = normalizationQueue.then(() => uploadWorkspaceAiChatAttachmentFile(input));
-	normalizationQueue = result.then(
+}): Promise<UploadedChatAttachment> {
+	const result = uploadQueue.then(() => postWorkspaceAiChatAttachment(input));
+	uploadQueue = result.then(
 		() => undefined,
 		() => undefined,
 	);
 	return result;
 }
 
-async function uploadWorkspaceAiChatAttachmentFile(input: {
+async function postWorkspaceAiChatAttachment(input: {
 	file: File;
 	threadId: string;
 	workspaceId: string;
@@ -36,10 +36,10 @@ async function uploadWorkspaceAiChatAttachmentFile(input: {
 	);
 
 	if (!response.ok) {
-		throw new Error(await getChatAttachmentNormalizationError(response));
+		throw new Error(await getChatAttachmentUploadError(response));
 	}
 
-	return response.json<NormalizedChatAttachmentFile>();
+	return response.json<UploadedChatAttachment>();
 }
 
 export async function deleteWorkspaceAiChatAttachment(url: string): Promise<void> {
@@ -50,7 +50,7 @@ export async function deleteWorkspaceAiChatAttachment(url: string): Promise<void
 	}
 }
 
-async function getChatAttachmentNormalizationError(response: Response) {
+async function getChatAttachmentUploadError(response: Response) {
 	const fallback = "Could not prepare this attachment for chat.";
 	const contentType = response.headers.get("content-type") ?? "";
 

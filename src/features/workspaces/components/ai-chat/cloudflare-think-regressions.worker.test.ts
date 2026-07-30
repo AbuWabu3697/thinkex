@@ -1,5 +1,5 @@
 import { Think } from "@cloudflare/think";
-import type { DynamicToolUIPart, UIMessage } from "ai";
+import type { DynamicToolUIPart, ModelMessage, UIMessage } from "ai";
 import { describe, expect, it, vi } from "vitest";
 
 interface PersistIncomingMessageHarness {
@@ -25,6 +25,10 @@ interface StallRecoveryHarness {
 }
 
 interface ThinkRegressionInternals {
+	_assembleModelMessages: (
+		this: ModelMessageAssemblyHarness,
+		tools: Record<string, never>,
+	) => Promise<ModelMessage[]>;
 	_persistIncomingMessage: (
 		this: PersistIncomingMessageHarness,
 		message: UIMessage,
@@ -38,6 +42,14 @@ interface ThinkRegressionInternals {
 			targetAssistantId?: string;
 		},
 	) => Promise<"disabled" | "exhausted" | "scheduled">;
+}
+
+interface ModelMessageAssemblyHarness {
+	_emit: () => void;
+	_incompleteToolCallIds: () => string[];
+	_repairTranscriptForProvider: (messages: UIMessage[]) => Promise<UIMessage[]>;
+	messages: UIMessage[];
+	modelMessageUrlBase?: string | URL;
 }
 
 const thinkInternals = Think.prototype as unknown as ThinkRegressionInternals;
@@ -81,6 +93,51 @@ function toolMessage(
 }
 
 describe("Cloudflare Think regression shields", () => {
+	it("resolves relative attachment URLs before AI SDK model conversion", async () => {
+		const messages: UIMessage[] = [
+			{
+				id: "user-with-file",
+				parts: [
+					{
+						filename: "diagram.png",
+						mediaType: "image/png",
+						type: "file",
+						url: "/api/v1/workspaces/workspace-1/ai-threads/thread-1/attachments/file-1",
+					},
+				],
+				role: "user",
+			},
+		];
+		const harness: ModelMessageAssemblyHarness = {
+			_emit: () => undefined,
+			_incompleteToolCallIds: () => [],
+			_repairTranscriptForProvider: async (input) => input,
+			messages,
+			modelMessageUrlBase: "https://thinkex.app",
+		};
+
+		const result = await thinkInternals._assembleModelMessages.call(harness, {});
+
+		expect(result).toEqual([
+			{
+				content: [
+					{
+						data: {
+							type: "url",
+							url: new URL(
+								"https://thinkex.app/api/v1/workspaces/workspace-1/ai-threads/thread-1/attachments/file-1",
+							),
+						},
+						filename: "diagram.png",
+						mediaType: "image/png",
+						type: "file",
+					},
+				],
+				role: "user",
+			},
+		]);
+	});
+
 	it("does not persist synthetic compaction summaries as real messages", async () => {
 		const upsert = vi.fn<(message: UIMessage) => Promise<void>>().mockResolvedValue();
 		const harness: PersistIncomingMessageHarness = {

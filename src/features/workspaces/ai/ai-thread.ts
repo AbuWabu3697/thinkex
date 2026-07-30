@@ -61,6 +61,7 @@ import {
 	trackWorkspaceAiMessageUsage,
 } from "#/integrations/autumn/workspace-ai-usage";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
+import { getAppOrigin } from "#/lib/app-origin";
 
 const AI_THREAD_CHAT_RECOVERY_NO_PROGRESS_TIMEOUT_MS = 90_000;
 const AI_THREAD_CHAT_RECOVERY_TERMINAL_MESSAGE =
@@ -105,6 +106,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		override contextOverflow = { reactive: true } as const;
 		override classifyChatError = defaultContextOverflowClassifier;
 		override sendReasoning = false;
+		override modelMessageUrlBase = getAppOrigin();
 		private shouldRefreshSessionPrompt = false;
 		private activeRunStartedAt: number | undefined;
 		private activeUsageContext: AIThreadUsageContext | undefined;

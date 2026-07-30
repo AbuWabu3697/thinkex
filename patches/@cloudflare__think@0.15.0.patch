@@ -1,5 +1,21 @@
+diff --git a/dist/index-s3Pl812H.d.ts b/dist/index-s3Pl812H.d.ts
+index f863d18b06b70ac12a0b7a5aa6e33ef1c5c79f33..c473bd3abb670dcdd794fe876d6cc5e89e3b13e7 100644
+--- a/dist/index-s3Pl812H.d.ts
++++ b/dist/index-s3Pl812H.d.ts
+@@ -1362,6 +1362,11 @@ declare class Think<
+    * for the recovery that matters. See {@link ChatRecoveryConfig}.
+    */
+   chatRecovery: ChatRecoveryConfig;
++  /**
++   * Optional base URL used to resolve relative UI file-part URLs immediately
++   * before converting the transcript into provider model messages.
++   */
++  modelMessageUrlBase?: string | URL;
+   static readonly CHAT_FIBER_NAME = "__cf_internal_chat_turn";
+   /**
+    * The conversation session — messages, context, compaction, search.
 diff --git a/dist/think.js b/dist/think.js
-index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce52480de88869 100644
+index a0c9150a61074b1f393b4db5bc565c8100efbce9..bbb8bb94f3c7f040a7a3c0ea2d9fcfc2b9c1bb0f 100644
 --- a/dist/think.js
 +++ b/dist/think.js
 @@ -13,9 +13,9 @@ import { openai } from "workers-ai-provider/openai";
@@ -14,7 +30,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  import { Workspace, Workspace as Workspace$1 } from "@cloudflare/shell";
  //#region src/media-eviction.ts
  function resolveMediaEvictionConfig(config) {
-@@ -299,15 +299,15 @@ const agentToolChunkEncoder = new TextEncoder();
+@@ -300,16 +300,16 @@ const agentToolChunkEncoder = new TextEncoder();
  const agentsAISDKTelemetryBrand = Symbol.for("cloudflare.agents.ai-sdk-telemetry");
  const usesAISDKV7Telemetry = "registerTelemetry" in aiSdk;
  /**
@@ -34,7 +50,8 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
 +*   markers.
  */
  const MODEL_RECENT_WINDOW = 4;
-@@ -2455,14 +2455,14 @@ var Think = class Think extends Agent {
+ const DEFAULT_ACTION_TIMEOUT_MS = 3e4;
+@@ -2454,14 +2454,21 @@ var Think = class Think extends Agent {
  	}
  	/**
  	* Assemble provider-ready model messages from the current session history:
@@ -51,20 +68,27 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
 -		const truncated = truncateOlderMessages(await this._repairTranscriptForProvider(this.messages));
 -		const incompleteAfterRepair = this._incompleteToolCallIds(truncated);
 +		const repaired = await this._repairTranscriptForProvider(this.messages);
-+		const incompleteAfterRepair = this._incompleteToolCallIds(repaired);
++		const prepared = this.modelMessageUrlBase == null ? repaired : repaired.map((message) => ({
++			...message,
++			parts: message.parts.map((part) => part.type === "file" ? {
++				...part,
++				url: new URL(part.url, this.modelMessageUrlBase).href
++			} : part)
++		}));
++		const incompleteAfterRepair = this._incompleteToolCallIds(prepared);
  		if (incompleteAfterRepair.length > 0) {
  			console.warn(`[Think] ${incompleteAfterRepair.length} incomplete tool call(s) survived transcript repair and will be dropped by ignoreIncompleteToolCalls: ${incompleteAfterRepair.join(", ")}. This indicates a gap in _repairToolTranscriptParts.`);
  			this._emit("chat:transcript:repaired", {
-@@ -2473,7 +2473,7 @@ var Think = class Think extends Agent {
+@@ -2470,7 +2477,7 @@ var Think = class Think extends Agent {
  				toolCallIds: incompleteAfterRepair
  			});
  		}
 -		return convertToModelMessages(truncated, {
-+		return convertToModelMessages(repaired, {
++		return convertToModelMessages(prepared, {
  			tools,
  			ignoreIncompleteToolCalls: true
  		});
-@@ -6015,7 +6015,10 @@ var Think = class Think extends Agent {
+@@ -6015,7 +6022,10 @@ var Think = class Think extends Agent {
  							continuation: true
  						}));
  						if (result) {
@@ -76,7 +100,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  							status = streamResult.status;
  							error = streamResult.error;
  						}
-@@ -6272,7 +6275,7 @@ var Think = class Think extends Agent {
+@@ -6272,7 +6282,7 @@ var Think = class Think extends Agent {
  				if (this._turnQueue.generation !== epoch) return false;
  				for (const msg of reconciled) {
  					if (this._turnQueue.generation !== epoch) return false;
@@ -85,7 +109,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  				}
  				if (this._turnQueue.generation !== epoch) return false;
  				await this._syncMessages();
-@@ -6882,7 +6885,13 @@ var Think = class Think extends Agent {
+@@ -6882,7 +6892,13 @@ var Think = class Think extends Agent {
  			this._continuation.activatePending();
  			this._continuation.flushAwaitingConnections((c) => this._notifyStreamResuming(c));
  		}
@@ -100,7 +124,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  		this._streamingAssistant = accumulator;
  		let doneSent = false;
  		let streamAborted = false;
-@@ -7114,15 +7123,14 @@ var Think = class Think extends Agent {
+@@ -7114,15 +7130,14 @@ var Think = class Think extends Agent {
  		};
  	}
  	/**
@@ -122,7 +146,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  	}
  	/**
  	* Strip {@link RESERVED_MESSAGE_METADATA_KEYS} from a client-supplied message
-@@ -7786,11 +7794,12 @@ var Think = class Think extends Agent {
+@@ -7786,11 +7801,12 @@ var Think = class Think extends Agent {
  		if (!this._resolveChatRecoveryConfig().enabled) return "disabled";
  		const recoveryRootRequestId = this._activeChatRecoveryRootRequestId ?? input.requestId;
  		const latestUserMessageId = [...this.messages].reverse().find((m) => m.role === "user")?.id ?? null;
@@ -136,7 +160,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  		});
  		if (exhausted) {
  			const partialText = input.partialParts.filter((p) => p.type === "text").map((p) => p.text).join("");
-@@ -7803,10 +7812,10 @@ var Think = class Think extends Agent {
+@@ -7803,10 +7819,10 @@ var Think = class Think extends Agent {
  		const recoveredRequestId = this._hasRunningSubmission(recoveryRootRequestId) ? recoveryRootRequestId : void 0;
  		await this._chatRecoveryEngine().scheduleRecovery({
  			incident,
@@ -150,7 +174,7 @@ index a0c9150a61074b1f393b4db5bc565c8100efbce9..209afc733cd9a25898a05cbed0ce5248
  				originalRequestId: recoveryRootRequestId,
  				incidentId: incident.incidentId,
  				lastBody: this._lastBody ?? null,
-@@ -8344,10 +8353,11 @@ var Think = class Think extends Agent {
+@@ -8344,10 +8360,11 @@ var Think = class Think extends Agent {
  				return;
  			}
  			this._applyRecoveredRequestContext(data);

@@ -5,9 +5,7 @@ export type FileAttachmentData = {
 	type: "file";
 	filename?: string;
 	mediaType: string;
-	status: "loading" | "ready";
-	url?: string;
-};
+} & ({ status: "loading"; url?: never } | { status: "ready"; url: string });
 
 export type AttachmentData = FileAttachmentData | (SourceDocumentUIPart & { id: string });
 
@@ -77,9 +75,8 @@ function getFileAttachmentId(part: FileUIPart): string {
 
 export function toSendableFileParts(files: readonly FileAttachmentData[]): FileUIPart[] {
 	return files
-		.filter(
-			(file): file is FileAttachmentData & { url: string } =>
-				file.status === "ready" && Boolean(file.url),
-		)
+		.filter((file): file is Extract<FileAttachmentData, { status: "ready" }> => {
+			return file.status === "ready";
+		})
 		.map(({ id: _id, status: _status, ...part }) => part);
 }

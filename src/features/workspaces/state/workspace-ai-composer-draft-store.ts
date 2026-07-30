@@ -4,8 +4,9 @@ import { create } from "zustand";
 import type { FileAttachmentData } from "#/features/workspaces/components/ai-chat/ai-chat-attachments";
 import {
 	deleteWorkspaceAiChatAttachment,
-	normalizeWorkspaceAiChatAttachmentFile,
-} from "#/features/workspaces/components/ai-chat/chat-attachment-normalization";
+	type UploadedChatAttachment,
+	uploadWorkspaceAiChatAttachment,
+} from "#/features/workspaces/components/ai-chat/chat-attachment-upload";
 import {
 	normalizeWorkspaceSelectedQuote,
 	type WorkspaceSelectedQuote,
@@ -77,7 +78,7 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 					continue;
 				}
 
-				void normalizeWorkspaceAiChatAttachmentFile({
+				void uploadWorkspaceAiChatAttachment({
 					file,
 					threadId,
 					workspaceId,
@@ -239,7 +240,7 @@ function markDraftFileReady(
 	state: WorkspaceAiComposerDraftState,
 	threadId: string,
 	fileId: string,
-	attachment: { fileName: string; mediaType: string; url: string },
+	attachment: UploadedChatAttachment,
 ) {
 	const files = state.filesByThreadId[threadId];
 	if (!files) {
