@@ -7,7 +7,7 @@ import { Button } from "#/components/ui/button";
 import { Bubble, BubbleContent } from "#/components/ui/bubble";
 import { Collapsible, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { Message, MessageContent, MessageFooter } from "#/components/ui/message";
-import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "#/components/ui/tooltip";
 import { AiChatMessagePartView } from "#/features/workspaces/components/ai-chat/AiChatMessagePartView";
 import {
 	getWorkspaceCitationLocations,
@@ -23,7 +23,7 @@ import { useCopyToClipboard } from "#/hooks/use-copy-to-clipboard";
 import { cn } from "#/lib/utils";
 
 const messageToolbarActionClass =
-	"flex size-8 items-center justify-center rounded-lg text-muted-foreground/70 transition-[color,scale] duration-150 ease-out outline-none hover:bg-transparent hover:text-foreground hover:scale-105 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-100";
+	"relative flex size-4 items-center justify-center text-muted-foreground/70 transition-[color,scale] duration-150 ease-out outline-none before:absolute before:-inset-2 before:content-[''] hover:text-foreground hover:scale-105 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-100";
 const COLLAPSIBLE_USER_MESSAGE_MAX_CHARACTERS = 700;
 const COLLAPSIBLE_USER_MESSAGE_MAX_LINES = 8;
 const collapsedUserMessageClassName =
@@ -56,7 +56,7 @@ export default function AiChatMessageRow({
 	const userBodyParts = isAssistant
 		? []
 		: displayableParts.filter((part) => !isAttachmentPart(part));
-	const copyableText = isAssistant && !isStreaming ? getCopyableMessageText(message) : "";
+	const copyableText = !isStreaming ? getCopyableMessageText(message) : "";
 
 	return (
 		<Message align={isAssistant ? "start" : "end"}>
@@ -94,13 +94,20 @@ export default function AiChatMessageRow({
 								: "pointer-events-none opacity-0 group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
 						)}
 					>
-						<div className="flex items-center gap-1">
+						<div className="flex items-center gap-4">
 							{copyableText ? <CopyResponseAction text={copyableText} /> : null}
 							{isRegenerable && onRegenerate ? (
 								<AiChatMessageAction label="Regenerate response" onClick={onRegenerate}>
 									<RotateCcw className="size-4" />
 								</AiChatMessageAction>
 							) : null}
+						</div>
+					</MessageFooter>
+				) : null}
+				{!isAssistant && copyableText ? (
+					<MessageFooter className="pointer-events-none px-0 opacity-0 transition-opacity duration-150 ease-out group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100">
+						<div className="flex items-center gap-1">
+							<CopyResponseAction text={copyableText} copyLabel="Copy" />
 						</div>
 					</MessageFooter>
 				) : null}
@@ -245,13 +252,19 @@ function EmptyAssistantResponse({
 	);
 }
 
-function CopyResponseAction({ text }: { text: string }) {
+function CopyResponseAction({
+	text,
+	copyLabel = "Copy response",
+}: {
+	text: string;
+	copyLabel?: string;
+}) {
 	const { copied, copy } = useCopyToClipboard({
 		onError: (error) => {
 			console.warn("[AiChatMessageRow] Failed to copy response", error);
 		},
 	});
-	const label = copied ? "Copied" : "Copy response";
+	const label = copied ? "Copied" : copyLabel;
 
 	return (
 		<AiChatMessageAction
@@ -281,12 +294,14 @@ function AiChatMessageAction({
 	);
 
 	return (
-		<Tooltip>
-			<TooltipTrigger render={button} />
-			<TooltipContent>
-				<p>{label}</p>
-			</TooltipContent>
-		</Tooltip>
+		<TooltipProvider delay={500}>
+			<Tooltip>
+				<TooltipTrigger render={button} />
+				<TooltipContent>
+					<p>{label}</p>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
