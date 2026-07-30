@@ -4,9 +4,9 @@ import {
 	yDocToProsemirrorJSON,
 } from "@tiptap/y-tiptap";
 import type { Connection, ConnectionContext } from "partyserver";
-import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import type { DocumentSessionRouteParams } from "#/features/workspaces/agent-routes";
+import { CollaborativeContentSession } from "#/features/workspaces/collaborative-content-session";
 import {
 	parseMarkdownToTiptapDocumentProjection,
 	serializeTiptapDocumentToMarkdown,
@@ -62,7 +62,7 @@ export interface DocumentSessionApplyMarkdownEditsResult {
 	warnings: string[];
 }
 
-export class DocumentSession extends YServer {
+export class DocumentSession extends CollaborativeContentSession {
 	static override options = {
 		hibernate: true,
 	};
@@ -131,6 +131,7 @@ export class DocumentSession extends YServer {
 	async applyMarkdownEdits(
 		input: DocumentSessionApplyMarkdownEditsInput,
 	): Promise<DocumentSessionApplyMarkdownEditsResult> {
+		await this.ensureLoaded();
 		const currentDocument = this.getCurrentTiptapDocument();
 		const markdown = serializeTiptapDocumentToMarkdown(currentDocument);
 		const editResult = applyDocumentMarkdownEdits(markdown, input.edits);
@@ -176,6 +177,7 @@ export class DocumentSession extends YServer {
 	async readMarkdownChunk(
 		input: DocumentMarkdownChunkReadInput,
 	): Promise<DocumentMarkdownChunkReadResult> {
+		await this.ensureLoaded();
 		const stateVector = Uint8Array.from(Y.encodeStateVector(this.document));
 		let currentSnapshot = this.markdownSnapshot;
 		if (!currentSnapshot || !uint8ArraysEqual(currentSnapshot.stateVector, stateVector)) {
@@ -198,6 +200,8 @@ export class DocumentSession extends YServer {
 	}
 
 	async purgeForDeletion(): Promise<void> {
+		// Deliberately no ensureLoaded(): this only wipes durable storage, so
+		// hydrating the in-memory document first would be wasted work.
 		await this.ctx.storage.deleteAll();
 	}
 
