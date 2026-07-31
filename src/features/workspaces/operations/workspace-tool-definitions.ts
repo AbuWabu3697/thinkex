@@ -8,6 +8,7 @@ import { listWorkspaceItemsOperation } from "#/features/workspaces/operations/li
 import { moveWorkspaceItemsOperation } from "#/features/workspaces/operations/move-items";
 import { readWorkspaceItemsOperation } from "#/features/workspaces/operations/read-items";
 import { renameWorkspaceItemOperation } from "#/features/workspaces/operations/rename-item";
+import { searchWorkspaceOperation } from "#/features/workspaces/operations/search-workspace";
 import {
 	workspaceCreateItemsInputExamples,
 	workspaceCreateItemsInputSchema,
@@ -31,6 +32,9 @@ import {
 	workspaceReadItemsInputExamples,
 	workspaceReadItemsInputSchema,
 	workspaceReadItemsOutputSchema,
+	workspaceSearchInputExamples,
+	workspaceSearchInputSchema,
+	workspaceSearchOutputSchema,
 	workspaceRenameItemInputExamples,
 	workspaceRenameItemInputSchema,
 	workspaceRenameItemOutputSchema,
@@ -62,7 +66,7 @@ export function getWorkspaceToolScopes(
 	return access === "read" ? ["workspace:read"] : workspaceAccessScopes;
 }
 
-export type WorkspaceToolDefinition<
+type WorkspaceToolDefinition<
 	TName extends string = string,
 	TInputSchema extends z.ZodTypeAny = z.ZodTypeAny,
 	TOutputSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -146,7 +150,7 @@ export const workspaceToolDefinitions = [
 		name: "workspace_read_items",
 		access: "read",
 		description:
-			"Read ThinkEx documents and extracted files by absolute path. Documents return bounded line chunks; files support explicit physical-page selections. Continue either kind with the returned nextCursor.",
+			"Read ThinkEx documents and extracted files by absolute path. Documents return bounded line chunks; files support explicit physical-page selections. Continue either kind with the returned nextCursor. Uploaded files extract in the background, so a read can come back pending or report that extraction failed; each result carries the guidance for handling it.",
 		inputSchema: workspaceReadItemsInputSchema,
 		inputExamples: workspaceReadItemsInputExamples,
 		outputSchema: workspaceReadItemsOutputSchema,
@@ -154,6 +158,24 @@ export const workspaceToolDefinitions = [
 		effects: { destructive: false, idempotent: true },
 		execute: async ({ requests }, context) => {
 			return await readWorkspaceItemsOperation(context, { requests });
+		},
+	}),
+	defineWorkspaceTool({
+		name: "workspace_search",
+		access: "read",
+		description:
+			"Search current ThinkEx workspace documents and extracted files by meaning and exact text. Optionally scope to an absolute item or folder path and filter content types.",
+		inputSchema: workspaceSearchInputSchema,
+		inputExamples: workspaceSearchInputExamples,
+		outputSchema: workspaceSearchOutputSchema,
+		summarizeResult: (result) =>
+			summarizeWorkspaceCollectionResult({
+				failed: result.failed,
+				items: result.results,
+			}),
+		effects: { destructive: false, idempotent: true },
+		execute: async (args, context) => {
+			return await searchWorkspaceOperation(context, args);
 		},
 	}),
 	defineWorkspaceTool({
