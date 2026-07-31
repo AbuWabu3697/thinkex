@@ -40,6 +40,7 @@ function AiChatPanelLayout({ context }: AiChatPanelProps) {
 		activeThreadId,
 		getThreadInspectorSnapshot,
 		isCreatingThread,
+		isLoading,
 		isMaximized,
 		modelId,
 		onClose,
@@ -64,6 +65,7 @@ function AiChatPanelLayout({ context }: AiChatPanelProps) {
 				isMaximized={isMaximized}
 				onClose={onClose}
 				onDeleteThread={onDeleteThread}
+				isLoading={isLoading}
 				isNewChatDisabled={isCreatingThread}
 				onNewChat={onNewChat}
 				onMaximize={onMaximize}

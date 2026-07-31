@@ -111,6 +111,7 @@ export function useAiChatPanelController({ workspaceId }: UseAiChatPanelControll
 		activeThreadId: resolvedActiveThreadId,
 		getThreadInspectorSnapshot,
 		isCreatingThread,
+		isLoading: !areThreadsReady,
 		isMaximized,
 		modelId,
 		onClose: () => setChatSurfaceMode(workspaceId, "hidden"),

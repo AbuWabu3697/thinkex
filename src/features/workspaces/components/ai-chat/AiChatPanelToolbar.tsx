@@ -35,6 +35,7 @@ const PENDING_DELETE_TIMEOUT_MS = 2500;
 interface AiChatPanelToolbarProps {
 	activeThreadId?: string;
 	activeThreadIsRecovering?: boolean;
+	isLoading?: boolean;
 	isMaximized: boolean;
 	isNewChatDisabled?: boolean;
 	onClose: () => void;
@@ -49,6 +50,7 @@ interface AiChatPanelToolbarProps {
 export default function AiChatPanelToolbar({
 	activeThreadId,
 	activeThreadIsRecovering = false,
+	isLoading = false,
 	isMaximized,
 	isNewChatDisabled = false,
 	onClose,
@@ -110,15 +112,17 @@ export default function AiChatPanelToolbar({
 				className="pointer-events-auto inline-flex rounded-bl-md bg-background p-1 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.35)]"
 			>
 				<WorkspaceToolbarGroup className="gap-1">
-					<DropdownMenu open={isHistoryOpen} onOpenChange={handleHistoryOpenChange}>
+					<DropdownMenu open={isHistoryOpen && !isLoading} onOpenChange={handleHistoryOpenChange}>
 						<DropdownMenuTrigger
-							render={<WorkspaceToolbarIconButton aria-label="Open chat history" />}
+							render={
+								<WorkspaceToolbarIconButton aria-label="Open chat history" disabled={isLoading} />
+							}
 						>
 							<History aria-hidden="true" />
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-72">
 							<DropdownMenuGroup>
-								<DropdownMenuItem disabled={isNewChatDisabled} onClick={handleNewChat}>
+								<DropdownMenuItem disabled={isNewChatDisabled || isLoading} onClick={handleNewChat}>
 									<Plus className="size-4" aria-hidden="true" />
 									New chat
 								</DropdownMenuItem>
