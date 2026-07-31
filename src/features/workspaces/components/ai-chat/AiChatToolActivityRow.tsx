@@ -1,14 +1,4 @@
-import {
-	AlertTriangle,
-	ChevronDown,
-	Code2,
-	FileText,
-	Globe2,
-	LoaderCircle,
-	PencilLine,
-	Search,
-	Wrench,
-} from "lucide-react";
+import { ChevronDown, Code2, FileText, Globe2, PencilLine, Search, Wrench } from "lucide-react";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 
@@ -167,7 +157,6 @@ function ActivitySummary({
 				isRunning={isRunning}
 			/>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
-			<ToolStatusIcon status={activity.status} />
 			{canExpand ? (
 				<ChevronDown
 					className="size-3.5 shrink-0 self-center text-muted-foreground/70 transition-transform group-data-[panel-open]/collapsible:rotate-180"
@@ -358,23 +347,4 @@ function ToolActivityIcon({ icon }: { icon: AiToolActivityIconKind }) {
 			icon satisfies never;
 			return null;
 	}
-}
-
-function ToolStatusIcon({ status }: { status: AiChatToolActivity["status"] }) {
-	if (status === "running") {
-		return (
-			<LoaderCircle
-				className="size-3.5 shrink-0 animate-spin text-muted-foreground/70"
-				aria-hidden="true"
-			/>
-		);
-	}
-
-	if (status === "failed") {
-		return (
-			<AlertTriangle className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
-		);
-	}
-
-	return null;
 }
