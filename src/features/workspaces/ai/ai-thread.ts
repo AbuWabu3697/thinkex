@@ -29,6 +29,7 @@ import {
 } from "#/features/workspaces/ai/ai-thread-browser";
 import {
 	AI_THREAD_COMPACTION_SYSTEM_PROMPT,
+	AI_THREAD_COMPACTION_TOKEN_THRESHOLD,
 	createAIThreadCompactFunction,
 } from "#/features/workspaces/ai/ai-compaction";
 import {
@@ -150,7 +151,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						summarize: (prompt) => this._summarizeCompactionPrompt(prompt),
 					}),
 				)
-				.compactAfter(100_000)
+				.compactAfter(AI_THREAD_COMPACTION_TOKEN_THRESHOLD)
 				.onCompactionError((error) => {
 					void this.keepAliveWhile(() =>
 						this._recordAuxiliaryError({
