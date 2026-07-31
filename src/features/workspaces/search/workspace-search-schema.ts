@@ -11,6 +11,15 @@ export function initializeWorkspaceSearchStorage(sql: WorkspaceKernelSql) {
 			attempts INTEGER NOT NULL DEFAULT 0
 		)
 	`;
+	const vectorDeleteColumns = sql<{ name: string }>`
+		PRAGMA table_info(kernel_search_vector_deletes)
+	`;
+	if (!vectorDeleteColumns.some((column) => column.name === "attempts")) {
+		sql`
+			ALTER TABLE kernel_search_vector_deletes
+			ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0
+		`;
+	}
 	sql`CREATE INDEX IF NOT EXISTS kernel_search_vector_deletes_pending_idx
 		ON kernel_search_vector_deletes (requested_at)`;
 
