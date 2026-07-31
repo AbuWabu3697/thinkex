@@ -20,32 +20,32 @@ const workspaceAiGatewayRouting: Record<WorkspaceAiChatModelId, GatewayRoutingOp
 	},
 	"claude-sonnet": {
 		order: ["bedrock", "vertex"],
-		models: ["openai/gpt-5.4", "google/gemini-3.1-pro-preview"],
+		models: ["openai/gpt-5.6-terra", "google/gemini-3.1-pro-preview"],
 		sort: "ttft",
 	},
 	"claude-haiku": {
 		order: ["bedrock", "vertex"],
-		models: ["openai/gpt-5.4-mini", "google/gemini-3-flash"],
+		models: ["openai/gpt-5.6-luna", "google/gemini-3-flash"],
 		sort: "ttft",
 	},
-	chatgpt: {
+	"gpt-terra": {
 		order: ["openai", "azure"],
-		models: ["anthropic/claude-sonnet-4.6", "google/gemini-3.1-pro-preview"],
+		models: ["anthropic/claude-sonnet-5", "google/gemini-3.1-pro-preview"],
 		sort: "ttft",
 	},
-	"chatgpt-mini": {
+	"gpt-luna": {
 		order: ["openai", "azure"],
 		models: ["google/gemini-3-flash", "anthropic/claude-haiku-4.5"],
 		sort: "ttft",
 	},
 	"gemini-pro": {
 		order: GOOGLE_GATEWAY_PROVIDER_ORDER,
-		models: ["openai/gpt-5.4", "anthropic/claude-sonnet-4.6"],
+		models: ["openai/gpt-5.6-terra", "anthropic/claude-sonnet-5"],
 		sort: "ttft",
 	},
 	gemini: {
 		order: GOOGLE_GATEWAY_PROVIDER_ORDER,
-		models: ["openai/gpt-5.4-mini", "anthropic/claude-haiku-4.5"],
+		models: ["openai/gpt-5.6-luna", "anthropic/claude-haiku-4.5"],
 		sort: "ttft",
 	},
 };

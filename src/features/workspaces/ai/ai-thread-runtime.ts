@@ -376,7 +376,7 @@ function getWorkspaceAiReasoningOptions(
 					thinkingConfig: { thinkingLevel: "low" },
 				},
 			};
-		case "chatgpt":
+		case "gpt-terra":
 			return {
 				openai: {
 					reasoningEffort: "none",

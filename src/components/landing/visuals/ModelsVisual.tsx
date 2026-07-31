@@ -9,7 +9,7 @@ import { ProviderLogo } from "#/features/workspaces/components/ai-chat/ProviderL
 import { cn } from "#/lib/utils";
 
 export function ModelsVisual() {
-	const [selectedModelId, setSelectedModelId] = useState<WorkspaceAiChatModelId>("chatgpt");
+	const [selectedModelId, setSelectedModelId] = useState<WorkspaceAiChatModelId>("gpt-terra");
 	const listRef = useRef<HTMLDivElement | null>(null);
 	const rowRefs = useRef<Partial<Record<WorkspaceAiChatModelId, HTMLButtonElement | null>>>({});
 	const [activeIndicator, setActiveIndicator] = useState({ height: 0, top: 0 });
@@ -25,7 +25,7 @@ export function ModelsVisual() {
 		{
 			id: "openai",
 			label: "OpenAI",
-			models: [getWorkspaceAiChatModelById("chatgpt"), getWorkspaceAiChatModelById("chatgpt-mini")],
+			models: [getWorkspaceAiChatModelById("gpt-terra"), getWorkspaceAiChatModelById("gpt-luna")],
 		},
 		{
 			id: "google",
