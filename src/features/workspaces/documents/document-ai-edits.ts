@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import {
 	createDocumentAiTargetRef,
-	createDocumentAiRef,
 	DocumentAiHtmlError,
+	ensureProseMirrorDocumentAiRefs,
 	parseDocumentAiHtml,
 	parseDocumentAiTargetRef,
 	readTiptapNodeAiRef,
@@ -218,7 +218,13 @@ function applyDocumentAiEdit(
 			return { code: "invalid_html", status: "failed" };
 		}
 		const targetRef = readTiptapNodeAiRef(document.child(targetIndex));
-		const inserted = assignDocumentAiRefs(parsed, edit.op === "replace" ? targetRef : null);
+		const firstNode = parsed[0];
+		// A replacement inherits the ref of the block it stands in for, so a model
+		// holding that ref can keep editing it.
+		const inserted =
+			edit.op === "replace" && targetRef && firstNode
+				? [withTiptapNodeAiRef(firstNode, targetRef), ...parsed.slice(1)]
+				: parsed;
 
 		switch (edit.op) {
 			case "insert_after":
@@ -262,21 +268,11 @@ function createDocument(children: ProseMirrorNode[]) {
 		editorChildren.push(schema.nodes.paragraph.create());
 	}
 
-	const content = assignDocumentAiRefs(editorChildren);
-	const document = schema.topNodeType.create(null, Fragment.fromArray(content));
+	const document = ensureProseMirrorDocumentAiRefs(
+		schema.topNodeType.create(null, Fragment.fromArray(editorChildren)),
+	).document;
 	document.check();
 	return document;
-}
-
-function assignDocumentAiRefs(children: ProseMirrorNode[], firstRef: string | null = null) {
-	const usedRefs = new Set<string>();
-	return children.map((node, index) => {
-		const existingRef = readTiptapNodeAiRef(node);
-		const candidate = (index === 0 ? firstRef : null) || existingRef;
-		const ref = candidate && !usedRefs.has(candidate) ? candidate : createDocumentAiRef();
-		usedRefs.add(ref);
-		return withTiptapNodeAiRef(node, ref);
-	});
 }
 
 function documentsHaveSameVisibleContent(left: ProseMirrorNode, right: ProseMirrorNode) {
