@@ -296,7 +296,6 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		);
 	}
 
-	@callable()
 	async purgeForDeletion(): Promise<ResourcePurgeResult> {
 		const threads = this._getActiveThreadMetaRows();
 		let failed = 0;
@@ -331,6 +330,9 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 		this._refreshState();
 		if (failed === 0) {
+			for (const connection of this.getConnections()) {
+				connection.close(1008, "Account deleted");
+			}
 			await this.ctx.storage.deleteAll();
 		}
 		return { attempted: threads.length + 1, failed };
