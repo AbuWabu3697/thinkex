@@ -56,8 +56,8 @@ export const DocumentEditReviewExtension = Extension.create({
 							return createDocumentEditReviewDecorations(meta.beforeDocument, newState.doc);
 						}
 
-						// Typing maps the marks rather than dropping them. Review ends when
-						// the reader says it does, not the moment they touch the keyboard.
+						// The local editor is read-only during review, but collaborators are
+						// not. Map their edits through instead of dropping every mark.
 						return decorations.map(transaction.mapping, transaction.doc);
 					},
 				},

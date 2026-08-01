@@ -16,11 +16,13 @@ import {
 } from "#/features/workspaces/documents/tiptap-document";
 
 export function useDocumentEditReviewOverlay({
+	canEdit,
 	editor,
 	itemId,
 	viewInstanceId,
 	workspaceId,
 }: {
+	canEdit: boolean;
 	editor: Editor | null;
 	itemId: string;
 	viewInstanceId: string;
@@ -60,9 +62,7 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
-		// Only the state the marks were computed against can be marked truthfully.
-		// After that the reader owns the session: edits map the marks rather than
-		// ending review, and only Done closes it.
+		// The marks only describe the document as it was when they were computed.
 		const currentDocument = stringifyTiptapDocumentJson(coerceTiptapDocumentJson(editor.getJSON()));
 		if (currentDocument !== stringifyTiptapDocumentJson(review.afterDocument)) {
 			toast.error(unavailableReviewMessages.content_changed);
@@ -70,12 +70,16 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
+		// Reviewing is a reading mode: hold the document still until Done rather
+		// than deciding what a keystroke mid-review was supposed to mean.
 		showDocumentEditReview(editor, review.beforeDocument);
+		editor.setEditable(false);
 
 		return () => {
 			hideDocumentEditReview(editor);
+			editor.setEditable(canEdit);
 		};
-	}, [editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
+	}, [canEdit, editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
 }
 
 const unavailableReviewMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {

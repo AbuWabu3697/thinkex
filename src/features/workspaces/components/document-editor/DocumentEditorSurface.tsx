@@ -107,6 +107,7 @@ function DocumentEditorInstance({
 		slotId: viewInstanceId,
 	});
 	useDocumentEditReviewOverlay({
+		canEdit: capabilities.canMutateContent,
 		editor,
 		itemId: item.id,
 		viewInstanceId,
