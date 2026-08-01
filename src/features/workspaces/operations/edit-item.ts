@@ -86,7 +86,11 @@ export async function editWorkspaceItemOperation(
 				"html" in edit
 					? {
 							...edit,
-							html: await resolveDocumentCitations({ context: accessContext, html: edit.html }),
+							html: await resolveDocumentCitations({
+								context: accessContext,
+								html: edit.html,
+								kernel,
+							}),
 						}
 					: edit,
 			),

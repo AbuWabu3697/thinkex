@@ -252,22 +252,25 @@ export function readDocumentCitationRefs(html: string) {
  */
 export function applyDocumentCitationLocations(
 	html: string,
-	locationsByRef: Map<string, WorkspaceLocation>,
+	citationsByRef: Map<string, { label: string; location: WorkspaceLocation }>,
 ) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
 	for (const element of htmlDocument.body.querySelectorAll("citation[ref]")) {
-		const location = locationsByRef.get(element.getAttribute("ref") ?? "");
+		const citation = citationsByRef.get(element.getAttribute("ref") ?? "");
 		element.removeAttribute("ref");
 
-		if (!location) {
+		if (!citation) {
 			continue;
 		}
-		element.setAttribute("data-item-id", location.itemId);
-		if (location.kind === "pdf-page") {
-			element.setAttribute("data-page", String(location.pageNumber));
+		element.setAttribute("data-item-id", citation.location.itemId);
+		if (citation.location.kind === "pdf-page") {
+			element.setAttribute("data-page", String(citation.location.pageNumber));
 		}
+		// The citation prompt tells the assistant to leave the element empty, so
+		// the source names itself here rather than being asked for twice.
+		element.textContent = citation.label;
 	}
 
 	return htmlDocument.body.innerHTML;

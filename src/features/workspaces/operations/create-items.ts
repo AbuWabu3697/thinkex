@@ -125,6 +125,7 @@ export async function createWorkspaceItemsOperation(
 						initialContent: await resolveDocumentCitations({
 							context: accessContext,
 							html: itemInput.initialContent,
+							kernel,
 						}),
 					}
 				: itemInput,
