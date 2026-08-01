@@ -36,7 +36,11 @@ import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
-import { workspaceToolbarTextButtonClass } from "#/features/workspaces/components/workspace-toolbar-styles";
+import {
+	workspaceToolbarGroupClassName,
+	workspaceToolbarTextButtonClass,
+	workspaceToolbarTextButtonSizeClass,
+} from "#/features/workspaces/components/workspace-toolbar-styles";
 
 export function DocumentToolbar({
 	canEdit,
@@ -121,8 +125,8 @@ function DocumentEditReviewControls({
 	const { workspaceId } = useDocumentEditReview();
 
 	return (
-		<div className="flex min-w-0 items-center gap-1">
-			<span className="min-w-0 truncate px-1 text-muted-foreground text-sm">Reviewing changes</span>
+		<div className={workspaceToolbarGroupClassName}>
+			<span className="min-w-0 truncate px-2 text-muted-foreground text-sm">Reviewing changes</span>
 			{canUndo ? (
 				<DocumentEditUndoButton
 					className={workspaceToolbarTextButtonClass}
@@ -131,7 +135,12 @@ function DocumentEditReviewControls({
 					workspaceId={workspaceId}
 				/>
 			) : null}
-			<Button type="button" size="sm" className="h-10 sm:h-8.5" onClick={onDone}>
+			<Button
+				type="button"
+				size="sm"
+				className={workspaceToolbarTextButtonSizeClass}
+				onClick={onDone}
+			>
 				Done
 			</Button>
 		</div>

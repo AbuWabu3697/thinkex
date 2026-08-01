@@ -115,9 +115,6 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 			}}
 		>
 			<div className="min-w-0 flex-1">{summary}</div>
-			<span className="shrink-0 text-muted-foreground text-xs">
-				{isReviewActive ? "Reviewing" : "Review"}
-			</span>
 		</button>
 	);
 }
