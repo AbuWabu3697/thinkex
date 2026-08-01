@@ -57,7 +57,7 @@ export const workspaceReadItemsInputSchema = z.object({
 		.array(workspaceContentReadRequestSchema)
 		.min(1)
 		.max(20)
-		.describe("Ordered workspace content reads."),
+		.describe("Ordered workspace content reads, at most 20."),
 });
 
 const workspaceReadPagesSchema = z.object({

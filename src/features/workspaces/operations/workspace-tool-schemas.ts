@@ -119,7 +119,7 @@ export const workspaceEditItemInputSchema = z.object({
 		.min(1)
 		.max(40)
 		.describe(
-			`Ordered text edits to apply to a document projection. ${workspaceDocumentMarkdownMathInstruction}`,
+			`Ordered text edits to apply to a document projection, at most 40. ${workspaceDocumentMarkdownMathInstruction}`,
 		),
 });
 
@@ -129,7 +129,7 @@ export const workspaceLinkItemsInputSchema = z.object({
 		.array(workspaceRelationInputSchema)
 		.min(1)
 		.max(20)
-		.describe("Relationships from this item to other workspace items."),
+		.describe("Relationships from this item to other workspace items, at most 20."),
 });
 
 export const workspaceRenameItemInputSchema = z.object({
@@ -146,7 +146,7 @@ export const workspaceMoveItemsInputSchema = z.object({
 		.array(z.string().min(1))
 		.min(1)
 		.max(20)
-		.describe("Absolute paths of one or more actual ThinkEx workspace items to move."),
+		.describe("Absolute paths of one or more actual ThinkEx workspace items to move, at most 20."),
 });
 
 export const workspaceCreateItemsInputSchema = z.object({
@@ -160,7 +160,9 @@ export const workspaceCreateItemsInputSchema = z.object({
 						.array(workspaceRelationInputSchema)
 						.max(20)
 						.optional()
-						.describe("Optional relationships from this new folder to other workspace items."),
+						.describe(
+							"Optional relationships from this new folder to other workspace items, at most 20.",
+						),
 				}),
 				z.object({
 					type: z.literal("document"),
@@ -169,7 +171,9 @@ export const workspaceCreateItemsInputSchema = z.object({
 						.array(workspaceRelationInputSchema)
 						.max(20)
 						.optional()
-						.describe("Optional relationships from this new document to other workspace items."),
+						.describe(
+							"Optional relationships from this new document to other workspace items, at most 20.",
+						),
 					initialContent: z
 						.string()
 						.describe(
@@ -182,7 +186,7 @@ export const workspaceCreateItemsInputSchema = z.object({
 		.min(1)
 		.max(20)
 		.describe(
-			"One or more folders or documents to create in order. Parent folders must already exist or be created earlier in the same request.",
+			"One or more folders or documents to create in order, at most 20. Parent folders must already exist or be created earlier in the same request.",
 		),
 });
 
@@ -191,7 +195,9 @@ export const workspaceDeleteItemsInputSchema = z.object({
 		.array(z.string().min(1))
 		.min(1)
 		.max(20)
-		.describe("Absolute paths of one or more actual ThinkEx workspace items to delete."),
+		.describe(
+			"Absolute paths of one or more actual ThinkEx workspace items to delete, at most 20.",
+		),
 });
 
 export const workspaceListItemsInputExamples = createInputExamples<
