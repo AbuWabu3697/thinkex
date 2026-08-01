@@ -20,8 +20,12 @@ function defineWorkspaceToolResultAdapter<TSchema extends z.ZodTypeAny>(input: {
 			const parsed = input.outputSchema.safeParse(output);
 			return parsed.success ? input.collectReferences(parsed.data) : [];
 		},
+		// Also runs when history is replayed, on results shaped by older versions
+		// of this schema. Execution already validated them, so projection is
+		// presentation only: project what parses, pass through what does not.
 		projectOutput: (output: unknown) => {
-			return input.projectOutput(input.outputSchema.parse(output)) as JSONValue;
+			const parsed = input.outputSchema.safeParse(output);
+			return (parsed.success ? input.projectOutput(parsed.data) : output) as JSONValue;
 		},
 	};
 }
