@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, FileText, LoaderCircle, Undo2 } from "lucide-react";
+import { FilePen, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "#/components/ui/button";
@@ -24,9 +24,10 @@ interface SettledDocumentEditGroup {
 }
 
 /**
- * Everything the assistant changed in one turn, in one card. Counts are stated
- * in words rather than +/- diff stats: this is read by people who did not ask
- * for a diff, and "21 deletions" reads as damage when it was a rewritten line.
+ * Receipt for the documents the assistant changed in one turn: a header saying
+ * how much happened, then one row per document with its own tally and actions.
+ * Counts are worded rather than shown as +/- diff stats, because this is read
+ * by people who did not ask for a diff.
  */
 export function AiChatDocumentEditActions({
 	groups,
@@ -66,37 +67,24 @@ export function AiChatDocumentEditActions({
 	return (
 		<div
 			aria-label="Document changes from this response"
-			className="mt-2 overflow-hidden rounded-lg bg-card/40 ring-1 ring-foreground/10"
+			className="mt-2 overflow-hidden rounded-lg bg-muted/40"
 		>
-			{settledGroups.length > 1 ? (
-				<div className="flex items-center gap-2 border-foreground/10 border-b px-2.5 py-1.5 text-muted-foreground text-xs">
-					<FileText className="size-3.5 shrink-0" aria-hidden="true" />
-					<span className="font-medium text-foreground">
-						Edited {settledGroups.length} documents
-					</span>
-					<span>{summarizeSettledGroups(settledGroups)}</span>
-				</div>
-			) : null}
-			<div className="divide-y divide-foreground/5">
+			<div className="flex items-center gap-2 px-2.5 py-2">
+				<FilePen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<span className="font-medium text-sm">
+					Edited {settledGroups.length} {settledGroups.length === 1 ? "document" : "documents"}
+				</span>
+			</div>
+			<div className="divide-y divide-foreground/5 border-foreground/5 border-t">
 				{settledGroups.map((settled) => (
-					<DocumentEditRow
-						key={settled.group.itemId}
-						settled={settled}
-						showIcon={settledGroups.length === 1}
-					/>
+					<DocumentEditRow key={settled.group.itemId} settled={settled} />
 				))}
 			</div>
 		</div>
 	);
 }
 
-function DocumentEditRow({
-	settled,
-	showIcon,
-}: {
-	settled: SettledDocumentEditGroup;
-	showIcon: boolean;
-}) {
+function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 	const queryClient = useQueryClient();
 	const { capabilities } = useWorkspaceMutationAccess();
 	const { activeReview, hideReview, showReview, workspaceId } = useDocumentEditReview();
@@ -128,61 +116,47 @@ function DocumentEditRow({
 		activeReview.itemId === itemId &&
 		activeReview.receiptIds.join(":") === receiptKey,
 	);
-	const summary = settled.changes ? formatBlockChanges(settled.changes) : "";
 
 	return (
-		<div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5">
-			{showIcon ? (
-				<FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-			) : null}
-			<span
-				className={`min-w-0 truncate text-sm ${reverted ? "opacity-60" : ""}`}
-				title={group.path}
-			>
-				<DocumentPathLabel path={group.path} />
-			</span>
-			{summary && !reverted ? (
-				<span className="shrink-0 text-muted-foreground text-xs">{summary}</span>
-			) : null}
-			<div className="ml-auto flex shrink-0 items-center gap-1">
-				{reverted ? (
-					<span className="text-muted-foreground text-xs">Undone</span>
-				) : (
-					<>
-						{capabilities.canMutateContent ? (
-							<Button
-								type="button"
-								variant="ghost"
-								size="xs"
-								disabled={undoMutation.isPending}
-								onClick={() => undoMutation.mutate()}
-							>
-								{undoMutation.isPending ? (
-									<LoaderCircle className="animate-spin" aria-hidden="true" />
-								) : (
-									<Undo2 aria-hidden="true" />
-								)}
-								Undo
-							</Button>
-						) : null}
+		<div className="flex min-w-0 items-center gap-2 px-2.5 py-2">
+			<div className={`min-w-0 flex-1 ${reverted ? "opacity-60" : ""}`}>
+				<div className="truncate text-sm" title={group.path}>
+					<DocumentPathLabel path={group.path} />
+				</div>
+				<ChangeSummary changes={settled.changes} reverted={reverted} />
+			</div>
+			{reverted ? null : (
+				<div className="flex shrink-0 items-center gap-1">
+					{capabilities.canMutateContent ? (
 						<Button
 							type="button"
-							variant="outline"
+							variant="ghost"
 							size="xs"
-							onClick={() => {
-								if (isReviewActive) {
-									hideReview();
-								} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
-									toast.error("This document is no longer open.");
-								}
-							}}
+							disabled={undoMutation.isPending}
+							onClick={() => undoMutation.mutate()}
 						>
-							{isReviewActive ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-							{isReviewActive ? "Hide" : "Review"}
+							{undoMutation.isPending ? (
+								<LoaderCircle className="animate-spin" aria-hidden="true" />
+							) : null}
+							Undo
 						</Button>
-					</>
-				)}
-			</div>
+					) : null}
+					<Button
+						type="button"
+						variant="outline"
+						size="xs"
+						onClick={() => {
+							if (isReviewActive) {
+								hideReview();
+							} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
+								toast.error("This document is no longer open.");
+							}
+						}}
+					>
+						{isReviewActive ? "Hide" : "Review"}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }
@@ -199,27 +173,43 @@ function DocumentPathLabel({ path }: { path: string }) {
 	);
 }
 
-function summarizeSettledGroups(settledGroups: SettledDocumentEditGroup[]) {
-	return formatBlockChanges(
-		settledGroups.reduce<DocumentEditBlockChanges>(
-			(total, settled) => ({
-				added: total.added + (settled.changes?.added ?? 0),
-				edited: total.edited + (settled.changes?.edited ?? 0),
-				removed: total.removed + (settled.changes?.removed ?? 0),
-			}),
-			{ added: 0, edited: 0, removed: 0 },
-		),
-	);
-}
+function ChangeSummary({
+	changes,
+	reverted,
+}: {
+	changes?: DocumentEditBlockChanges;
+	reverted: boolean;
+}) {
+	if (reverted) {
+		return <div className="mt-0.5 text-muted-foreground text-xs">Undone</div>;
+	}
 
-function formatBlockChanges(changes: DocumentEditBlockChanges) {
-	return [
-		changes.added > 0 ? `${changes.added} added` : "",
-		changes.edited > 0 ? `${changes.edited} rewritten` : "",
-		changes.removed > 0 ? `${changes.removed} removed` : "",
-	]
-		.filter(Boolean)
-		.join(" · ");
+	// Colour carries the meaning at a glance, muted so a removal reads as a fact
+	// rather than an alarm.
+	const parts = [
+		changes?.added ? { className: "text-success/90", label: `${changes.added} added` } : null,
+		changes?.edited
+			? { className: "text-muted-foreground", label: `${changes.edited} rewritten` }
+			: null,
+		changes?.removed
+			? { className: "text-destructive/80", label: `${changes.removed} removed` }
+			: null,
+	].filter((part) => part !== null);
+
+	if (parts.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="mt-0.5 flex items-center gap-1.5 text-xs">
+			{parts.map((part, index) => (
+				<span key={part.label} className={part.className}>
+					{index > 0 ? <span className="mr-1.5 text-muted-foreground/50">·</span> : null}
+					{part.label}
+				</span>
+			))}
+		</div>
+	);
 }
 
 const undoUnavailableMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {

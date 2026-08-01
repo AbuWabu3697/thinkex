@@ -49,13 +49,15 @@ export const DocumentEditReviewExtension = Extension.create({
 							| DocumentEditReviewMeta
 							| undefined;
 
-						if (meta?.type === "hide" || (transaction.docChanged && !meta)) {
+						if (meta?.type === "hide") {
 							return DecorationSet.empty;
 						}
 						if (meta?.type === "show") {
 							return createDocumentEditReviewDecorations(meta.beforeDocument, newState.doc);
 						}
 
+						// Typing maps the marks rather than dropping them. Review ends when
+						// the reader says it does, not the moment they touch the keyboard.
 						return decorations.map(transaction.mapping, transaction.doc);
 					},
 				},

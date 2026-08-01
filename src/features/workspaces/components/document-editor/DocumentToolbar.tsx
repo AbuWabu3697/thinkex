@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Sparkles, Undo2 } from "lucide-react";
+import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "#/components/ui/button";
@@ -100,12 +100,9 @@ export function DocumentToolbar({
 
 function DocumentEditReviewControls({ onDone }: { onDone: () => void }) {
 	return (
-		<div className="flex min-w-0 items-center gap-1.5 pr-1">
-			<span className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-				<Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
-				<span className="truncate">Reviewing changes</span>
-			</span>
-			<Button type="button" variant="outline" size="xs" onClick={onDone}>
+		<div className="flex min-w-0 items-center gap-2 rounded-md bg-success/10 py-1 pr-1 pl-2.5">
+			<span className="min-w-0 truncate font-medium text-sm">Reviewing changes</span>
+			<Button type="button" size="xs" onClick={onDone}>
 				Done
 			</Button>
 		</div>

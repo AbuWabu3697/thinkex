@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
@@ -39,11 +39,8 @@ export function useDocumentEditReviewOverlay({
 		}),
 		enabled: Boolean(editor && target),
 	});
-	const hasShownReview = useRef(false);
-
 	useEffect(() => {
 		if (!editor || !target) {
-			hasShownReview.current = false;
 			return;
 		}
 
@@ -63,27 +60,20 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
-		const expectedDocument = stringifyTiptapDocumentJson(review.afterDocument);
-		const syncReview = () => {
-			const currentDocument = stringifyTiptapDocumentJson(
-				coerceTiptapDocumentJson(editor.getJSON()),
-			);
+		// Only the state the marks were computed against can be marked truthfully.
+		// After that the reader owns the session: edits map the marks rather than
+		// ending review, and only Done closes it.
+		const currentDocument = stringifyTiptapDocumentJson(coerceTiptapDocumentJson(editor.getJSON()));
+		if (currentDocument !== stringifyTiptapDocumentJson(review.afterDocument)) {
+			toast.error(unavailableReviewMessages.content_changed);
+			hideReview();
+			return;
+		}
 
-			if (currentDocument === expectedDocument) {
-				showDocumentEditReview(editor, review.beforeDocument);
-				hasShownReview.current = true;
-			} else if (hasShownReview.current) {
-				hideReview();
-			}
-		};
-
-		syncReview();
-		editor.on("update", syncReview);
+		showDocumentEditReview(editor, review.beforeDocument);
 
 		return () => {
-			editor.off("update", syncReview);
 			hideDocumentEditReview(editor);
-			hasShownReview.current = false;
 		};
 	}, [editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
 }
