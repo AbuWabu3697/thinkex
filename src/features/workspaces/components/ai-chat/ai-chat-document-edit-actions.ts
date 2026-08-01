@@ -10,6 +10,9 @@ import {
 
 export interface AiChatDocumentEditGroup {
 	itemId: string;
+	/** Summed from the edits themselves: a record of what this turn did, not a
+	 * running estimate of how much of it survives. */
+	lineChanges: { added: number; removed: number };
 	path: string;
 	receiptIds: string[];
 }
@@ -45,6 +48,7 @@ export function getAiChatDocumentEditGroups(
 		if (itemId && path && applied > 0) {
 			addToGroup(groupsByItemId, seenReceiptIds, {
 				itemId,
+				lineChanges: readLineChanges(output.lineChanges),
 				path,
 				receiptId: part.toolCallId,
 			});
@@ -57,22 +61,40 @@ export function getAiChatDocumentEditGroups(
 function addToGroup(
 	groupsByItemId: Map<string, AiChatDocumentEditGroup>,
 	seenReceiptIds: Set<string>,
-	action: { itemId: string; path: string; receiptId: string },
+	action: {
+		itemId: string;
+		lineChanges?: { added: number; removed: number };
+		path: string;
+		receiptId: string;
+	},
 ) {
 	if (seenReceiptIds.has(action.receiptId)) {
 		return;
 	}
 	seenReceiptIds.add(action.receiptId);
 
+	const lineChanges = action.lineChanges ?? { added: 0, removed: 0 };
 	const group = groupsByItemId.get(action.itemId);
 	if (group) {
+		group.lineChanges = {
+			added: group.lineChanges.added + lineChanges.added,
+			removed: group.lineChanges.removed + lineChanges.removed,
+		};
 		group.path = action.path;
 		group.receiptIds.push(action.receiptId);
 	} else {
 		groupsByItemId.set(action.itemId, {
 			itemId: action.itemId,
+			lineChanges,
 			path: action.path,
 			receiptIds: [action.receiptId],
 		});
 	}
+}
+
+function readLineChanges(value: unknown) {
+	const changes = asRecord(value);
+	return typeof changes.added === "number" && typeof changes.removed === "number"
+		? { added: changes.added, removed: changes.removed }
+		: undefined;
 }

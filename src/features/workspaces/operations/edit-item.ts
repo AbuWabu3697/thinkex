@@ -8,6 +8,7 @@ import {
 	type DocumentAiEdit,
 	documentAiEditFailureCodes,
 } from "#/features/workspaces/documents/document-ai-edits";
+import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
 
 export const editWorkspaceItemFailureCodes = [
 	"cannot_edit_root",
@@ -35,6 +36,7 @@ export interface EditWorkspaceItemOperationResult {
 	applied: number;
 	failed: EditWorkspaceItemFailure[];
 	itemId?: string;
+	lineChanges?: DocumentEditLineChanges;
 	path: string;
 }
 
@@ -85,6 +87,7 @@ export async function editWorkspaceItemOperation(
 		applied: result.applied,
 		failed: result.failures,
 		itemId: resolution.item.id,
+		...(result.lineChanges ? { lineChanges: result.lineChanges } : {}),
 		path: resolution.path,
 	};
 }

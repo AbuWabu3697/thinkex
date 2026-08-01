@@ -5,7 +5,6 @@ import { getDocumentSessionFromEnv } from "#/features/workspaces/document-sessio
 import type {
 	DocumentEditReceiptReviewRpcResult,
 	DocumentEditReceiptReviewResult,
-	DocumentEditReceiptStatusResult,
 	DocumentEditReceiptUndoResult,
 } from "#/features/workspaces/documents/document-edit-receipt";
 import { parseTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
@@ -20,14 +19,6 @@ const documentEditReceiptInputSchema = z.strictObject({
 	receiptIds: z.array(z.string().trim().min(1).max(512)).min(1).max(40),
 	workspaceId: z.string().trim().min(1),
 });
-
-export const getDocumentEditReceiptStatusFn = createServerFn({ method: "GET" })
-	.validator(documentEditReceiptInputSchema)
-	.handler(async ({ data }): Promise<DocumentEditReceiptStatusResult> => {
-		await authorizeDocumentEditReceipt(data.workspaceId, "read");
-		const session = await getDocumentEditSession(data);
-		return await session.getDocumentEditReceiptStatus({ receiptIds: data.receiptIds });
-	});
 
 export const getDocumentEditReceiptReviewFn = createServerFn({ method: "GET" })
 	.validator(documentEditReceiptInputSchema)
@@ -79,8 +70,5 @@ interface DocumentEditSession {
 	getDocumentEditReceiptReview(input: {
 		receiptIds: string[];
 	}): Promise<DocumentEditReceiptReviewRpcResult>;
-	getDocumentEditReceiptStatus(input: {
-		receiptIds: string[];
-	}): Promise<DocumentEditReceiptStatusResult>;
 	undoDocumentEditReceipt(input: { receiptIds: string[] }): Promise<DocumentEditReceiptUndoResult>;
 }

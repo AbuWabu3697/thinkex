@@ -4,10 +4,7 @@ import { toast } from "sonner";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
 import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
-import {
-	documentEditReceiptQueryKey,
-	type DocumentEditReceiptTarget,
-} from "#/features/workspaces/documents/document-edit-review-queries";
+import type { DocumentEditReceiptTarget } from "#/features/workspaces/documents/document-edit-review-queries";
 
 /**
  * Undo shared by the chat receipt and the review toolbar, so the same edits
@@ -27,7 +24,6 @@ export function useDocumentEditReceiptUndo(target: DocumentEditReceiptTarget) {
 				toast.error(undoUnavailableMessages[result.status]);
 			}
 
-			queryClient.setQueryData(documentEditReceiptQueryKey(target, "status"), result);
 			await queryClient.invalidateQueries({
 				queryKey: ["workspace-document-edit-receipt", target.workspaceId, target.itemId],
 			});

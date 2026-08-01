@@ -362,6 +362,9 @@ export const workspaceEditItemOutputSchema = z.object({
 	path: workspacePathSchema,
 	applied: z.number().int().min(0),
 	itemId: z.string().optional(),
+	lineChanges: z
+		.object({ added: z.number().int().min(0), removed: z.number().int().min(0) })
+		.optional(),
 	failed: z.array(
 		z.object({
 			code: z.enum(editWorkspaceItemFailureCodes),

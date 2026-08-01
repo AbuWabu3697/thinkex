@@ -85,6 +85,7 @@ const orchestrationCallSchema = z.object({
 		.object({
 			kind: z.literal("document-edit"),
 			itemId: z.string(),
+			lineChanges: z.object({ added: z.number(), removed: z.number() }).optional(),
 			path: z.string(),
 			receiptId: z.string(),
 		})
@@ -265,8 +266,17 @@ function getDocumentEditAction(call: z.output<typeof rawOrchestrationCallSchema>
 	const itemId = typeof result.itemId === "string" ? result.itemId : undefined;
 	const receiptId = getDocumentEditReceiptMetadata(call.result);
 
+	const lineChanges = asRecord(result.lineChanges);
 	return itemId && path && applied > 0 && receiptId
-		? { itemId, kind: "document-edit" as const, path, receiptId }
+		? {
+				itemId,
+				kind: "document-edit" as const,
+				...(typeof lineChanges.added === "number" && typeof lineChanges.removed === "number"
+					? { lineChanges: { added: lineChanges.added, removed: lineChanges.removed } }
+					: {}),
+				path,
+				receiptId,
+			}
 		: undefined;
 }
 

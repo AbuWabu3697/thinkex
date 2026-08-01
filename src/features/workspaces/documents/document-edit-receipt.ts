@@ -21,11 +21,6 @@ export interface DocumentEditLineChanges {
 	removed: number;
 }
 
-export interface DocumentEditReceiptStatusResult {
-	changes?: DocumentEditLineChanges;
-	status: DocumentEditReceiptStatus;
-}
-
 export type DocumentEditReceiptReviewResult =
 	| {
 			beforeDocument: TiptapDocumentJson;

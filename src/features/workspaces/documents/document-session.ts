@@ -25,8 +25,9 @@ import {
 	readForwardedDocumentSessionConnectionAccess,
 } from "#/features/workspaces/documents/document-session-connection-access";
 import type {
+	DocumentEditLineChanges,
 	DocumentEditReceiptReviewRpcResult,
-	DocumentEditReceiptStatusResult,
+	DocumentEditReceiptStatus,
 	DocumentEditReceiptUndoResult,
 } from "#/features/workspaces/documents/document-edit-receipt";
 import {
@@ -62,6 +63,9 @@ export interface DocumentSessionApplyEditsInput {
 export interface DocumentSessionApplyEditsResult {
 	applied: number;
 	failed: number;
+	/** Counted here, against the two documents this edit sat between, so the
+	 * receipt states what the edit did rather than what is left of it later. */
+	lineChanges?: DocumentEditLineChanges;
 	failures: {
 		code: DocumentAiEditFailureCode | "content_changed" | "operation_id_conflict";
 		index: number;
@@ -88,7 +92,7 @@ type ResolvedDocumentEditReceiptGroup =
 			status: "ready";
 	  }
 	| {
-			status: Exclude<DocumentEditReceiptStatusResult["status"], "ready">;
+			status: Exclude<DocumentEditReceiptStatus, "ready">;
 	  };
 
 export class DocumentSession extends YServer {
@@ -224,6 +228,7 @@ export class DocumentSession extends YServer {
 			applied: editResult.applied,
 			failed: editResult.failed,
 			failures: editResult.failures,
+			lineChanges: summarizeDocumentAiLineChanges(currentDocument, editResult.document),
 			status: editResult.status,
 		};
 		const receipt: StoredDocumentEditReceipt = {
@@ -271,24 +276,6 @@ export class DocumentSession extends YServer {
 		this.assertActive();
 
 		return result;
-	}
-
-	async getDocumentEditReceiptStatus(input: {
-		receiptIds: string[];
-	}): Promise<DocumentEditReceiptStatusResult> {
-		const group = await this.resolveDocumentEditReceiptGroup(input.receiptIds);
-
-		if (group.status !== "ready") {
-			return { status: group.status };
-		}
-
-		return {
-			changes: summarizeDocumentAiLineChanges(
-				group.beforeDocument,
-				this.getCurrentTiptapDocument(),
-			),
-			status: "ready",
-		};
 	}
 
 	async getDocumentEditReceiptReview(input: {

@@ -1,22 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import {
-	getDocumentEditReceiptReviewFn,
-	getDocumentEditReceiptStatusFn,
-} from "#/features/workspaces/documents/document-edit-review-functions";
+import { getDocumentEditReceiptReviewFn } from "#/features/workspaces/documents/document-edit-review-functions";
 
 export interface DocumentEditReceiptTarget {
 	itemId: string;
 	receiptIds: string[];
 	workspaceId: string;
-}
-
-export function documentEditReceiptStatusQueryOptions(target: DocumentEditReceiptTarget) {
-	return queryOptions({
-		queryKey: documentEditReceiptQueryKey(target, "status"),
-		queryFn: () => getDocumentEditReceiptStatusFn({ data: target }),
-		staleTime: 5_000,
-	});
 }
 
 export function documentEditReceiptReviewQueryOptions(target: DocumentEditReceiptTarget) {
