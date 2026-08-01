@@ -108,21 +108,21 @@ function createDocumentEditReviewDecorations(
 
 	for (const [index, change] of changes.entries()) {
 		if (change.fromB < change.toB) {
-			const isInlineChange = addInsertedContentDecoration(
+			// Inline decorations already span block boundaries, marking the text
+			// inside each one. Only blocks that carry no text of their own — a rule,
+			// a rendered formula — need a decoration of their own to be visible.
+			decorations.push(
+				Decoration.inline(change.fromB, change.toB, {
+					class: "workspace-document-ai-inserted",
+				}),
+			);
+			addChangedAtomDecorations(
 				decorations,
+				decoratedBlocks,
 				afterDocument,
 				change.fromB,
 				change.toB,
 			);
-			if (!isInlineChange) {
-				addChangedBlockDecorations(
-					decorations,
-					decoratedBlocks,
-					afterDocument,
-					change.fromB,
-					change.toB,
-				);
-			}
 		}
 
 		if (change.fromA < change.toA) {
@@ -139,28 +139,7 @@ function createDocumentEditReviewDecorations(
 	return DecorationSet.create(afterDocument, decorations);
 }
 
-function addInsertedContentDecoration(
-	decorations: Decoration[],
-	document: ProseMirrorNode,
-	from: number,
-	to: number,
-) {
-	const start = document.resolve(from);
-	const end = document.resolve(to);
-
-	if (start.sameParent(end) && start.parent.inlineContent) {
-		decorations.push(
-			Decoration.inline(from, to, {
-				class: "workspace-document-ai-inserted",
-			}),
-		);
-		return true;
-	}
-
-	return false;
-}
-
-function addChangedBlockDecorations(
+function addChangedAtomDecorations(
 	decorations: Decoration[],
 	decoratedBlocks: Set<string>,
 	document: ProseMirrorNode,
@@ -169,7 +148,7 @@ function addChangedBlockDecorations(
 ) {
 	document.forEach((node, offset) => {
 		const end = offset + node.nodeSize;
-		if (end <= from || offset >= to) {
+		if (end <= from || offset >= to || !node.isAtom) {
 			return;
 		}
 
