@@ -68,12 +68,10 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: researchDiscoverInputSchema,
 			inputExamples: researchDiscoverInputExamples,
 			outputSchema: researchDiscoverResultSchema,
-			strict: false,
 			execute: async ({ query, include_github }) =>
 				discoverResearch({
 					env,
 					query,
-					limit: 8,
 					includeGithub: include_github ?? false,
 				}),
 		}),
@@ -82,14 +80,12 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: zodSchema(researchDeepenInputSchema),
 			modelInputSchema: researchDeepenModelInputSchema,
 			outputSchema: researchDeepenResultSchema,
-			strict: false,
 			execute: async (input: z.infer<typeof researchDeepenInputSchema>) => {
 				if (input.mode === "passages") {
 					return deepenResearchWithPassages({
 						env,
 						paperId: input.paper_id,
 						question: input.question,
-						limit: 6,
 					});
 				}
 
@@ -98,7 +94,6 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 					paperId: input.paper_id,
 					relation: input.relation,
 					intent: input.intent,
-					limit: 10,
 				});
 			},
 		}),

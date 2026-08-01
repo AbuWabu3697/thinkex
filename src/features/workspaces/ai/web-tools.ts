@@ -10,14 +10,13 @@ import { publicWebSearchResultSchema, searchPublicWeb } from "#/integrations/fir
 import { assertPublicHttpUrl } from "#/features/workspaces/ai/web-access-policy";
 
 const MAX_BROWSER_RESULT_CHARS = 100_000;
-const WEB_SEARCH_RESULT_LIMIT = 8;
 const webSearchInputSchema = z.object({
 	query: z.string().trim().min(1).describe("Topic or question to search for."),
 	include_domains: z
 		.array(z.string().trim().min(1))
 		.max(20)
 		.optional()
-		.describe("Optional hostnames to restrict results to."),
+		.describe("Optional hostnames to restrict results to. At most 20."),
 });
 
 const browserPageInputSchema = z.object({
@@ -63,12 +62,10 @@ export function createAIThreadWebTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: webSearchInputSchema,
 			inputExamples: webSearchInputExamples,
 			outputSchema: publicWebSearchResultSchema,
-			strict: false,
 			execute: async ({ query, include_domains }) =>
 				searchPublicWeb({
 					env,
 					query,
-					limit: WEB_SEARCH_RESULT_LIMIT,
 					includeDomains: include_domains,
 				}),
 		}),
@@ -77,7 +74,6 @@ export function createAIThreadWebTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: browserPageInputSchema,
 			inputExamples: browserPageInputExamples,
 			outputSchema: webMarkdownOutputSchema,
-			strict: true,
 			execute: async ({ url }) => {
 				const safeUrl = assertPublicHttpUrl(url);
 				return truncateMarkdown(
@@ -92,7 +88,6 @@ export function createAIThreadWebTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: browserPageInputSchema,
 			inputExamples: browserPageInputExamples,
 			outputSchema: webLinksOutputSchema,
-			strict: true,
 			execute: async ({ url }) => {
 				const safeUrl = assertPublicHttpUrl(url);
 				return truncateLinks(

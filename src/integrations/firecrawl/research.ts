@@ -11,6 +11,9 @@ import {
 } from "#/integrations/firecrawl/client";
 
 const MAX_RESEARCH_TEXT_CHARS = 4_000;
+const DISCOVER_RESULT_LIMIT = 8;
+const PASSAGE_RESULT_LIMIT = 6;
+const RELATED_RESULT_LIMIT = 10;
 
 export const researchPaperSchema = z.object({
 	paper_id: z.string().nullish(),
@@ -60,7 +63,6 @@ export const researchDeepenResultSchema = z.union([
 export async function discoverResearch(input: {
 	env: Cloudflare.Env;
 	query: string;
-	limit: number;
 	includeGithub: boolean;
 }): Promise<z.output<typeof researchDiscoverResultSchema>> {
 	const [papers, github] = await Promise.all([
@@ -78,13 +80,12 @@ export async function deepenResearchWithPassages(input: {
 	env: Cloudflare.Env;
 	paperId: string;
 	question: string;
-	limit: number;
 }): Promise<z.output<typeof researchPassagesResultSchema>> {
 	const response = await firecrawlJsonRequest({
 		env: input.env,
 		path: `/v2/search/research/papers/${encodeURIComponent(input.paperId)}?${new URLSearchParams({
 			query: input.question,
-			k: String(input.limit),
+			k: String(PASSAGE_RESULT_LIMIT),
 		})}`,
 		operation: "Research passages",
 	});
@@ -100,7 +101,6 @@ export async function deepenResearchWithRelated(input: {
 	paperId: string;
 	relation: "similar" | "citers" | "references";
 	intent: string;
-	limit: number;
 }): Promise<z.output<typeof researchRelatedResultSchema>> {
 	const [paperResponse, relatedResponse] = await Promise.all([
 		firecrawlJsonRequest({
@@ -114,7 +114,7 @@ export async function deepenResearchWithRelated(input: {
 				{
 					intent: input.intent,
 					mode: input.relation,
-					k: String(input.limit),
+					k: String(RELATED_RESULT_LIMIT),
 				},
 			)}`,
 			operation: "Research related papers",
@@ -132,12 +132,12 @@ export async function deepenResearchWithRelated(input: {
 	};
 }
 
-async function searchResearchPapers(input: { env: Cloudflare.Env; query: string; limit: number }) {
+async function searchResearchPapers(input: { env: Cloudflare.Env; query: string }) {
 	const response = await firecrawlJsonRequest({
 		env: input.env,
 		path: `/v2/search/research/papers?${new URLSearchParams({
 			query: input.query,
-			k: String(input.limit),
+			k: String(DISCOVER_RESULT_LIMIT),
 		})}`,
 		operation: "Research discovery",
 	});
@@ -147,12 +147,12 @@ async function searchResearchPapers(input: { env: Cloudflare.Env; query: string;
 		.filter((item) => item.paper_id || item.title);
 }
 
-async function searchResearchGithub(input: { env: Cloudflare.Env; query: string; limit: number }) {
+async function searchResearchGithub(input: { env: Cloudflare.Env; query: string }) {
 	const response = await firecrawlJsonRequest({
 		env: input.env,
 		path: `/v2/search/research/github?${new URLSearchParams({
 			query: input.query,
-			k: String(input.limit),
+			k: String(DISCOVER_RESULT_LIMIT),
 		})}`,
 		operation: "Research implementation discovery",
 	});

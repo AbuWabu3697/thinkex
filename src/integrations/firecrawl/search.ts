@@ -9,6 +9,7 @@ import {
 } from "#/integrations/firecrawl/client";
 
 const MAX_WEB_SEARCH_SNIPPET_CHARS = 600;
+const WEB_SEARCH_RESULT_LIMIT = 8;
 
 export const publicWebSearchResultSchema = z.object({
 	results: z.array(
@@ -23,7 +24,6 @@ export const publicWebSearchResultSchema = z.object({
 export async function searchPublicWeb(input: {
 	env: Cloudflare.Env;
 	query: string;
-	limit: number;
 	includeDomains?: string[];
 }): Promise<z.output<typeof publicWebSearchResultSchema>> {
 	const response = await firecrawlJsonRequest({
@@ -36,7 +36,7 @@ export async function searchPublicWeb(input: {
 		},
 		body: JSON.stringify({
 			query: input.query,
-			limit: input.limit,
+			limit: WEB_SEARCH_RESULT_LIMIT,
 			sources: [{ type: "web" }],
 			ignoreInvalidURLs: true,
 			includeDomains: normalizeHostnameList(input.includeDomains),
