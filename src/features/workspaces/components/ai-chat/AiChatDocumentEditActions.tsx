@@ -1,13 +1,15 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, FileText, LoaderCircle, PencilLine, Undo2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Eye, EyeOff, FileText, LoaderCircle, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "#/components/ui/button";
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
+import type {
+	DocumentEditBlockChanges,
+	DocumentEditReceiptUnavailableStatus,
+} from "#/features/workspaces/documents/document-edit-receipt";
 import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
 import {
 	documentEditReceiptQueryKey,
@@ -15,10 +17,16 @@ import {
 } from "#/features/workspaces/documents/document-edit-review-queries";
 import { getWorkspacePathName } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
+interface SettledDocumentEditGroup {
+	changes?: DocumentEditBlockChanges;
+	group: AiChatDocumentEditGroup;
+	reverted: boolean;
+}
+
 /**
- * Card summarising the documents the assistant changed in one turn. Everything
- * here is read by people who did not ask for a diff, so it names documents and
- * offers two plain actions rather than reporting counts of applied operations.
+ * Everything the assistant changed in one turn, in one card. Counts are stated
+ * in words rather than +/- diff stats: this is read by people who did not ask
+ * for a diff, and "21 deletions" reads as damage when it was a rewritten line.
  */
 export function AiChatDocumentEditActions({
 	groups,
@@ -35,67 +43,64 @@ export function AiChatDocumentEditActions({
 			}),
 		),
 	});
-	const settledGroups = groups.flatMap((group, index) => {
-		const status = statusQueries[index]?.data?.status;
-		return status === "ready" || status === "reverted"
-			? [{ group, reverted: status === "reverted" }]
-			: [];
+	const settledGroups = groups.flatMap<SettledDocumentEditGroup>((group, index) => {
+		const result = statusQueries[index]?.data;
+
+		if (result?.status !== "ready" && result?.status !== "reverted") {
+			return [];
+		}
+
+		return [
+			{
+				...(result.changes ? { changes: result.changes } : {}),
+				group,
+				reverted: result.status === "reverted",
+			},
+		];
 	});
 
 	if (settledGroups.length === 0) {
 		return null;
 	}
 
-	const firstGroup = settledGroups[0];
-
 	return (
 		<div
 			aria-label="Document changes from this response"
-			className="mt-2.5 overflow-hidden rounded-xl bg-card/60 ring-1 ring-foreground/10"
+			className="mt-2 overflow-hidden rounded-lg bg-card/40 ring-1 ring-foreground/10"
 		>
-			{settledGroups.length === 1 && firstGroup ? (
-				<DocumentEditCardRow
-					group={firstGroup.group}
-					icon={<CardIcon />}
-					reverted={firstGroup.reverted}
-				/>
-			) : (
-				<>
-					<div className="flex items-center gap-2.5 px-3 py-2.5">
-						<CardIcon />
-						<span className="font-medium text-sm">Updated {settledGroups.length} documents</span>
-					</div>
-					<div className="divide-y divide-foreground/5 border-foreground/10 border-t">
-						{settledGroups.map(({ group, reverted }) => (
-							<DocumentEditCardRow key={group.itemId} group={group} reverted={reverted} />
-						))}
-					</div>
-				</>
-			)}
+			{settledGroups.length > 1 ? (
+				<div className="flex items-center gap-2 border-foreground/10 border-b px-2.5 py-1.5 text-muted-foreground text-xs">
+					<FileText className="size-3.5 shrink-0" aria-hidden="true" />
+					<span className="font-medium text-foreground">
+						Edited {settledGroups.length} documents
+					</span>
+					<span>{summarizeSettledGroups(settledGroups)}</span>
+				</div>
+			) : null}
+			<div className="divide-y divide-foreground/5">
+				{settledGroups.map((settled) => (
+					<DocumentEditRow
+						key={settled.group.itemId}
+						settled={settled}
+						showIcon={settledGroups.length === 1}
+					/>
+				))}
+			</div>
 		</div>
 	);
 }
 
-function CardIcon() {
-	return (
-		<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-			<PencilLine className="size-3.5" aria-hidden="true" />
-		</span>
-	);
-}
-
-function DocumentEditCardRow({
-	group,
-	icon,
-	reverted,
+function DocumentEditRow({
+	settled,
+	showIcon,
 }: {
-	group: AiChatDocumentEditGroup;
-	icon?: ReactNode;
-	reverted: boolean;
+	settled: SettledDocumentEditGroup;
+	showIcon: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const { capabilities } = useWorkspaceMutationAccess();
 	const { activeReview, hideReview, showReview, workspaceId } = useDocumentEditReview();
+	const { group, reverted } = settled;
 	const { itemId } = group;
 	const receiptKey = group.receiptIds.join(":");
 	const target = { itemId, receiptIds: group.receiptIds, workspaceId };
@@ -123,63 +128,98 @@ function DocumentEditCardRow({
 		activeReview.itemId === itemId &&
 		activeReview.receiptIds.join(":") === receiptKey,
 	);
+	const summary = settled.changes ? formatBlockChanges(settled.changes) : "";
 
 	return (
-		<div className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
-			{icon ?? <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
-			<DocumentName path={group.path} muted={reverted} />
-			{reverted ? (
-				<span className="shrink-0 text-muted-foreground text-xs">Undone</span>
-			) : (
-				<div className="flex shrink-0 items-center gap-1">
-					<Button
-						type="button"
-						variant="ghost"
-						size="xs"
-						onClick={() => {
-							if (isReviewActive) {
-								hideReview();
-							} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
-								toast.error("This document is no longer open.");
-							}
-						}}
-					>
-						{isReviewActive ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-						{isReviewActive ? "Hide" : "Review"}
-					</Button>
-					{capabilities.canMutateContent ? (
+		<div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5">
+			{showIcon ? (
+				<FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+			) : null}
+			<span
+				className={`min-w-0 truncate text-sm ${reverted ? "opacity-60" : ""}`}
+				title={group.path}
+			>
+				<DocumentPathLabel path={group.path} />
+			</span>
+			{summary && !reverted ? (
+				<span className="shrink-0 text-muted-foreground text-xs">{summary}</span>
+			) : null}
+			<div className="ml-auto flex shrink-0 items-center gap-1">
+				{reverted ? (
+					<span className="text-muted-foreground text-xs">Undone</span>
+				) : (
+					<>
+						{capabilities.canMutateContent ? (
+							<Button
+								type="button"
+								variant="ghost"
+								size="xs"
+								disabled={undoMutation.isPending}
+								onClick={() => undoMutation.mutate()}
+							>
+								{undoMutation.isPending ? (
+									<LoaderCircle className="animate-spin" aria-hidden="true" />
+								) : (
+									<Undo2 aria-hidden="true" />
+								)}
+								Undo
+							</Button>
+						) : null}
 						<Button
 							type="button"
 							variant="outline"
 							size="xs"
-							disabled={undoMutation.isPending}
-							onClick={() => undoMutation.mutate()}
+							onClick={() => {
+								if (isReviewActive) {
+									hideReview();
+								} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
+									toast.error("This document is no longer open.");
+								}
+							}}
 						>
-							{undoMutation.isPending ? (
-								<LoaderCircle className="animate-spin" aria-hidden="true" />
-							) : (
-								<Undo2 aria-hidden="true" />
-							)}
-							Undo
+							{isReviewActive ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+							{isReviewActive ? "Hide" : "Review"}
 						</Button>
-					) : null}
-				</div>
-			)}
+					</>
+				)}
+			</div>
 		</div>
 	);
 }
 
-function DocumentName({ muted, path }: { muted: boolean; path: string }) {
-	const name = getWorkspacePathName(path);
+function DocumentPathLabel({ path }: { path: string }) {
 	const separatorIndex = path.lastIndexOf("/");
 	const folder = separatorIndex > 0 ? path.slice(0, separatorIndex + 1) : "";
 
 	return (
-		<span className={`mr-auto min-w-0 truncate text-sm ${muted ? "opacity-60" : ""}`} title={path}>
+		<>
 			{folder ? <span className="text-muted-foreground">{folder}</span> : null}
-			<span className="font-medium">{name}</span>
-		</span>
+			<span className="font-medium">{getWorkspacePathName(path)}</span>
+		</>
 	);
+}
+
+function summarizeSettledGroups(settledGroups: SettledDocumentEditGroup[]) {
+	return formatBlockChanges(
+		settledGroups.reduce<DocumentEditBlockChanges>(
+			(total, settled) => ({
+				added: total.added + (settled.changes?.added ?? 0),
+				edited: total.edited + (settled.changes?.edited ?? 0),
+				removed: total.removed + (settled.changes?.removed ?? 0),
+			}),
+			{ added: 0, edited: 0, removed: 0 },
+		),
+	);
+}
+
+function formatBlockChanges(changes: DocumentEditBlockChanges) {
+	return [
+		changes.added > 0 ? `${changes.added} added` : "",
+		changes.edited > 0 ? `${changes.edited} rewritten` : "",
+		changes.removed > 0 ? `${changes.removed} removed` : "",
+	]
+		.filter(Boolean)
+		.join(" · ");
 }
 
 const undoUnavailableMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {

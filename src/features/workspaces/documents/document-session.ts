@@ -9,6 +9,7 @@ import { YServer } from "y-partyserver";
 import type { DocumentSessionRouteParams } from "#/features/workspaces/agent-routes";
 import {
 	applyDocumentAiEdits,
+	summarizeDocumentAiBlockChanges,
 	type DocumentAiEdit,
 	type DocumentAiEditFailureCode,
 	type DocumentAiEditResultStatus,
@@ -258,7 +259,18 @@ export class DocumentSession extends YServer {
 		receiptIds: string[];
 	}): Promise<DocumentEditReceiptStatusResult> {
 		const group = await this.resolveDocumentEditReceiptGroup(input.receiptIds);
-		return { status: group.status };
+
+		if (group.status !== "ready") {
+			return { status: group.status };
+		}
+
+		return {
+			changes: summarizeDocumentAiBlockChanges(
+				group.beforeDocument,
+				this.getCurrentTiptapDocument(),
+			),
+			status: "ready",
+		};
 	}
 
 	async getDocumentEditReceiptReview(input: {

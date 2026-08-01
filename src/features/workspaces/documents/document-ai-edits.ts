@@ -10,6 +10,7 @@ import {
 	readTiptapNodeAiRef,
 	withTiptapNodeAiRef,
 } from "#/features/workspaces/documents/document-ai-html";
+import type { DocumentEditBlockChanges } from "#/features/workspaces/documents/document-edit-receipt";
 import {
 	coerceTiptapDocumentJson,
 	type TiptapDocumentJson,
@@ -128,6 +129,55 @@ export async function applyDocumentAiEdits(
 		failures,
 		status: applied === 0 ? "failed" : failures.length > 0 ? "partial" : "applied",
 	};
+}
+
+/**
+ * Compare two versions of a document by top-level block, matching blocks on
+ * their stable AI ref so a block that moved is not counted as a delete plus an
+ * add. Blocks without a ref fall back to their position.
+ */
+export function summarizeDocumentAiBlockChanges(
+	before: TiptapDocumentJson,
+	after: TiptapDocumentJson,
+): DocumentEditBlockChanges {
+	const beforeBlocks = getDocumentBlockFingerprints(before);
+	const afterBlocks = getDocumentBlockFingerprints(after);
+	let added = 0;
+	let edited = 0;
+	let removed = 0;
+
+	for (const [ref, fingerprint] of afterBlocks) {
+		const previous = beforeBlocks.get(ref);
+		if (previous === undefined) {
+			added++;
+		} else if (previous !== fingerprint) {
+			edited++;
+		}
+	}
+
+	for (const ref of beforeBlocks.keys()) {
+		if (!afterBlocks.has(ref)) {
+			removed++;
+		}
+	}
+
+	return { added, edited, removed };
+}
+
+function getDocumentBlockFingerprints(document: TiptapDocumentJson) {
+	const fingerprints = new Map<string, string>();
+
+	getTiptapDocumentSchema()
+		.nodeFromJSON(document)
+		.forEach((node, _offset, index) => {
+			const ref = readTiptapNodeAiRef(node);
+			fingerprints.set(
+				ref ?? `position:${index}`,
+				JSON.stringify(ref === null ? node.toJSON() : withTiptapNodeAiRef(node, null).toJSON()),
+			);
+		});
+
+	return fingerprints;
 }
 
 function applyDocumentAiEdit(

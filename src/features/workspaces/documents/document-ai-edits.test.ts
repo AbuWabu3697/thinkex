@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { applyDocumentAiEdits } from "#/features/workspaces/documents/document-ai-edits";
+import {
+	applyDocumentAiEdits,
+	summarizeDocumentAiBlockChanges,
+} from "#/features/workspaces/documents/document-ai-edits";
 import {
 	ensureTiptapDocumentAiRefs,
 	parseDocumentAiHtml,
@@ -88,7 +91,54 @@ describe("document AI edits", () => {
 			/<\/ul><p data-ref="b_[A-Za-z0-9_-]{12}\.r_[A-Za-z0-9_-]{10}"><\/p>$/,
 		);
 	});
+
+	it("counts block changes by ref so a moved block is not an add plus a remove", async () => {
+		const document = createDocument("<h1>Title</h1><p>Keep</p><p>Rewrite</p><p>Drop</p>");
+		const rewriteRef = await getNthRef(document, "p", 1);
+		const dropRef = await getNthRef(document, "p", 2);
+		const edited = await applyDocumentAiEdits(document, [
+			{ html: "<p>Rewritten</p>", op: "replace", ref: rewriteRef },
+			{ html: "<p>Brand new</p>", op: "insert_after", ref: rewriteRef },
+			{ op: "delete", ref: dropRef },
+		]);
+
+		expect(edited.applied).toBe(3);
+		// The replaced paragraph keeps its ref, so it counts as rewritten rather
+		// than as a removal plus an addition.
+		expect(summarizeDocumentAiBlockChanges(document, edited.document)).toEqual({
+			added: 1,
+			edited: 1,
+			removed: 1,
+		});
+	});
+
+	it("reports nothing changed when the document is untouched", () => {
+		const document = createDocument("<h1>Title</h1><p>Body</p>");
+
+		expect(summarizeDocumentAiBlockChanges(document, document)).toEqual({
+			added: 0,
+			edited: 0,
+			removed: 0,
+		});
+	});
 });
+
+async function getNthRef(
+	document: ReturnType<typeof createDocument>,
+	tagName: string,
+	index: number,
+) {
+	const refs = [
+		...(await serializeTiptapDocumentToAiHtml(document)).matchAll(
+			new RegExp(`<${tagName} data-ref="([^"]+)"`, "g"),
+		),
+	];
+	const ref = refs[index]?.[1];
+	if (!ref) {
+		throw new Error(`Expected ${tagName} ref at ${index}.`);
+	}
+	return ref;
+}
 
 function createDocument(html: string) {
 	return ensureTiptapDocumentAiRefs(parseDocumentAiHtml(html)).document;
