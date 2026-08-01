@@ -10,7 +10,12 @@ export interface DocumentEditReceiptTarget {
 
 export function documentEditReceiptReviewQueryOptions(target: DocumentEditReceiptTarget) {
 	return queryOptions({
-		queryKey: documentEditReceiptQueryKey(target, "review"),
+		queryKey: [
+			"workspace-document-edit-review",
+			target.workspaceId,
+			target.itemId,
+			target.receiptIds.join(":"),
+		],
 		queryFn: () => getDocumentEditReceiptReviewFn({ data: target }),
 		// Deliberately not cached. This response carries the server's verdict on
 		// whether the document still matches the receipt, and a verdict cached
@@ -18,17 +23,4 @@ export function documentEditReceiptReviewQueryOptions(target: DocumentEditReceip
 		// assistant's.
 		staleTime: 0,
 	});
-}
-
-export function documentEditReceiptQueryKey(
-	target: DocumentEditReceiptTarget,
-	kind: "review" | "status",
-) {
-	return [
-		"workspace-document-edit-receipt",
-		target.workspaceId,
-		target.itemId,
-		target.receiptIds.join(":"),
-		kind,
-	] as const;
 }

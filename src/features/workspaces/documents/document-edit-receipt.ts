@@ -12,9 +12,10 @@ export type DocumentEditReceiptStatus =
 export type DocumentEditReceiptUnavailableStatus = Exclude<DocumentEditReceiptStatus, "ready">;
 
 /**
- * Line tally for an AI edit, counted against the document as it stands now. A
- * line is one text block — a paragraph, a heading, a single list item — so a
- * rewritten paragraph reads as one line out and one line in.
+ * Line tally for an AI edit, counted once against the two versions of the
+ * document that edit sat between. A line is one text block — a paragraph, a
+ * heading, a single list item — so a rewritten paragraph reads as one line out
+ * and one line in.
  */
 export interface DocumentEditLineChanges {
 	added: number;
