@@ -23,7 +23,11 @@ export function documentEditReceiptReviewQueryOptions(target: DocumentEditReceip
 	return queryOptions({
 		queryKey: documentEditReceiptQueryKey(target, "review"),
 		queryFn: () => getDocumentEditReceiptReviewFn({ data: target }),
-		staleTime: Number.POSITIVE_INFINITY,
+		// Deliberately not cached. This response carries the server's verdict on
+		// whether the document still matches the receipt, and a verdict cached
+		// from an earlier open would mark the reader's own later writing as the
+		// assistant's.
+		staleTime: 0,
 	});
 }
 

@@ -40,7 +40,6 @@ export const getDocumentEditReceiptReviewFn = createServerFn({ method: "GET" })
 
 		return result.status === "ready"
 			? {
-					afterDocument: parseTiptapDocumentJson(result.afterContent),
 					beforeDocument: parseTiptapDocumentJson(result.beforeContent),
 					status: result.status,
 				}

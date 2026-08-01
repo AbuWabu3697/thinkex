@@ -47,7 +47,9 @@ import { sha256Base64Url, sha256Base64UrlText } from "#/lib/binary";
 
 const persistedYDocUpdateKey = "document-session:yjs-update";
 const latestDocumentEditReceiptKey = "document-session:ai-edit-receipt:latest";
+const documentEditReceiptIndexKey = "document-session:ai-edit-receipt:index";
 const documentEditReceiptKeyPrefix = "document-session:ai-edit-receipt:";
+const maximumRetainedDocumentEditReceipts = 8;
 const maximumDocumentEditReceiptSnapshotBytes = 1_500_000;
 const checkpointDelayMs = 1_500;
 const checkpointMaxWaitMs = 8_000;
@@ -239,6 +241,18 @@ export class DocumentSession extends YServer {
 			status: "applied",
 		};
 
+		// Only the newest edit can still be undone, so older receipts are dead
+		// weight — and each one holds a whole copy of the document. Keep enough for
+		// a turn that edited this document several times, and drop the rest.
+		const recentReceiptIds = [
+			...((await this.ctx.storage.get<string[]>(documentEditReceiptIndexKey)) ?? []),
+			receipt.id,
+		];
+		const expiredReceiptIds = recentReceiptIds.splice(
+			0,
+			Math.max(0, recentReceiptIds.length - maximumRetainedDocumentEditReceipts),
+		);
+
 		this.reconcileCurrentDocument(editResult.document);
 		const persistedUpdate = Y.encodeStateAsUpdate(this.document);
 		await this.ctx.storage.transaction(async (transaction) => {
@@ -246,6 +260,10 @@ export class DocumentSession extends YServer {
 				transaction.put(persistedYDocUpdateKey, persistedUpdate),
 				transaction.put(getDocumentEditReceiptKey(receipt.id), receipt),
 				transaction.put(latestDocumentEditReceiptKey, receipt.id),
+				transaction.put(documentEditReceiptIndexKey, recentReceiptIds),
+				...(expiredReceiptIds.length > 0
+					? [transaction.delete(expiredReceiptIds.map(getDocumentEditReceiptKey))]
+					: []),
 			]);
 		});
 		this.assertActive();
@@ -283,7 +301,6 @@ export class DocumentSession extends YServer {
 		}
 
 		return {
-			afterContent: stringifyTiptapDocumentJson(this.getCurrentTiptapDocument()),
 			beforeContent: stringifyTiptapDocumentJson(group.beforeDocument),
 			status: "ready",
 		};
@@ -490,7 +507,6 @@ function getDocumentEditReceiptKey(receiptId: string) {
 
 function fitsDocumentEditReceiptSnapshot(documentText: string) {
 	return (
-		documentText.length <= maximumDocumentEditReceiptSnapshotBytes &&
 		new TextEncoder().encode(documentText).byteLength <= maximumDocumentEditReceiptSnapshotBytes
 	);
 }

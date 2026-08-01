@@ -28,7 +28,6 @@ export interface DocumentEditReceiptStatusResult {
 
 export type DocumentEditReceiptReviewResult =
 	| {
-			afterDocument: TiptapDocumentJson;
 			beforeDocument: TiptapDocumentJson;
 			status: "ready";
 	  }
@@ -38,7 +37,6 @@ export type DocumentEditReceiptReviewResult =
 
 export type DocumentEditReceiptReviewRpcResult =
 	| {
-			afterContent: string;
 			beforeContent: string;
 			status: "ready";
 	  }
