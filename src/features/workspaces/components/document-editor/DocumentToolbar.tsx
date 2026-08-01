@@ -1,17 +1,10 @@
 import type { Editor } from "@tiptap/react";
-import {
-	Check,
-	Download,
-	EllipsisVertical,
-	FileText,
-	LoaderCircle,
-	Redo2,
-	Undo2,
-} from "lucide-react";
+import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button } from "#/components/ui/button";
+import { DocumentEditUndoButton } from "#/features/workspaces/components/DocumentEditUndoButton";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -42,8 +35,8 @@ import {
 import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
-	WorkspaceToolbarTextButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
+import { workspaceToolbarTextButtonClass } from "#/features/workspaces/components/workspace-toolbar-styles";
 
 export function DocumentToolbar({
 	canEdit,
@@ -126,25 +119,22 @@ function DocumentEditReviewControls({
 	receiptIds: string[];
 }) {
 	const { workspaceId } = useDocumentEditReview();
-	const undoMutation = useDocumentEditReceiptUndo({ itemId, receiptIds, workspaceId });
 
 	return (
-		<div className="flex min-w-0 items-center gap-1 rounded-md bg-success/10 pl-2.5">
-			<span className="min-w-0 truncate font-medium text-sm">Reviewing changes</span>
+		<div className="flex min-w-0 items-center gap-1">
+			<span className="min-w-0 truncate px-1 text-muted-foreground text-sm">Reviewing changes</span>
 			{canUndo ? (
-				<WorkspaceToolbarTextButton
-					disabled={undoMutation.isPending}
-					onClick={() => undoMutation.mutate()}
-				>
-					{undoMutation.isPending ? (
-						<LoaderCircle className="animate-spin" aria-hidden="true" />
-					) : null}
-					Undo
-				</WorkspaceToolbarTextButton>
+				<DocumentEditUndoButton
+					className={workspaceToolbarTextButtonClass}
+					itemId={itemId}
+					receiptIds={receiptIds}
+					size="sm"
+					workspaceId={workspaceId}
+				/>
 			) : null}
-			<WorkspaceToolbarTextButton variant="default" onClick={onDone}>
+			<Button type="button" size="sm" className="h-10 sm:h-8.5" onClick={onDone}>
 				Done
-			</WorkspaceToolbarTextButton>
+			</Button>
 		</div>
 	);
 }

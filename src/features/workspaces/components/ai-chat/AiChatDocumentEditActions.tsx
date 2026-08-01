@@ -1,14 +1,14 @@
 import { useQueries } from "@tanstack/react-query";
-import { FilePen, LoaderCircle } from "lucide-react";
+import { Eye, FilePen, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "#/components/ui/button";
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
+import { DocumentEditUndoButton } from "#/features/workspaces/components/DocumentEditUndoButton";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
 import { documentEditReceiptStatusQueryOptions } from "#/features/workspaces/documents/document-edit-review-queries";
-import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
 import { getWorkspacePathName } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
 interface SettledDocumentEditGroup {
@@ -82,11 +82,6 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 	const { group, reverted } = settled;
 	const { itemId } = group;
 	const receiptKey = group.receiptIds.join(":");
-	const undoMutation = useDocumentEditReceiptUndo({
-		itemId,
-		receiptIds: group.receiptIds,
-		workspaceId,
-	});
 	const isReviewActive = Boolean(
 		activeReview &&
 		activeReview.itemId === itemId &&
@@ -104,18 +99,11 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 			{reverted ? null : (
 				<div className="flex shrink-0 items-center gap-1">
 					{capabilities.canMutateContent ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="xs"
-							disabled={undoMutation.isPending}
-							onClick={() => undoMutation.mutate()}
-						>
-							{undoMutation.isPending ? (
-								<LoaderCircle className="animate-spin" aria-hidden="true" />
-							) : null}
-							Undo
-						</Button>
+						<DocumentEditUndoButton
+							itemId={itemId}
+							receiptIds={group.receiptIds}
+							workspaceId={workspaceId}
+						/>
 					) : null}
 					<Button
 						type="button"
@@ -129,6 +117,7 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 							}
 						}}
 					>
+						{isReviewActive ? <X aria-hidden="true" /> : <Eye aria-hidden="true" />}
 						{isReviewActive ? "Hide" : "Review"}
 					</Button>
 				</div>
