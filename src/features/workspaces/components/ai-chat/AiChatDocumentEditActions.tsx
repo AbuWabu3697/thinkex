@@ -7,7 +7,7 @@ import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/a
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import type {
-	DocumentEditBlockChanges,
+	DocumentEditLineChanges,
 	DocumentEditReceiptUnavailableStatus,
 } from "#/features/workspaces/documents/document-edit-receipt";
 import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
@@ -18,16 +18,14 @@ import {
 import { getWorkspacePathName } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
 interface SettledDocumentEditGroup {
-	changes?: DocumentEditBlockChanges;
+	changes?: DocumentEditLineChanges;
 	group: AiChatDocumentEditGroup;
 	reverted: boolean;
 }
 
 /**
  * Receipt for the documents the assistant changed in one turn: a header saying
- * how much happened, then one row per document with its own tally and actions.
- * Counts are worded rather than shown as +/- diff stats, because this is read
- * by people who did not ask for a diff.
+ * how much happened, then one row per document with its line tally and actions.
  */
 export function AiChatDocumentEditActions({
 	groups,
@@ -177,37 +175,27 @@ function ChangeSummary({
 	changes,
 	reverted,
 }: {
-	changes?: DocumentEditBlockChanges;
+	changes?: DocumentEditLineChanges;
 	reverted: boolean;
 }) {
 	if (reverted) {
 		return <div className="mt-0.5 text-muted-foreground text-xs">Undone</div>;
 	}
 
-	// Colour carries the meaning at a glance, muted so a removal reads as a fact
-	// rather than an alarm.
-	const parts = [
-		changes?.added ? { className: "text-success/90", label: `${changes.added} added` } : null,
-		changes?.edited
-			? { className: "text-muted-foreground", label: `${changes.edited} rewritten` }
-			: null,
-		changes?.removed
-			? { className: "text-destructive/80", label: `${changes.removed} removed` }
-			: null,
-	].filter((part) => part !== null);
-
-	if (parts.length === 0) {
+	if (!changes?.added && !changes?.removed) {
 		return null;
 	}
 
+	// Colour carries the meaning at a glance, muted so a removal reads as a fact
+	// rather than an alarm.
 	return (
-		<div className="mt-0.5 flex items-center gap-1.5 text-xs">
-			{parts.map((part, index) => (
-				<span key={part.label} className={part.className}>
-					{index > 0 ? <span className="mr-1.5 text-muted-foreground/50">·</span> : null}
-					{part.label}
-				</span>
-			))}
+		<div className="mt-0.5 flex items-center gap-1.5 text-muted-foreground text-xs">
+			<span>Lines</span>
+			{changes.added > 0 ? <span className="text-success/90">+{changes.added}</span> : null}
+			{changes.added > 0 && changes.removed > 0 ? (
+				<span className="text-muted-foreground/50">·</span>
+			) : null}
+			{changes.removed > 0 ? <span className="text-destructive/80">−{changes.removed}</span> : null}
 		</div>
 	);
 }

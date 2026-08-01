@@ -12,18 +12,17 @@ export type DocumentEditReceiptStatus =
 export type DocumentEditReceiptUnavailableStatus = Exclude<DocumentEditReceiptStatus, "ready">;
 
 /**
- * Block-level tally of what an AI edit did, counted against the document as it
- * stands now. Blocks, not lines: a document has no lines, and a block is the
- * same unit the model targets, so the count matches what review highlights.
+ * Line tally for an AI edit, counted against the document as it stands now. A
+ * line is one text block — a paragraph, a heading, a single list item — so a
+ * rewritten paragraph reads as one line out and one line in.
  */
-export interface DocumentEditBlockChanges {
+export interface DocumentEditLineChanges {
 	added: number;
-	edited: number;
 	removed: number;
 }
 
 export interface DocumentEditReceiptStatusResult {
-	changes?: DocumentEditBlockChanges;
+	changes?: DocumentEditLineChanges;
 	status: DocumentEditReceiptStatus;
 }
 

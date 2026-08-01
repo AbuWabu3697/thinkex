@@ -10,7 +10,7 @@ import {
 	readTiptapNodeAiRef,
 	withTiptapNodeAiRef,
 } from "#/features/workspaces/documents/document-ai-html";
-import type { DocumentEditBlockChanges } from "#/features/workspaces/documents/document-edit-receipt";
+import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
 import {
 	coerceTiptapDocumentJson,
 	type TiptapDocumentJson,
@@ -132,52 +132,54 @@ export async function applyDocumentAiEdits(
 }
 
 /**
- * Compare two versions of a document by top-level block, matching blocks on
- * their stable AI ref so a block that moved is not counted as a delete plus an
- * add. Blocks without a ref fall back to their position.
+ * Count the lines an AI edit added and removed. Lines are compared as a bag of
+ * contents rather than by position, so moving a paragraph counts as nothing
+ * while rewriting one counts as a line out and a line in.
  */
-export function summarizeDocumentAiBlockChanges(
+export function summarizeDocumentAiLineChanges(
 	before: TiptapDocumentJson,
 	after: TiptapDocumentJson,
-): DocumentEditBlockChanges {
-	const beforeBlocks = getDocumentBlockFingerprints(before);
-	const afterBlocks = getDocumentBlockFingerprints(after);
+): DocumentEditLineChanges {
+	const beforeLines = countDocumentLines(before);
+	const afterLines = countDocumentLines(after);
 	let added = 0;
-	let edited = 0;
 	let removed = 0;
 
-	for (const [ref, fingerprint] of afterBlocks) {
-		const previous = beforeBlocks.get(ref);
-		if (previous === undefined) {
-			added++;
-		} else if (previous !== fingerprint) {
-			edited++;
-		}
+	for (const [line, count] of afterLines) {
+		added += Math.max(0, count - (beforeLines.get(line) ?? 0));
 	}
 
-	for (const ref of beforeBlocks.keys()) {
-		if (!afterBlocks.has(ref)) {
-			removed++;
-		}
+	for (const [line, count] of beforeLines) {
+		removed += Math.max(0, count - (afterLines.get(line) ?? 0));
 	}
 
-	return { added, edited, removed };
+	return { added, removed };
 }
 
-function getDocumentBlockFingerprints(document: TiptapDocumentJson) {
-	const fingerprints = new Map<string, string>();
+function countDocumentLines(document: TiptapDocumentJson) {
+	const counts = new Map<string, number>();
+	const countLine = (line: string) => counts.set(line, (counts.get(line) ?? 0) + 1);
 
 	getTiptapDocumentSchema()
 		.nodeFromJSON(document)
-		.forEach((node, _offset, index) => {
-			const ref = readTiptapNodeAiRef(node);
-			fingerprints.set(
-				ref ?? `position:${index}`,
-				JSON.stringify(ref === null ? node.toJSON() : withTiptapNodeAiRef(node, null).toJSON()),
-			);
+		.descendants((node) => {
+			if (node.isTextblock) {
+				const text = node.textContent.trim();
+				if (text) {
+					countLine(`${node.type.name}:${text}`);
+				}
+				return false;
+			}
+			// A rule or a formula holds no text but still occupies a line.
+			if (node.isAtom) {
+				countLine(JSON.stringify(node.toJSON()));
+				return false;
+			}
+
+			return true;
 		});
 
-	return fingerprints;
+	return counts;
 }
 
 function applyDocumentAiEdit(

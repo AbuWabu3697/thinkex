@@ -9,7 +9,7 @@ import { YServer } from "y-partyserver";
 import type { DocumentSessionRouteParams } from "#/features/workspaces/agent-routes";
 import {
 	applyDocumentAiEdits,
-	summarizeDocumentAiBlockChanges,
+	summarizeDocumentAiLineChanges,
 	type DocumentAiEdit,
 	type DocumentAiEditFailureCode,
 	type DocumentAiEditResultStatus,
@@ -265,7 +265,7 @@ export class DocumentSession extends YServer {
 		}
 
 		return {
-			changes: summarizeDocumentAiBlockChanges(
+			changes: summarizeDocumentAiLineChanges(
 				group.beforeDocument,
 				this.getCurrentTiptapDocument(),
 			),
