@@ -36,7 +36,7 @@ export function DocumentEditUndoButton({
 		<>
 			<Button
 				type="button"
-				variant="ghost"
+				variant="outline"
 				size="sm"
 				className={className}
 				disabled={undoMutation.isPending}

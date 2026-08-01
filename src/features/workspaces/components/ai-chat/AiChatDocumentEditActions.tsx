@@ -105,7 +105,7 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 		<button
 			type="button"
 			aria-pressed={isReviewActive}
-			className="flex w-full min-w-0 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-foreground/5 aria-pressed:bg-foreground/5"
+			className="flex w-full min-w-0 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-foreground/5"
 			onClick={() => {
 				if (isReviewActive) {
 					hideReview();

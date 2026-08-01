@@ -38,7 +38,6 @@ import {
 } from "#/features/workspaces/components/WorkspaceToolbar";
 import {
 	workspaceToolbarGroupClassName,
-	workspaceToolbarTextButtonClass,
 	workspaceToolbarTextButtonSizeClass,
 } from "#/features/workspaces/components/workspace-toolbar-styles";
 
@@ -131,7 +130,7 @@ function DocumentEditReviewControls({
 			</span>
 			{canUndo ? (
 				<DocumentEditUndoButton
-					className={workspaceToolbarTextButtonClass}
+					className={workspaceToolbarTextButtonSizeClass}
 					itemId={itemId}
 					receiptIds={receiptIds}
 					workspaceId={workspaceId}
