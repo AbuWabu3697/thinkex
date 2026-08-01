@@ -8,19 +8,33 @@ export interface DocumentEditReceiptTarget {
 	workspaceId: string;
 }
 
-export function documentEditReceiptReviewQueryOptions(target: DocumentEditReceiptTarget) {
+export interface DocumentEditReviewTarget extends DocumentEditReceiptTarget {
+	/** When this review was opened. */
+	openedAt: number;
+}
+
+export function documentEditReceiptReviewQueryOptions(target: DocumentEditReviewTarget) {
 	return queryOptions({
+		// The open is part of the key. This response is a judgement about the
+		// document as it stood when it was fetched, so an answer from an earlier
+		// open must not be reachable: it would mark the reader's own later writing
+		// as the assistant's.
 		queryKey: [
 			"workspace-document-edit-review",
 			target.workspaceId,
 			target.itemId,
 			target.receiptIds.join(":"),
+			target.openedAt,
 		],
-		queryFn: () => getDocumentEditReceiptReviewFn({ data: target }),
-		// Deliberately not cached. This response carries the server's verdict on
-		// whether the document still matches the receipt, and a verdict cached
-		// from an earlier open would mark the reader's own later writing as the
-		// assistant's.
-		staleTime: 0,
+		queryFn: () =>
+			getDocumentEditReceiptReviewFn({
+				data: {
+					itemId: target.itemId,
+					receiptIds: target.receiptIds,
+					workspaceId: target.workspaceId,
+				},
+			}),
+		// Nothing outlives its open, so an entry is dead the moment the key moves.
+		gcTime: 0,
 	});
 }

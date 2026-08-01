@@ -29,6 +29,7 @@ export function useDocumentEditReviewOverlay({
 	const reviewQuery = useQuery({
 		...documentEditReceiptReviewQueryOptions({
 			itemId,
+			openedAt: target?.openedAt ?? 0,
 			receiptIds: target?.receiptIds ?? ["inactive"],
 			workspaceId,
 		}),
@@ -50,10 +51,7 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
-		// A cached verdict describes the document as it was when it was fetched. On
-		// a second open that document may have moved on, so wait for one that was
-		// asked for now.
-		const review = reviewQuery.dataUpdatedAt >= target.openedAt ? reviewQuery.data : undefined;
+		const review = reviewQuery.data;
 		if (!review) {
 			return;
 		}
@@ -74,15 +72,7 @@ export function useDocumentEditReviewOverlay({
 			hideDocumentEditReview(editor);
 			editor.setEditable(canEdit);
 		};
-	}, [
-		canEdit,
-		editor,
-		hideReview,
-		reviewQuery.data,
-		reviewQuery.dataUpdatedAt,
-		reviewQuery.isError,
-		target,
-	]);
+	}, [canEdit, editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
 }
 
 const unavailableReviewMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {
