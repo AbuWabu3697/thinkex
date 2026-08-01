@@ -2,6 +2,7 @@ import { DOMParser, DOMSerializer, Fragment, type Node as ProseMirrorNode } from
 import { parseHTML } from "linkedom";
 import { nanoid } from "nanoid";
 
+import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import {
 	coerceTiptapDocumentJson,
 	type TiptapDocumentJson,
@@ -251,7 +252,7 @@ export function readDocumentCitationRefs(html: string) {
  */
 export function applyDocumentCitationLocations(
 	html: string,
-	locationsByRef: Map<string, { itemId: string; pageNumber?: number }>,
+	locationsByRef: Map<string, WorkspaceLocation>,
 ) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
@@ -264,7 +265,7 @@ export function applyDocumentCitationLocations(
 			continue;
 		}
 		element.setAttribute("data-item-id", location.itemId);
-		if (location.pageNumber) {
+		if (location.kind === "pdf-page") {
 			element.setAttribute("data-page", String(location.pageNumber));
 		}
 	}

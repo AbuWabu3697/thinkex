@@ -22,23 +22,9 @@ export async function resolveDocumentCitations(input: {
 	}
 
 	const records = await input.context.resolveWorkspaceReferences(refs);
-	const locationsByRef = new Map(
-		records.flatMap((record) =>
-			record.location.kind === "item" || record.location.kind === "pdf-page"
-				? [
-						[
-							record.ref,
-							{
-								itemId: record.location.itemId,
-								...(record.location.kind === "pdf-page"
-									? { pageNumber: record.location.pageNumber }
-									: {}),
-							},
-						] as const,
-					]
-				: [],
-		),
-	);
 
-	return applyDocumentCitationLocations(input.html, locationsByRef);
+	return applyDocumentCitationLocations(
+		input.html,
+		new Map(records.map((record) => [record.ref, record.location])),
+	);
 }
