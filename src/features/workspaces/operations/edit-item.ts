@@ -9,6 +9,7 @@ import {
 	documentAiEditFailureCodes,
 } from "#/features/workspaces/documents/document-ai-edits";
 import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
+import { resolveDocumentCitations } from "#/features/workspaces/operations/document-citations";
 
 export const editWorkspaceItemFailureCodes = [
 	"cannot_edit_root",
@@ -80,7 +81,13 @@ export async function editWorkspaceItemOperation(
 	});
 
 	const result = await documentSession.applyEdits({
-		edits,
+		edits: await Promise.all(
+			edits.map(async (edit) =>
+				"html" in edit
+					? { ...edit, html: await resolveDocumentCitations({ html: edit.html, kernel }) }
+					: edit,
+			),
+		),
 		operationId: accessContext.operationId,
 	});
 

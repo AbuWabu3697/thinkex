@@ -1,4 +1,4 @@
-import { type AnyExtension, Extension, getSchema } from "@tiptap/core";
+import { type AnyExtension, Extension, getSchema, Node } from "@tiptap/core";
 import CodeBlock from "@tiptap/extension-code-block";
 import Highlight from "@tiptap/extension-highlight";
 import HorizontalRule from "@tiptap/extension-horizontal-rule";
@@ -11,6 +11,48 @@ import UnderlineExtension from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 
 export const tiptapDocumentYjsField = "default";
+
+/**
+ * A source reference inside a document. Holds the workspace item id rather than
+ * the ref the assistant cited with: refs belong to one chat turn, and documents
+ * outlive them. The label is stored alongside so rendering needs no lookup and
+ * a deleted source still reads as prose.
+ */
+const Citation = Node.create({
+	name: "citation",
+	group: "inline",
+	inline: true,
+	atom: true,
+
+	addAttributes() {
+		return {
+			itemId: { default: null, parseHTML: (el) => el.getAttribute("data-item-id") },
+			label: { default: null, parseHTML: (el) => el.textContent?.trim() || null },
+			pageNumber: {
+				default: null,
+				parseHTML: (el) => {
+					const page = Number(el.getAttribute("data-page"));
+					return Number.isInteger(page) && page > 0 ? page : null;
+				},
+			},
+		};
+	},
+
+	parseHTML() {
+		return [{ tag: "citation[data-item-id]" }];
+	},
+
+	renderHTML({ node }) {
+		return [
+			"citation",
+			{
+				"data-item-id": node.attrs.itemId,
+				...(node.attrs.pageNumber ? { "data-page": String(node.attrs.pageNumber) } : {}),
+			},
+			node.attrs.label ?? "Source",
+		];
+	},
+});
 export const tiptapDocumentAiRefAttribute = "aiRef";
 
 const DocumentAiRef = Extension.create({
@@ -60,6 +102,7 @@ export function getTiptapDocumentSchemaExtensions({
 } = {}) {
 	return [
 		DocumentAiRef,
+		Citation,
 		StarterKit.configure({
 			heading: {
 				levels: [1, 2, 3, 4],

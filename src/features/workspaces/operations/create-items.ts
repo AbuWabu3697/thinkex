@@ -7,6 +7,7 @@ import {
 import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
 import type { WorkspaceKernelPathResolution } from "#/features/workspaces/kernel/workspace-kernel-types";
 import { parseDocumentAiHtml } from "#/features/workspaces/documents/document-ai-html";
+import { resolveDocumentCitations } from "#/features/workspaces/operations/document-citations";
 import { stringifyTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 import {
 	createWorkspaceReferenceRecords,
@@ -117,7 +118,17 @@ export async function createWorkspaceItemsOperation(
 			continue;
 		}
 
-		const initialContent = getCreateWorkspaceItemInitialContent(itemInput);
+		const initialContent = getCreateWorkspaceItemInitialContent(
+			itemInput.type === "document" && itemInput.initialContent !== undefined
+				? {
+						...itemInput,
+						initialContent: await resolveDocumentCitations({
+							html: itemInput.initialContent,
+							kernel,
+						}),
+					}
+				: itemInput,
+		);
 
 		if (initialContent.status === "failed") {
 			failed.push({

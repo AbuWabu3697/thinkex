@@ -10,6 +10,7 @@ import { DocumentWordCount } from "#/features/workspaces/components/document-edi
 import { useDocumentEditorToolbar } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
 import { useWorkspacePaneRuntime } from "#/features/workspaces/components/WorkspacePaneRuntime";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
+import { useWorkspaceLocationActions } from "#/features/workspaces/locations/workspace-location-context";
 import { DocumentEditReviewExtension } from "#/features/workspaces/documents/document-edit-review-extension";
 import {
 	getTiptapDocumentBaseExtensions,
@@ -69,6 +70,7 @@ function DocumentEditorInstance({
 	workspaceId: string;
 }) {
 	const { capabilities } = useWorkspaceMutationAccess();
+	const { reveal } = useWorkspaceLocationActions();
 	const paneRuntime = useWorkspacePaneRuntime();
 	const [scrollTarget, setScrollTarget] = useState<HTMLDivElement | null>(null);
 	const editor = useEditor({
@@ -86,6 +88,26 @@ function DocumentEditorInstance({
 					? `${item.name} editor`
 					: `${item.name} document`,
 				class: "workspace-document-prose min-h-full p-4 outline-none",
+			},
+			handleDOMEvents: {
+				click: (_view, event) => {
+					const citation = (event.target as HTMLElement | null)?.closest?.(
+						"citation[data-item-id]",
+					);
+					const itemId = citation?.getAttribute("data-item-id");
+					if (!itemId) {
+						return false;
+					}
+
+					const page = Number(citation?.getAttribute("data-page"));
+					event.preventDefault();
+					reveal(
+						Number.isInteger(page) && page > 0
+							? { itemId, kind: "pdf-page", pageNumber: page, version: 1 }
+							: { itemId, kind: "item", version: 1 },
+					);
+					return true;
+				},
 			},
 			handleKeyDown: (_view, event) => {
 				if (event.key !== "Escape" || !paneRuntime?.onCloseItemView) {

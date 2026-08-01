@@ -20,6 +20,7 @@ const supportedDocumentAiHtmlTags = new Set([
 	"b",
 	"blockquote",
 	"br",
+	"citation",
 	"code",
 	"col",
 	"colgroup",
@@ -60,11 +61,10 @@ export function parseDocumentAiHtml(html: string): TiptapDocumentJson {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
-	// Citation tags are taught for chat replies, and models carry the habit into
-	// documents. They are empty elements, so dropping them before validation
-	// costs nothing visible and beats refusing an otherwise good document.
-	for (const element of htmlDocument.body.querySelectorAll("citation")) {
-		element.remove();
+	// A citation the operation could not resolve to a real item cannot navigate
+	// anywhere, so it becomes its own label rather than failing the write.
+	for (const element of htmlDocument.body.querySelectorAll("citation:not([data-item-id])")) {
+		element.replaceWith(htmlDocument.createTextNode(element.textContent ?? ""));
 	}
 
 	validateDocumentAiHtml(htmlDocument.body);
@@ -229,6 +229,43 @@ function isSupportedSpecialElement(element: Element) {
 		return Boolean(element.closest('li[data-type="taskItem"]'));
 	}
 	return true;
+}
+
+/** Absolute paths the assistant cited, for the caller to resolve to item ids. */
+export function readDocumentCitationPaths(html: string) {
+	const htmlDocument = createHtmlDocument();
+	htmlDocument.body.innerHTML = html;
+
+	return [
+		...new Set(
+			[...htmlDocument.body.querySelectorAll("citation[path]")].flatMap(
+				(element) => element.getAttribute("path") ?? [],
+			),
+		),
+	];
+}
+
+/** Rewrite cited paths to the item ids they resolved to. */
+export function applyDocumentCitationItemIds(html: string, itemIdsByPath: Map<string, string>) {
+	const htmlDocument = createHtmlDocument();
+	htmlDocument.body.innerHTML = html;
+
+	for (const element of htmlDocument.body.querySelectorAll("citation[path]")) {
+		const itemId = itemIdsByPath.get(element.getAttribute("path") ?? "");
+		const page = element.getAttribute("page");
+		element.removeAttribute("path");
+		element.removeAttribute("page");
+
+		if (!itemId) {
+			continue;
+		}
+		element.setAttribute("data-item-id", itemId);
+		if (page) {
+			element.setAttribute("data-page", page);
+		}
+	}
+
+	return htmlDocument.body.innerHTML;
 }
 
 function createHtmlDocument() {
