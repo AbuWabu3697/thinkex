@@ -39,15 +39,12 @@ import {
 	tiptapDocumentYjsField,
 } from "#/features/workspaces/documents/tiptap-schema";
 import {
-	readPersistedDocumentYjsUpdate,
-	writePersistedDocumentYjsUpdate,
-} from "#/features/workspaces/documents/document-yjs-persistence";
-import {
 	getWorkspaceKernelFromEnv,
 	type WorkspaceKernelClient,
 } from "#/features/workspaces/kernel/workspace-kernel-access";
 import { sha256Base64Url, sha256Base64UrlText } from "#/lib/binary";
 
+const persistedYDocUpdateKey = "document-session:yjs-update";
 const latestDocumentEditReceiptKey = "document-session:ai-edit-receipt:latest";
 const documentEditReceiptKeyPrefix = "document-session:ai-edit-receipt:";
 const maximumDocumentEditReceiptSnapshotBytes = 1_500_000;
@@ -131,7 +128,7 @@ export class DocumentSession extends YServer {
 	}
 
 	override async onLoad() {
-		const persistedUpdate = await readPersistedDocumentYjsUpdate(this.ctx.storage);
+		const persistedUpdate = await this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey);
 		if (this.deleted) {
 			return;
 		}
@@ -244,8 +241,8 @@ export class DocumentSession extends YServer {
 		this.reconcileCurrentDocument(editResult.document);
 		const persistedUpdate = Y.encodeStateAsUpdate(this.document);
 		await this.ctx.storage.transaction(async (transaction) => {
-			await writePersistedDocumentYjsUpdate(transaction, persistedUpdate);
 			await Promise.all([
+				transaction.put(persistedYDocUpdateKey, persistedUpdate),
 				transaction.put(getDocumentEditReceiptKey(receipt.id), receipt),
 				transaction.put(latestDocumentEditReceiptKey, receipt.id),
 			]);
@@ -293,15 +290,15 @@ export class DocumentSession extends YServer {
 		const persistedUpdate = Y.encodeStateAsUpdate(this.document);
 
 		await this.ctx.storage.transaction(async (transaction) => {
-			await writePersistedDocumentYjsUpdate(transaction, persistedUpdate);
-			await Promise.all(
-				group.receipts.map((receipt) =>
+			await Promise.all([
+				transaction.put(persistedYDocUpdateKey, persistedUpdate),
+				...group.receipts.map((receipt) =>
 					transaction.put(getDocumentEditReceiptKey(receipt.id), {
 						...receipt,
 						status: "reverted",
 					} satisfies StoredDocumentEditReceipt),
 				),
-			);
+			]);
 
 			if (group.previousReceiptId) {
 				await transaction.put(latestDocumentEditReceiptKey, group.previousReceiptId);
@@ -433,10 +430,7 @@ export class DocumentSession extends YServer {
 			return;
 		}
 
-		const update = Y.encodeStateAsUpdate(this.document);
-		await this.ctx.storage.transaction((transaction) =>
-			writePersistedDocumentYjsUpdate(transaction, update),
-		);
+		await this.ctx.storage.put(persistedYDocUpdateKey, Y.encodeStateAsUpdate(this.document));
 	}
 
 	private async getReferencedDocumentSnapshot() {
@@ -444,17 +438,12 @@ export class DocumentSession extends YServer {
 		if (refs.changed) {
 			this.reconcileCurrentDocument(coerceTiptapDocumentJson(refs.document.toJSON()));
 			await this.persistYDoc();
-			return this.getDocumentSnapshot();
 		}
-		return {
-			document: refs.document,
-			stateVector: Uint8Array.from(Y.encodeStateVector(this.document)),
-		};
-	}
 
-	private getDocumentSnapshot() {
 		return {
-			document: this.getCurrentProseMirrorDocument(),
+			// Re-read through Yjs after reconciling so the snapshot matches what
+			// collaborators see, not the detached node the refs pass produced.
+			document: refs.changed ? this.getCurrentProseMirrorDocument() : refs.document,
 			stateVector: Uint8Array.from(Y.encodeStateVector(this.document)),
 		};
 	}
