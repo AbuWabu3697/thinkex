@@ -333,7 +333,12 @@ export const workspaceListItemsOutputSchema = z.object({
 });
 
 export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema({
-	itemSchema: workspacePathItemSchema.extend({ itemId: z.string().min(1) }),
+	itemSchema: workspacePathItemSchema.extend({
+		itemId: z.string().min(1),
+		// Creation makes these two and nothing else; the shared item type covers
+		// files and study items this tool cannot produce.
+		type: z.enum(["document", "folder"]),
+	}),
 	failureSchema: createFailureSchema(createWorkspaceItemsFailureCodes),
 }).extend({
 	references: z.array(workspaceReferenceRecordSchema),

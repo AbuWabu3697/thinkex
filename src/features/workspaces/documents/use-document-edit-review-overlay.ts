@@ -39,13 +39,21 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
+		// Freeze on request rather than on arrival: the verdict takes a round trip,
+		// and a document that accepts typing in the meantime is one whose marks
+		// will not match it.
+		editor.setEditable(false);
+
 		if (reviewQuery.isError) {
 			toast.error("Could not load these changes.");
 			hideReview();
 			return;
 		}
 
-		const review = reviewQuery.data;
+		// A cached verdict describes the document as it was when it was fetched. On
+		// a second open that document may have moved on, so wait for one that was
+		// asked for now.
+		const review = reviewQuery.dataUpdatedAt >= target.openedAt ? reviewQuery.data : undefined;
 		if (!review) {
 			return;
 		}
@@ -61,13 +69,20 @@ export function useDocumentEditReviewOverlay({
 		// Reviewing is a reading mode: hold the document still until Done rather
 		// than deciding what a keystroke mid-review was supposed to mean.
 		showDocumentEditReview(editor, review.beforeDocument);
-		editor.setEditable(false);
 
 		return () => {
 			hideDocumentEditReview(editor);
 			editor.setEditable(canEdit);
 		};
-	}, [canEdit, editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
+	}, [
+		canEdit,
+		editor,
+		hideReview,
+		reviewQuery.data,
+		reviewQuery.dataUpdatedAt,
+		reviewQuery.isError,
+		target,
+	]);
 }
 
 const unavailableReviewMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {

@@ -9,6 +9,9 @@ import { useWorkspaceLocationActions } from "#/features/workspaces/locations/wor
  */
 export interface ActiveDocumentEditReview {
 	itemId: string;
+	/** When this review was opened. The overlay ignores any verdict older than
+	 * this, because a cached one describes a document that has since moved on. */
+	openedAt: number;
 	receiptIds: string[];
 }
 
@@ -39,7 +42,11 @@ export function DocumentEditReviewProvider({
 				return false;
 			}
 
-			setActiveReview({ itemId: input.itemId, receiptIds: input.receiptIds });
+			setActiveReview({
+				itemId: input.itemId,
+				openedAt: Date.now(),
+				receiptIds: input.receiptIds,
+			});
 			return true;
 		},
 		[reveal],

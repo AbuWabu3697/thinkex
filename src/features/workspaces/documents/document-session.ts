@@ -180,8 +180,10 @@ export class DocumentSession extends YServer {
 		input: DocumentSessionApplyEditsInput,
 	): Promise<DocumentSessionApplyEditsResult> {
 		this.assertActive();
-		const inputHash = await sha256Base64UrlText(JSON.stringify(input.edits));
-		const existingReceipt = await this.getDocumentEditReceipt(input.operationId);
+		const [inputHash, existingReceipt] = await Promise.all([
+			sha256Base64UrlText(JSON.stringify(input.edits)),
+			this.getDocumentEditReceipt(input.operationId),
+		]);
 
 		if (existingReceipt) {
 			return existingReceipt.inputHash === inputHash
