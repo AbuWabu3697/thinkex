@@ -59,6 +59,10 @@ export default function AiChatMessageRow({
 		? []
 		: displayableParts.filter((part) => !isAttachmentPart(part));
 	const copyableText = !isStreaming ? getCopyableMessageText(message) : "";
+	const documentEditGroups =
+		isAssistant && display?.kind === "content" && !isStreaming
+			? getAiChatDocumentEditGroups(display.parts)
+			: [];
 
 	return (
 		<Message align={isAssistant ? "start" : "end"}>
@@ -86,6 +90,11 @@ export default function AiChatMessageRow({
 							)}
 						</BubbleContent>
 					</Bubble>
+				) : null}
+				{/* Outside the bubble on purpose: the bubble is w-fit and clips its
+				    overflow, so a receipt inside it is only as wide as the reply. */}
+				{documentEditGroups.length > 0 ? (
+					<AiChatDocumentEditActions groups={documentEditGroups} />
 				) : null}
 				{isAssistant && display?.kind === "content" && display.parts.length > 0 && !isStreaming ? (
 					<MessageFooter
@@ -206,20 +215,14 @@ function AssistantMessageBody({
 	workspaceCitationLocations: ReturnType<typeof getWorkspaceCitationLocations>;
 }) {
 	if (display.kind === "content") {
-		const editGroups = isStreaming ? [] : getAiChatDocumentEditGroups(display.parts);
-		return (
-			<>
-				{display.parts.map((part, index) => (
-					<AiChatMessagePartView
-						key={getMessagePartKey(message.id, part, index)}
-						isStreaming={isStreaming}
-						part={part}
-						workspaceCitationLocations={workspaceCitationLocations}
-					/>
-				))}
-				{editGroups.length > 0 ? <AiChatDocumentEditActions groups={editGroups} /> : null}
-			</>
-		);
+		return display.parts.map((part, index) => (
+			<AiChatMessagePartView
+				key={getMessagePartKey(message.id, part, index)}
+				isStreaming={isStreaming}
+				part={part}
+				workspaceCitationLocations={workspaceCitationLocations}
+			/>
+		));
 	}
 
 	if (display.kind === "empty-terminal") {

@@ -56,7 +56,7 @@ export function AiChatDocumentEditActions({
 	return (
 		<div
 			aria-label="Document changes from this response"
-			className="mt-2 overflow-hidden rounded-lg bg-muted/40"
+			className="overflow-hidden rounded-lg bg-muted/40"
 		>
 			<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground text-xs">
 				<FilePen className="size-3 shrink-0" aria-hidden="true" />
