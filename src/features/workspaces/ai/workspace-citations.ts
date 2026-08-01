@@ -78,7 +78,7 @@ function getWorkspaceCitationRecords(message: UIMessage): readonly WorkspaceRefe
 }
 
 /**
- * Collects app-issued reference records from direct workspace reads and
+ * Collects app-issued reference records from direct workspace tools and
  * normalized citation data in a persisted transcript.
  *
  * Code Mode's final result is model-authored, so genuine nested reads are
@@ -119,7 +119,7 @@ export function collectWorkspaceReferenceRecords(
 /**
  * Builds the unambiguous ref-to-location map available while rendering a message.
  *
- * Persisted citations and completed direct workspace-read outputs both
+ * Persisted citations and completed direct workspace-tool outputs both
  * contribute, so direct tool citations can appear before post-response
  * reconciliation arrives.
  *

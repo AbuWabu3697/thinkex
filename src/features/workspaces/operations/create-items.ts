@@ -9,6 +9,10 @@ import type { WorkspaceKernelPathResolution } from "#/features/workspaces/kernel
 import { parseMarkdownToTiptapDocumentProjection } from "#/features/workspaces/documents/document-markdown";
 import { stringifyTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 import {
+	createWorkspaceReferenceRecords,
+	type WorkspaceReferenceRecord,
+} from "#/features/workspaces/locations/workspace-location";
+import {
 	getParentWorkspacePath,
 	getWorkspacePathName,
 	joinWorkspaceItemPath,
@@ -47,6 +51,7 @@ export interface CreateWorkspaceItemsFailure {
 }
 
 export interface CreatedWorkspaceItem {
+	itemId: string;
 	path: string;
 	type: "document" | "folder";
 	warnings?: string[];
@@ -55,6 +60,7 @@ export interface CreatedWorkspaceItem {
 export interface CreateWorkspaceItemsOperationResult {
 	items: CreatedWorkspaceItem[];
 	failed: CreateWorkspaceItemsFailure[];
+	references: WorkspaceReferenceRecord[];
 }
 
 type CreateWorkspaceItemPathResolution =
@@ -168,6 +174,7 @@ export async function createWorkspaceItemsOperation(
 		}
 
 		items.push({
+			itemId: id,
 			path: createdPath,
 			type: itemInput.type,
 			...(initialContent.warnings && initialContent.warnings.length > 0
@@ -179,6 +186,9 @@ export async function createWorkspaceItemsOperation(
 	return {
 		items,
 		failed,
+		references: createWorkspaceReferenceRecords(
+			items.map((item) => ({ itemId: item.itemId, kind: "item", version: 1 })),
+		),
 	};
 }
 

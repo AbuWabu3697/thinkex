@@ -61,6 +61,8 @@ const AI_THREAD_WORKSPACE_CITATION_PROMPT = [
 	'- When a direct quote or important factual claim depends on workspace material with a ref, place `<citation ref="wr_7Kp2Qa9x"></citation>` immediately after the supported text.',
 	"- Copy the ref exactly. Never invent, alter, or reuse a ref for different material, and never use workspace citation tags for web sources or unsupported claims.",
 	"- Cite selectively: important claims, conclusions, summaries, and direct quotations—not every sentence, reasoning step, transition, or common knowledge.",
+	"- When you mention a successfully created workspace item and its creation result provides a ref, cite the item name with that ref.",
+	"- Workspace names and paths are not URLs. Never construct Markdown links to workspace items from a name, path, or the current app origin.",
 	"- The citation element must be empty and contain only the `ref` attribute. If no supporting ref was provided, omit the citation.",
 ].join("\n");
 const WORKSPACE_FS_METHOD_NAMES = [

@@ -15,6 +15,7 @@ import {
 	workspaceRelationKindSchema,
 } from "#/features/workspaces/contracts";
 import { documentMarkdownEditSchema } from "#/features/workspaces/documents/document-markdown-edits";
+import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/workspace-location";
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
 import {
 	workspaceSearchInputSchema,
@@ -321,6 +322,7 @@ export const workspaceListItemsOutputSchema = z.object({
 
 export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema({
 	itemSchema: z.object({
+		itemId: z.string().min(1),
 		path: workspacePathSchema,
 		type: z.enum(["document", "folder"]),
 		warnings: z
@@ -329,6 +331,8 @@ export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema
 			.describe("Content projection warnings for created documents."),
 	}),
 	failureSchema: createFailureSchema(createWorkspaceItemsFailureCodes),
+}).extend({
+	references: z.array(workspaceReferenceRecordSchema),
 });
 
 export const workspaceDeleteItemsOutputSchema = createWorkspaceItemsResultSchema({
