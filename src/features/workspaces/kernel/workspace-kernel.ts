@@ -2,7 +2,7 @@ import { Workspace as ShellWorkspace } from "@cloudflare/shell";
 import { Agent, type Connection, type ConnectionContext } from "agents";
 
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
-import { getDocumentSessionFromEnv } from "#/features/workspaces/document-session-access";
+import { getDocumentSessionForDeletionFromEnv } from "#/features/workspaces/document-session-access";
 import { reconcileWorkspaceFileExtractions } from "#/features/workspaces/extraction/workspace-file-extraction-reconciler";
 import type { ResourcePurgeResult } from "#/features/workspaces/resource-purge-result";
 import { WorkspaceKernelEventBus } from "#/features/workspaces/kernel/workspace-kernel-events";
@@ -70,6 +70,7 @@ import type { WorkspaceSearchInput } from "#/features/workspaces/search/workspac
 const workspaceKernelInlineThresholdBytes = 1_500_000;
 const workspaceExtractionHealingThrottleMs = 60_000;
 const workspacePurgeMaximumAttempts = 5;
+const documentSessionPurgeBatchSize = 6;
 
 export { setWorkspaceKernelUserHeaders };
 
@@ -135,9 +136,13 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 		workspaceId: () => this.name,
 	});
 
-	async onStart() {
+	constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
+		super(ctx, env);
 		initializeWorkspaceKernelStorage(this.kernelSql);
 		this.search.initialize();
+	}
+
+	async onStart() {
 		if (this.search.hasPending()) {
 			await this.scheduleWorkspaceSearchIndexing();
 		}
@@ -303,8 +308,60 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 		return this.runMutation("delete_items", input, input.itemIds.length, async () => {
 			const command = await this.itemCommands.deleteItems(input);
 			await this.fileCommands.deleteObjects(command.result.deletedItemIds);
+			await this.purgeDeletedDocumentSessions({ itemIds: command.result.deletedItemIds });
 			return command;
 		});
+	}
+
+	async purgeDeletedDocumentSessions(input: {
+		itemIds: string[];
+		attempt?: number;
+	}): Promise<void> {
+		const documentItemIds = input.itemIds.filter(
+			(itemId) => this.store.getItemRowIncludingDeleted(itemId)?.type === "document",
+		);
+		const failedItemIds: string[] = [];
+
+		for (let offset = 0; offset < documentItemIds.length; offset += documentSessionPurgeBatchSize) {
+			const batch = documentItemIds.slice(offset, offset + documentSessionPurgeBatchSize);
+			const results = await Promise.allSettled(
+				batch.map((itemId) =>
+					getDocumentSessionForDeletionFromEnv(this.env, {
+						workspaceId: this.name,
+						itemId,
+					}).purgeForDeletion(),
+				),
+			);
+
+			for (const [index, result] of results.entries()) {
+				if (result.status === "rejected") {
+					const itemId = batch[index];
+					if (!itemId) {
+						continue;
+					}
+					failedItemIds.push(itemId);
+					recordOperationalFailure({
+						error: result.reason,
+						event: "workspace_document_purge",
+						fields: {
+							item_id: itemId,
+							reason: "item_deleted",
+							workspace_id: this.name,
+						},
+					});
+				}
+			}
+		}
+
+		const attempt = input.attempt ?? 1;
+		if (failedItemIds.length > 0 && attempt < workspacePurgeMaximumAttempts) {
+			await this.schedule(
+				attempt * 5,
+				"purgeDeletedDocumentSessions",
+				{ itemIds: failedItemIds, attempt: attempt + 1 },
+				{ idempotent: false },
+			);
+		}
 	}
 
 	async readDocumentCheckpoint(input: ReadWorkspaceDocumentCheckpointArgs) {
@@ -384,7 +441,7 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 
 		for (const itemId of documentItemIds) {
 			try {
-				await getDocumentSessionFromEnv(this.env, {
+				await getDocumentSessionForDeletionFromEnv(this.env, {
 					workspaceId,
 					itemId,
 				}).purgeForDeletion();
@@ -425,7 +482,10 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 
 		// Keep the local inventory when a remote purge fails so cleanup can be retried.
 		if (failed === 0) {
-			await this.destroy();
+			for (const connection of this.getConnections()) {
+				connection.close(1008, "Workspace deleted");
+			}
+			await this.ctx.storage.deleteAll();
 		} else {
 			const attempt = input.attempt ?? 1;
 			if (attempt < workspacePurgeMaximumAttempts) {

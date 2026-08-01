@@ -359,9 +359,9 @@ export async function getWorkspaceKernelFromEnv(
 	return namespace.getByName(workspaceId);
 }
 
-function isWorkspaceKernelNamespace(
-	value: unknown,
-): value is { getByName(name: string): WorkspaceKernelClient } {
+function isWorkspaceKernelNamespace(value: unknown): value is {
+	getByName(name: string): WorkspaceKernelClient;
+} {
 	return (
 		typeof value === "object" &&
 		value !== null &&

@@ -5,8 +5,8 @@ import {
 } from "@tiptap/y-tiptap";
 import type { Connection, ConnectionContext } from "partyserver";
 import * as Y from "yjs";
+import { YServer } from "y-partyserver";
 import type { DocumentSessionRouteParams } from "#/features/workspaces/agent-routes";
-import { CollaborativeContentSession } from "#/features/workspaces/collaborative-content-session";
 import {
 	parseMarkdownToTiptapDocumentProjection,
 	serializeTiptapDocumentToMarkdown,
@@ -62,7 +62,7 @@ export interface DocumentSessionApplyMarkdownEditsResult {
 	warnings: string[];
 }
 
-export class DocumentSession extends CollaborativeContentSession {
+export class DocumentSession extends YServer {
 	static override options = {
 		hibernate: true,
 	};
@@ -72,6 +72,7 @@ export class DocumentSession extends CollaborativeContentSession {
 		snapshot: DocumentMarkdownSnapshot;
 		stateVector: Uint8Array;
 	};
+	private deleted = false;
 
 	static override callbackOptions = {
 		debounceWait: checkpointDelayMs,
@@ -82,6 +83,11 @@ export class DocumentSession extends CollaborativeContentSession {
 		connection: Connection<DocumentSessionConnectionState>,
 		context: ConnectionContext,
 	) {
+		if (this.deleted) {
+			connection.close(1008, "Document deleted");
+			return;
+		}
+
 		const access = readForwardedDocumentSessionConnectionAccess(context.request);
 
 		if (!access) {
@@ -97,11 +103,14 @@ export class DocumentSession extends CollaborativeContentSession {
 	}
 
 	override isReadOnly(connection: Connection<DocumentSessionConnectionState>) {
-		return connection.state?.canMutate !== true;
+		return this.deleted || connection.state?.canMutate !== true;
 	}
 
 	override async onLoad() {
 		const persistedUpdate = await this.ctx.storage.get<Uint8Array>(persistedYDocUpdateKey);
+		if (this.deleted) {
+			return;
+		}
 
 		if (persistedUpdate) {
 			Y.applyUpdate(this.document, persistedUpdate, this);
@@ -111,6 +120,9 @@ export class DocumentSession extends CollaborativeContentSession {
 		const room = getDocumentSessionRoomNameParts(this.name);
 		const kernel = await this.getWorkspaceKernel(room.workspaceId);
 		const { content } = await kernel.readDocumentCheckpoint({ itemId: room.itemId });
+		if (this.deleted) {
+			return;
+		}
 		const snapshot = parseTiptapDocumentJson(content);
 		const seededDoc = prosemirrorJSONToYDoc(
 			getTiptapDocumentSchema(),
@@ -124,14 +136,21 @@ export class DocumentSession extends CollaborativeContentSession {
 	}
 
 	override async onSave() {
+		if (this.deleted) {
+			return;
+		}
+
 		await this.persistYDoc();
+		if (this.deleted) {
+			return;
+		}
 		await this.checkpointToKernel();
 	}
 
 	async applyMarkdownEdits(
 		input: DocumentSessionApplyMarkdownEditsInput,
 	): Promise<DocumentSessionApplyMarkdownEditsResult> {
-		await this.ensureLoaded();
+		this.assertActive();
 		const currentDocument = this.getCurrentTiptapDocument();
 		const markdown = serializeTiptapDocumentToMarkdown(currentDocument);
 		const editResult = applyDocumentMarkdownEdits(markdown, input.edits);
@@ -163,7 +182,9 @@ export class DocumentSession extends CollaborativeContentSession {
 		this.replaceCurrentDocument(projection.document);
 
 		await this.persistYDoc();
+		this.assertActive();
 		await this.checkpointToKernel();
+		this.assertActive();
 
 		return {
 			applied: editResult.applied,
@@ -177,7 +198,7 @@ export class DocumentSession extends CollaborativeContentSession {
 	async readMarkdownChunk(
 		input: DocumentMarkdownChunkReadInput,
 	): Promise<DocumentMarkdownChunkReadResult> {
-		await this.ensureLoaded();
+		this.assertActive();
 		const stateVector = Uint8Array.from(Y.encodeStateVector(this.document));
 		let currentSnapshot = this.markdownSnapshot;
 		if (!currentSnapshot || !uint8ArraysEqual(currentSnapshot.stateVector, stateVector)) {
@@ -187,6 +208,7 @@ export class DocumentSession extends CollaborativeContentSession {
 				snapshot: createDocumentMarkdownSnapshot(markdown),
 				stateVector,
 			};
+			this.assertActive();
 			this.markdownSnapshot = currentSnapshot;
 		}
 		if (input.expectedRevision && input.expectedRevision !== currentSnapshot.revision) {
@@ -200,8 +222,11 @@ export class DocumentSession extends CollaborativeContentSession {
 	}
 
 	async purgeForDeletion(): Promise<void> {
-		// Deliberately no ensureLoaded(): this only wipes durable storage, so
-		// hydrating the in-memory document first would be wasted work.
+		this.deleted = true;
+		for (const connection of this.getConnections()) {
+			connection.close(1008, "Document deleted");
+		}
+		this.document.destroy();
 		await this.ctx.storage.deleteAll();
 	}
 
@@ -234,7 +259,17 @@ export class DocumentSession extends CollaborativeContentSession {
 	}
 
 	private async persistYDoc() {
+		if (this.deleted) {
+			return;
+		}
+
 		await this.ctx.storage.put(persistedYDocUpdateKey, Y.encodeStateAsUpdate(this.document));
+	}
+
+	private assertActive() {
+		if (this.deleted) {
+			throw new Error("Document session has been deleted.");
+		}
 	}
 
 	private async getWorkspaceKernel(workspaceId: string): Promise<WorkspaceKernelClient> {

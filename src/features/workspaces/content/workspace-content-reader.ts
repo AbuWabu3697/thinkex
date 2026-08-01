@@ -37,7 +37,7 @@ interface PendingReadyResult {
 
 export async function readWorkspaceContent(input: {
 	bucket: R2Bucket;
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	kernel: WorkspaceKernelClient;
 	requests: WorkspaceContentReadRequest[];
 }): Promise<WorkspaceContentReadResult[]> {
@@ -118,7 +118,7 @@ export async function readWorkspaceContent(input: {
 
 async function readWorkspaceItem(input: {
 	bucket: R2Bucket;
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	item: WorkspaceItemSummary;
 	kernel: WorkspaceKernelClient;
 	path: string;
@@ -134,7 +134,7 @@ async function readWorkspaceItem(input: {
 }
 
 async function readDocument(input: {
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	item: WorkspaceItemSummary;
 	path: string;
 	request: WorkspaceContentReadRequest;
@@ -149,7 +149,8 @@ async function readDocument(input: {
 		return { code: "invalid_cursor", path: input.path, status: "failed" };
 	}
 
-	const chunk = await input.getDocumentSession(input.item.id).readMarkdownChunk({
+	const documentSession = await input.getDocumentSession(input.item.id);
+	const chunk = await documentSession.readMarkdownChunk({
 		expectedRevision: cursor?.kind === "document" ? cursor.revision : undefined,
 		offset: cursor?.kind === "document" ? cursor.offset : 0,
 	});
