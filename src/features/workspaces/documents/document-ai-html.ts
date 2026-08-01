@@ -12,6 +12,7 @@ import {
 } from "#/features/workspaces/documents/tiptap-schema";
 import { sha256Base64UrlText } from "#/lib/binary";
 
+const TEXT_NODE = 3;
 const documentAiRefPattern = /^b_[A-Za-z0-9_-]{12}$/;
 const documentAiTargetRefPattern = /^(b_[A-Za-z0-9_-]{12})\.r_[A-Za-z0-9_-]{10}$/;
 const supportedDocumentAiHtmlTags = new Set([
@@ -181,6 +182,18 @@ function serializeTiptapFragmentToAiHtml(fragment: Fragment) {
 }
 
 function validateDocumentAiHtml(root: HTMLElement) {
+	// Text sitting at the top level means this is not HTML at all — Markdown,
+	// most often, which a model reaches for by habit. ProseMirror would take it
+	// without complaint and flatten the whole thing into one paragraph of
+	// literal source, so refuse it while the edit can still be reported failed.
+	for (const node of root.childNodes) {
+		if (node.nodeType === TEXT_NODE && node.textContent?.trim()) {
+			throw new DocumentAiHtmlError(
+				"Document content must be HTML elements. Plain text and Markdown are not accepted.",
+			);
+		}
+	}
+
 	for (const element of root.querySelectorAll("*")) {
 		const tagName = element.tagName.toLowerCase();
 		if (!supportedDocumentAiHtmlTags.has(tagName) || !isSupportedSpecialElement(element)) {
