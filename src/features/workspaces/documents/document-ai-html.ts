@@ -232,48 +232,33 @@ function isSupportedSpecialElement(element: Element) {
 	return true;
 }
 
-/**
- * What a document's citations need looked up: the refs the assistant just cited,
- * and any already-stored citation that has lost its name. A rewrite echoes the
- * stored form back, and a model that keeps the attributes but drops the text
- * would otherwise leave a source that points somewhere and is called nothing.
- */
-export function readDocumentCitationSubjects(html: string) {
+/** Short refs the assistant cited, for the caller to resolve to locations. */
+export function readDocumentCitationRefs(html: string) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
-	return {
-		refs: [
-			...new Set(
-				[...htmlDocument.body.querySelectorAll("citation[ref]")].flatMap(
-					(element) => element.getAttribute("ref") ?? [],
-				),
+	return [
+		...new Set(
+			[...htmlDocument.body.querySelectorAll("citation[ref]")].flatMap(
+				(element) => element.getAttribute("ref") ?? [],
 			),
-		],
-		unnamedItemIds: [
-			...new Set(
-				[...htmlDocument.body.querySelectorAll("citation[data-item-id]")].flatMap((element) =>
-					element.textContent?.trim() ? [] : (element.getAttribute("data-item-id") ?? []),
-				),
-			),
-		],
-	};
+		),
+	];
 }
 
 /**
- * Rewrite cited refs to the locations they stand for, and name every citation
- * after its source. A ref belongs to one chat turn; the location outlives it, so
- * that is what the document keeps.
+ * Rewrite cited refs to the locations they stand for. A ref belongs to one chat
+ * turn; the location outlives it, so that is what the document keeps.
  */
-export function applyDocumentCitationSources(
+export function applyDocumentCitationLocations(
 	html: string,
-	sources: { locationsByRef: Map<string, WorkspaceLocation>; namesByItemId: Map<string, string> },
+	locationsByRef: Map<string, WorkspaceLocation>,
 ) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
 	for (const element of htmlDocument.body.querySelectorAll("citation[ref]")) {
-		const location = sources.locationsByRef.get(element.getAttribute("ref") ?? "");
+		const location = locationsByRef.get(element.getAttribute("ref") ?? "");
 		element.removeAttribute("ref");
 
 		if (!location) {
@@ -283,18 +268,6 @@ export function applyDocumentCitationSources(
 		if (location.kind === "pdf-page") {
 			element.setAttribute("data-page", String(location.pageNumber));
 		}
-	}
-
-	// The citation prompt tells the assistant to leave the element empty, so the
-	// source names itself here rather than being asked for twice.
-	for (const element of htmlDocument.body.querySelectorAll("citation[data-item-id]")) {
-		const name = sources.namesByItemId.get(element.getAttribute("data-item-id") ?? "");
-		if (!name || element.textContent?.trim()) {
-			continue;
-		}
-
-		const page = element.getAttribute("data-page");
-		element.textContent = page ? `${name}, p. ${page}` : name;
 	}
 
 	return htmlDocument.body.innerHTML;

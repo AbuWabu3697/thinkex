@@ -15,10 +15,10 @@ export const tiptapDocumentYjsField = "default";
 /**
  * A source reference inside a document. Holds the workspace item id rather than
  * the ref the assistant cited with: refs belong to one chat turn, and documents
- * outlive them. The label is stored alongside so rendering needs no lookup and
- * a deleted source still reads as prose.
+ * outlive them. What the source is called is looked up when it is drawn, the
+ * same way a chat citation does it, so a renamed source stays right.
  */
-const Citation = Node.create({
+export const Citation = Node.create({
 	name: "citation",
 	group: "inline",
 	inline: true,
@@ -27,7 +27,6 @@ const Citation = Node.create({
 	addAttributes() {
 		return {
 			itemId: { default: null, parseHTML: (el) => el.getAttribute("data-item-id") },
-			label: { default: null, parseHTML: (el) => el.textContent?.trim() || null },
 			pageNumber: {
 				default: null,
 				parseHTML: (el) => {
@@ -49,7 +48,6 @@ const Citation = Node.create({
 				"data-item-id": node.attrs.itemId,
 				...(node.attrs.pageNumber ? { "data-page": String(node.attrs.pageNumber) } : {}),
 			},
-			node.attrs.label ?? "Source",
 		];
 	},
 });
@@ -96,13 +94,15 @@ const DocumentAiRef = Extension.create({
 export const tiptapDocumentKernelCodeBlock = CodeBlock;
 
 export function getTiptapDocumentSchemaExtensions({
+	citation = Citation,
 	codeBlock = tiptapDocumentKernelCodeBlock,
 }: {
+	citation?: AnyExtension;
 	codeBlock?: AnyExtension;
 } = {}) {
 	return [
 		DocumentAiRef,
-		Citation,
+		citation,
 		StarterKit.configure({
 			heading: {
 				levels: [1, 2, 3, 4],

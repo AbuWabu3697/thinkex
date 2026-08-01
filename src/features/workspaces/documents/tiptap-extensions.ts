@@ -3,6 +3,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import "katex/dist/katex.min.css";
 
 import { CodeBlockShiki } from "#/features/workspaces/documents/code-block-shiki";
+import { DocumentCitation } from "#/features/workspaces/documents/document-citation-node";
 import {
 	getTiptapDocumentSchemaExtensions,
 	tiptapDocumentYjsField,
@@ -13,7 +14,8 @@ export { tiptapDocumentYjsField };
 export function getTiptapDocumentBaseExtensions() {
 	return [
 		...getTiptapDocumentSchemaExtensions({
-			// Extends the same codeBlock node spec used by tiptapDocumentKernelCodeBlock.
+			// Both extend the node spec the server uses, adding only how it draws.
+			citation: DocumentCitation,
 			codeBlock: CodeBlockShiki,
 		}),
 		Placeholder.configure({

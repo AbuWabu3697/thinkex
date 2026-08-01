@@ -665,24 +665,6 @@
 		color: var(--muted-foreground);
 	}
 
-	.workspace-document-prose citation {
-		display: inline-flex;
-		align-items: center;
-		margin-inline: 0.1rem;
-		padding-inline: 0.35rem;
-		border-radius: 999px;
-		background: color-mix(in oklab, var(--muted) 70%, transparent);
-		color: var(--muted-foreground);
-		cursor: pointer;
-		font-size: 0.8em;
-		vertical-align: baseline;
-	}
-
-	.workspace-document-prose citation:hover {
-		background: color-mix(in oklab, var(--muted) 100%, transparent);
-		color: var(--foreground);
-	}
-
 	.workspace-document-prose a {
 		color: var(--primary);
 		cursor: pointer;
