@@ -131,7 +131,8 @@ export function WorkspaceShell({
 		const viewInstanceId = revealWorkspaceLocation(location);
 
 		if (viewInstanceId && chatSurfaceMode === "fullscreen") {
-			setChatSurfaceMode(workspace.id, "hidden");
+			// Desktop docks the chat beside what was just opened; mobile has no docked mode.
+			setChatSurfaceMode(workspace.id, viewportMode === "mobile" ? "hidden" : "docked");
 		}
 
 		return viewInstanceId;
