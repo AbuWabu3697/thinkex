@@ -3,6 +3,7 @@ import type { WorkspaceKernelSql } from "#/features/workspaces/kernel/workspace-
 import type { WorkspaceRealtimeEvent } from "#/features/workspaces/realtime/messages";
 import type { WorkspaceSearchFileSystem } from "#/features/workspaces/search/workspace-search-content";
 import type { WorkspaceSearchInput } from "#/features/workspaces/search/workspace-search-contract";
+import { isWorkspaceSearchableItemType } from "#/features/workspaces/workspace-item-registry";
 import { WorkspaceSearchIndexer } from "#/features/workspaces/search/workspace-search-indexer";
 import { WorkspaceSearchQuery } from "#/features/workspaces/search/workspace-search-query";
 import { initializeWorkspaceSearchStorage } from "#/features/workspaces/search/workspace-search-schema";
@@ -37,6 +38,8 @@ export class WorkspaceSearchProjection {
 	observe(event: WorkspaceRealtimeEvent) {
 		switch (event.type) {
 			case "workspace.item.created":
+				// Deliberately narrower than the searchable types: a new file has no
+				// extracted text yet and gets picked up on its projection update.
 				if (event.payload.item.type === "document") {
 					this.indexer.markPending(event.payload.item.id);
 				}
@@ -45,19 +48,19 @@ export class WorkspaceSearchProjection {
 				this.indexer.markPending(event.payload.item.id);
 				break;
 			case "workspace.item.renamed":
-				if (event.payload.item.type === "document" || event.payload.item.type === "file") {
+				if (isWorkspaceSearchableItemType(event.payload.item.type)) {
 					this.indexer.markPending(event.payload.item.id);
 				}
 				break;
 			case "workspace.item.moved":
 				// Folder scope follows the live tree, so only moved content needs new metadata.
-				if (event.payload.item.type === "document" || event.payload.item.type === "file") {
+				if (isWorkspaceSearchableItemType(event.payload.item.type)) {
 					this.indexer.markPending(event.payload.item.id);
 				}
 				break;
 			case "workspace.items.moved":
 				for (const item of event.payload.items) {
-					if (item.type === "document" || item.type === "file") {
+					if (isWorkspaceSearchableItemType(item.type)) {
 						this.indexer.markPending(item.id);
 					}
 				}

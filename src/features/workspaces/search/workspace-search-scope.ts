@@ -9,6 +9,7 @@ import type {
 	WorkspaceSearchFailure,
 	WorkspaceSearchItemType,
 } from "#/features/workspaces/search/workspace-search-contract";
+import { isWorkspaceSearchableItemType } from "#/features/workspaces/workspace-item-registry";
 
 const maximumVectorFilterBytes = 2_048;
 
@@ -66,7 +67,7 @@ export function resolveWorkspaceSearchScope(input: {
 		};
 	}
 	if (item.type !== "folder") {
-		const itemType = isWorkspaceSearchItemType(item.type) ? item.type : null;
+		const itemType = isWorkspaceSearchableItemType(item.type) ? item.type : null;
 		return {
 			scope: {
 				local: { itemId: item.id, kind: "item" },
@@ -159,10 +160,6 @@ function batchFolderFilters(
 
 function getFilterByteLength(filter: VectorizeVectorMetadataFilter) {
 	return new TextEncoder().encode(JSON.stringify(filter)).byteLength;
-}
-
-function isWorkspaceSearchItemType(type: WorkspaceItemSummary["type"]) {
-	return type === "document" || type === "file";
 }
 
 function listWorkspaceSearchFolderIds(

@@ -9,6 +9,10 @@ import type {
 	WorkspaceSearchResult,
 	WorkspaceSearchStatus,
 } from "#/features/workspaces/search/workspace-search-contract";
+import {
+	isWorkspaceSearchableItemType,
+	workspaceSearchableItemTypes,
+} from "#/features/workspaces/workspace-item-registry";
 import { batchWorkspaceSearchValues } from "#/features/workspaces/search/workspace-search-batches";
 import { embedWorkspaceSearchTexts } from "#/features/workspaces/search/workspace-search-embeddings";
 import {
@@ -70,7 +74,7 @@ export class WorkspaceSearchQuery {
 		status: WorkspaceSearchStatus;
 	}> {
 		const status = this.getStatus();
-		const types = input.types ?? ["document", "file"];
+		const types = input.types ?? [...workspaceSearchableItemTypes];
 		const items = this.getItems();
 		const resolvedScope = resolveWorkspaceSearchScope({
 			items,
@@ -374,7 +378,7 @@ function mapSearchResult(
 	item: WorkspaceItemSummary,
 	query: string,
 ): WorkspaceSearchResult | null {
-	if (item.type !== "document" && item.type !== "file") {
+	if (!isWorkspaceSearchableItemType(item.type)) {
 		return null;
 	}
 	const fileType = item.type === "file" ? resolveWorkspaceFileTypeFromItem(item) : null;

@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/workspace-location";
+import { workspaceSearchableItemTypes } from "#/features/workspaces/workspace-item-registry";
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
 
-const workspaceSearchItemTypeSchema = z.enum(["document", "file"]);
+const workspaceSearchItemTypeSchema = z.enum(workspaceSearchableItemTypes);
 
 export const workspaceSearchInputSchema = z.object({
 	query: z
