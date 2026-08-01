@@ -21,9 +21,7 @@ import {
 	encodeWorkspaceContentCursor,
 } from "#/features/workspaces/content/workspace-content-cursor";
 
-// A tool call may read several paths, but their combined bodies must leave room
-// for the conversation, reasoning, and response in the smallest model window.
-const maxWorkspaceContentBatchBytes = 256 * 1024;
+const maxWorkspaceContentBatchBytes = 2 * 1024 * 1024 + 64 * 1024;
 
 interface DocumentContentReader {
 	readHtmlChunk(input: DocumentHtmlChunkReadInput): Promise<DocumentHtmlChunkReadResult>;

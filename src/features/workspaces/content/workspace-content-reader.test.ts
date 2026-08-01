@@ -164,7 +164,7 @@ describe("WorkspaceContentReader", () => {
 			bucket: {} as R2Bucket,
 			getDocumentSession: () =>
 				createDocumentSession({
-					html: `<p>${"😀".repeat(40_000)}</p>`,
+					html: `<p>${"😀".repeat(300_000)}</p>`,
 					revision: "revision-1",
 				}),
 			kernel: createKernel(),
