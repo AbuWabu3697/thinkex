@@ -6,7 +6,6 @@ export interface AIInspectorToolDefinitionView {
 	inputSchema?: unknown;
 	outputSchema?: unknown;
 	metadata?: unknown;
-	strict?: unknown;
 	title?: string;
 }
 

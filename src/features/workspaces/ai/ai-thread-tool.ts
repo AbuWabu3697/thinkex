@@ -41,7 +41,6 @@ type AIThreadToolDefinition<INPUT, OUTPUT> = Pick<
 	| "metadata"
 	| "needsApproval"
 	| "providerOptions"
-	| "strict"
 	| "title"
 	| "toModelOutput"
 > & {

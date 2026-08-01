@@ -17,7 +17,6 @@ export function parseToolDefinitions(tools: unknown): AIInspectorToolDefinitionV
 			inputSchema: record.inputSchema,
 			outputSchema: record.outputSchema,
 			metadata: record.metadata,
-			strict: record.strict,
 			title: getString(record.title),
 		};
 	});

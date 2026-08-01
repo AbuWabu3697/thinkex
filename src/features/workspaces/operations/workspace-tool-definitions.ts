@@ -82,7 +82,6 @@ type WorkspaceToolDefinition<
 	inputSchema: TInputSchema;
 	name: TName;
 	outputSchema: TOutputSchema;
-	strict?: boolean;
 	summarizeResult: (result: z.output<TOutputSchema>) => WorkspaceOperationSummary;
 };
 
@@ -130,7 +129,6 @@ function defineWorkspaceTool<
 export const workspaceToolDefinitions = [
 	defineWorkspaceTool({
 		name: "workspace_list_items",
-		strict: false,
 		access: "read",
 		description:
 			"List items by absolute workspace path. If nextOffset is present, use it as offset to continue.",
@@ -163,7 +161,6 @@ export const workspaceToolDefinitions = [
 	}),
 	defineWorkspaceTool({
 		name: "workspace_search",
-		strict: false,
 		access: "read",
 		description:
 			"Search current ThinkEx workspace documents and extracted files by meaning and exact text. Optionally scope to an absolute item or folder path and filter content types.",
@@ -216,7 +213,6 @@ export const workspaceToolDefinitions = [
 	}),
 	defineWorkspaceTool({
 		name: "workspace_create_items",
-		strict: false,
 		access: "write",
 		description: `Create one or more folders or documents at exact absolute paths. If a path already exists, creation fails instead of renaming. ${workspaceDocumentMarkdownMathInstruction}`,
 		inputSchema: workspaceCreateItemsInputSchema,
@@ -263,7 +259,6 @@ export const workspaceToolDefinitions = [
 	}),
 	defineWorkspaceTool({
 		name: "workspace_link_items",
-		strict: false,
 		access: "write",
 		description:
 			"Maintain internal navigation and provenance relationships between actual ThinkEx workspace items by absolute path. Use routine relationships silently as workspace context; do not announce them as separate work unless the user asked about relationships or one materially affects the answer.",

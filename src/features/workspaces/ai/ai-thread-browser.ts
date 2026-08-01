@@ -143,7 +143,6 @@ export function createAIThreadBrowserHandoffTool() {
 		inputSchema: browserHandoffInputSchema,
 		outputSchema: browserHandoffOutputSchema,
 		needsApproval: true,
-		strict: true,
 		execute: async () => ({ resumed: true }),
 	});
 }

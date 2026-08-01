@@ -97,7 +97,6 @@ export function createAIThreadCodeRunTools(input: {
 			inputSchema: codeRunInputSchema,
 			inputExamples: codeRunInputExamples,
 			outputSchema: codeRunOutputSchema,
-			strict: true,
 			execute: async (args) => {
 				const { code } = args as CodeRunInput;
 
