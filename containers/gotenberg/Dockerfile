@@ -1,3 +1,3 @@
-FROM gotenberg/gotenberg:8.34.0-libreoffice
+FROM gotenberg/gotenberg:8.34.0
 
 EXPOSE 3000

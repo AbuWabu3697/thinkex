@@ -30,7 +30,10 @@ export type WorkspaceDirectUploadClaims = z.infer<typeof uploadClaimsSchema>;
 
 export async function createWorkspaceDirectUploadSession(
 	env: Cloudflare.Env,
-	input: Omit<WorkspaceDirectUploadClaims, "expiresAt" | "itemId" | "version">,
+	input: Omit<WorkspaceDirectUploadClaims, "expiresAt" | "itemId" | "version"> & {
+		allowLocalDevUploadProxy?: boolean;
+		localUploadOrigin?: string;
+	},
 ) {
 	const claims: WorkspaceDirectUploadClaims = {
 		...input,
@@ -38,13 +41,18 @@ export async function createWorkspaceDirectUploadSession(
 		itemId: crypto.randomUUID(),
 		version: uploadTokenVersion,
 	};
-	const uploadUrl = await createPresignedUploadUrl(env, {
+	const completionToken = await signUploadClaims(getUploadTokenSecret(env, input), claims);
+	const uploadUrl = await createUploadUrl(env, {
+		allowLocalDevUploadProxy: input.allowLocalDevUploadProxy,
+		completionToken,
 		contentType: claims.contentType,
+		localUploadOrigin: input.localUploadOrigin,
 		objectKey: getWorkspaceDirectUploadObjectKey(claims),
+		workspaceId: claims.workspaceId,
 	});
 
 	return {
-		completionToken: await signUploadClaims(env.WORKSPACE_UPLOAD_TOKEN_SECRET, claims),
+		completionToken,
 		uploadUrl,
 	};
 }
@@ -62,6 +70,7 @@ export function getWorkspaceDirectUploadObjectKey(input: {
 export async function verifyWorkspaceDirectUploadToken(
 	env: Cloudflare.Env,
 	token: string,
+	options: { allowLocalDevUploadProxy?: boolean } = {},
 ): Promise<WorkspaceDirectUploadClaims> {
 	const [encodedPayload, encodedSignature, extra] = token.split(".");
 
@@ -69,7 +78,7 @@ export async function verifyWorkspaceDirectUploadToken(
 		throw new Error("Upload completion token is invalid.");
 	}
 
-	const key = await createSigningKey(env.WORKSPACE_UPLOAD_TOKEN_SECRET, ["verify"]);
+	const key = await createSigningKey(getUploadTokenSecret(env, options), ["verify"]);
 	const valid = await crypto.subtle.verify(
 		"HMAC",
 		key,
@@ -102,10 +111,27 @@ export async function claimWorkspaceDirectUploadCompletion(
 	return claim ? objectKey : null;
 }
 
-async function createPresignedUploadUrl(
+async function createUploadUrl(
 	env: Cloudflare.Env,
-	input: { contentType: string; objectKey: string },
+	input: {
+		allowLocalDevUploadProxy?: boolean;
+		completionToken: string;
+		contentType: string;
+		localUploadOrigin?: string;
+		objectKey: string;
+		workspaceId: string;
+	},
 ) {
+	if (input.allowLocalDevUploadProxy && input.localUploadOrigin) {
+		const url = new URL(
+			`/api/v1/workspaces/${encodeURIComponent(input.workspaceId)}/file-upload`,
+			input.localUploadOrigin,
+		);
+		url.searchParams.set("action", "direct");
+		url.searchParams.set("completionToken", input.completionToken);
+		return url.toString();
+	}
+
 	const client = new AwsClient({
 		accessKeyId: env.R2_ACCESS_KEY_ID,
 		region: "auto",
@@ -127,6 +153,19 @@ async function createPresignedUploadUrl(
 	);
 
 	return signed.url;
+}
+
+function getUploadTokenSecret(
+	env: Cloudflare.Env,
+	options: { allowLocalDevUploadProxy?: boolean } = {},
+) {
+	if (env.WORKSPACE_UPLOAD_TOKEN_SECRET) {
+		return env.WORKSPACE_UPLOAD_TOKEN_SECRET;
+	}
+	if (options.allowLocalDevUploadProxy) {
+		return "thinkex-local-dev-upload-token-secret-only";
+	}
+	throw new Error("WORKSPACE_UPLOAD_TOKEN_SECRET is required.");
 }
 
 async function signUploadClaims(secret: string, claims: WorkspaceDirectUploadClaims) {

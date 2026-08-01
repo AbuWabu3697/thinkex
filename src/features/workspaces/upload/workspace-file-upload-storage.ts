@@ -13,6 +13,7 @@ import {
 	type WorkspaceUploadConversion,
 	workspaceFileUploadLimits,
 } from "#/features/workspaces/model/workspace-file";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { putFixedLengthR2Object } from "#/lib/r2";
 
 export interface StoredWorkspaceFileUpload {
@@ -110,6 +111,21 @@ async function storeWorkspaceFileUploadPreview(
 		body: object.body,
 		contentType: upload.contentType,
 		sizeBytes: object.size,
+	}).catch(async (error) => {
+		recordWorkspaceUploadPreviewFallback({
+			error,
+			fileName: upload.fileName,
+		});
+		const fallbackObject = await input.env.WORKSPACE_KERNEL_FILES.get(upload.objectKey);
+
+		if (!fallbackObject) {
+			throw error;
+		}
+
+		return {
+			body: fallbackObject.body,
+			sizeBytes: fallbackObject.size,
+		};
 	});
 	const stored = await putFixedLengthR2Object(
 		input.env.WORKSPACE_KERNEL_FILES,
@@ -127,6 +143,16 @@ async function storeWorkspaceFileUploadPreview(
 		sizeBytes: stored.size,
 		sourceHash: object.etag,
 	};
+}
+
+function recordWorkspaceUploadPreviewFallback(input: { error: unknown; fileName: string }) {
+	recordOperationalFailure({
+		error: input.error,
+		event: "workspace_file_upload_preview_fallback",
+		fields: {
+			file_name: input.fileName,
+		},
+	});
 }
 
 function adoptCanonicalWorkspaceFileUpload(

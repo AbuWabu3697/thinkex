@@ -1,5 +1,6 @@
-import { MessageSquare, Share2 } from "lucide-react";
+import { Download, MessageSquare, Share2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 
 import UserProfileDropdown from "#/components/UserProfileDropdown";
 import { Kbd } from "#/components/ui/kbd";
@@ -20,6 +21,7 @@ import {
 	useWorkspaceAiChatSurfaceMode,
 	useWorkspaceUiStore,
 } from "#/features/workspaces/state/workspace-ui-store";
+import { getErrorMessage } from "#/lib/error-message";
 import { formatAppHotkey, getAppHotkey } from "#/lib/hotkeys-core";
 
 type PresenceStatus = "connecting" | "connected" | "disconnected";
@@ -61,7 +63,41 @@ export default function WorkspaceTopBar({
 	const chatSurfaceMode = useWorkspaceAiChatSurfaceMode(workspace.id);
 	const setChatSurfaceMode = useWorkspaceUiStore((state) => state.setChatSurfaceMode);
 	const [shareOpen, setShareOpen] = useState(false);
+	const [exporting, setExporting] = useState(false);
 	const aiChatHotkey = formatAppHotkey(getAppHotkey("workspace.aiChat.toggle").hotkey);
+	const handleExport = async () => {
+		if (exporting) {
+			return;
+		}
+
+		setExporting(true);
+
+		try {
+			const response = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export`);
+
+			if (!response.ok) {
+				throw new Error(
+					(await getExportErrorMessage(response)) ?? "Unable to export this workspace right now.",
+				);
+			}
+
+			const blob = await response.blob();
+			const objectUrl = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+
+			link.href = objectUrl;
+			link.download = getDownloadFileName(response.headers) ?? `${workspace.name}.zip`;
+			link.rel = "noopener";
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(objectUrl);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Unable to export this workspace right now."));
+		} finally {
+			setExporting(false);
+		}
+	};
 
 	return (
 		<>
@@ -75,6 +111,16 @@ export default function WorkspaceTopBar({
 						>
 							<Share2 />
 						</WorkspaceToolbarIconButton>
+						<WorkspaceToolbarTextButton
+							aria-busy={exporting}
+							disabled={exporting}
+							onClick={() => void handleExport()}
+							variant="outline"
+							className="border-border bg-background shadow-xs hover:bg-muted"
+						>
+							<Download />
+							<span>Export</span>
+						</WorkspaceToolbarTextButton>
 						<UserProfileDropdown />
 						{chatSurfaceMode === "hidden" ? (
 							<Tooltip>
@@ -125,4 +171,23 @@ export default function WorkspaceTopBar({
 			/>
 		</>
 	);
+}
+
+function getDownloadFileName(headers: Headers) {
+	const contentDisposition = headers.get("content-disposition");
+	const match =
+		contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i) ??
+		contentDisposition?.match(/filename="([^"]+)"/i) ??
+		contentDisposition?.match(/filename=([^;]+)/i);
+
+	return match?.[1] ? decodeURIComponent(match[1].trim()) : null;
+}
+
+async function getExportErrorMessage(response: Response) {
+	try {
+		const body = (await response.json()) as { message?: unknown };
+		return typeof body.message === "string" ? body.message : null;
+	} catch {
+		return null;
+	}
 }

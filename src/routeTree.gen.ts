@@ -31,6 +31,7 @@ import { Route as ApiPosthogSurveyFeedbackRouteImport } from './routes/api/posth
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedWorkspacesWorkspaceIdRouteImport } from './routes/_protected/workspaces.$workspaceId'
 import { Route as ApiV1WorkspacesWorkspaceIdFileUploadRouteImport } from './routes/api/v1/workspaces.$workspaceId.file-upload'
+import { Route as ApiV1WorkspacesWorkspaceIdExportRouteImport } from './routes/api/v1/workspaces.$workspaceId.export'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
 import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments'
@@ -148,6 +149,12 @@ const ApiV1WorkspacesWorkspaceIdFileUploadRoute =
     path: '/$workspaceId/file-upload',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
+const ApiV1WorkspacesWorkspaceIdExportRoute =
+  ApiV1WorkspacesWorkspaceIdExportRouteImport.update({
+    id: '/$workspaceId/export',
+    path: '/$workspaceId/export',
+    getParentRoute: () => ApiV1WorkspacesRoute,
+  } as any)
 const ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute =
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport.update({
     id: '/$workspaceId/files/$itemId/preview',
@@ -197,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
@@ -223,6 +231,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
@@ -252,6 +261,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
@@ -281,6 +291,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
@@ -335,6 +347,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
@@ -516,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
+    '/api/v1/workspaces/$workspaceId/export': {
+      id: '/api/v1/workspaces/$workspaceId/export'
+      path: '/$workspaceId/export'
+      fullPath: '/api/v1/workspaces/$workspaceId/export'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdExportRouteImport
+      parentRoute: typeof ApiV1WorkspacesRoute
+    }
     '/api/v1/workspaces/$workspaceId/files/$itemId/preview': {
       id: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
       path: '/$workspaceId/files/$itemId/preview'
@@ -593,6 +613,7 @@ const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren =
   )
 
 interface ApiV1WorkspacesRouteChildren {
+  ApiV1WorkspacesWorkspaceIdExportRoute: typeof ApiV1WorkspacesWorkspaceIdExportRoute
   ApiV1WorkspacesWorkspaceIdFileUploadRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
@@ -600,6 +621,7 @@ interface ApiV1WorkspacesRouteChildren {
 }
 
 const ApiV1WorkspacesRouteChildren: ApiV1WorkspacesRouteChildren = {
+  ApiV1WorkspacesWorkspaceIdExportRoute: ApiV1WorkspacesWorkspaceIdExportRoute,
   ApiV1WorkspacesWorkspaceIdFileUploadRoute:
     ApiV1WorkspacesWorkspaceIdFileUploadRoute,
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute:

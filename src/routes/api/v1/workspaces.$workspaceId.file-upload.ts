@@ -40,6 +40,7 @@ import {
 import { apiError, apiJson, getRequestId } from "#/lib/api/http";
 import { getSessionFromRequest } from "#/lib/auth-queries.server";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
+import { putFixedLengthR2Object } from "#/lib/r2";
 
 const uploadIntentSchema = z.object({
 	clientMutationId: z.string().min(1),
@@ -62,6 +63,16 @@ async function handleWorkspaceUploadPost(request: Request, workspaceId: string) 
 	}
 
 	return apiError(getRequestId(request), 400, "INVALID_UPLOAD", "Unknown upload action.");
+}
+
+async function handleWorkspaceUploadPut(request: Request, workspaceId: string) {
+	const action = new URL(request.url).searchParams.get("action");
+
+	if (action !== "direct") {
+		return apiError(getRequestId(request), 400, "INVALID_UPLOAD", "Unknown upload action.");
+	}
+
+	return storeLocalDevDirectUpload(request, workspaceId);
 }
 
 async function initiateWorkspaceFileUpload(request: Request, workspaceId: string) {
@@ -87,6 +98,8 @@ async function initiateWorkspaceFileUpload(request: Request, workspaceId: string
 
 		const session = await createWorkspaceDirectUploadSession(env, {
 			...input,
+			allowLocalDevUploadProxy: isLocalDevRequest(request),
+			localUploadOrigin: new URL(request.url).origin,
 			target: resolveWorkspaceDirectUploadTarget({
 				contentType: input.contentType,
 				fileName: input.fileName,
@@ -96,6 +109,54 @@ async function initiateWorkspaceFileUpload(request: Request, workspaceId: string
 			workspaceId,
 		});
 		return apiJson(session, requestId, 201);
+	} catch (error) {
+		return workspaceUploadErrorResponse(requestId, error);
+	}
+}
+
+async function storeLocalDevDirectUpload(request: Request, workspaceId: string) {
+	const requestId = getRequestId(request);
+
+	try {
+		if (!isLocalDevRequest(request)) {
+			return apiError(requestId, 404, "NOT_FOUND", "Upload endpoint not found.");
+		}
+
+		const completionToken = new URL(request.url).searchParams.get("completionToken");
+
+		if (!completionToken) {
+			throw invalidUpload("Upload completion token is missing.");
+		}
+
+		const claims = await verifyWorkspaceDirectUploadToken(env, completionToken, {
+			allowLocalDevUploadProxy: true,
+		});
+
+		if (claims.workspaceId !== workspaceId) {
+			throw invalidUpload("Upload completion token does not belong to this workspace.");
+		}
+		if (!request.body) {
+			throw invalidUpload("Upload request is empty.");
+		}
+
+		const stored = await putFixedLengthR2Object(
+			env.WORKSPACE_KERNEL_FILES,
+			getWorkspaceDirectUploadObjectKey(claims),
+			{
+				body: request.body,
+				sizeBytes: claims.fileSize,
+			},
+			{ httpMetadata: { contentType: claims.contentType } },
+		);
+
+		if (!stored || stored.size !== claims.fileSize) {
+			throw invalidUpload("Uploaded file size does not match the selected file.");
+		}
+
+		return new Response(null, {
+			status: 204,
+			headers: { "x-request-id": requestId },
+		});
 	} catch (error) {
 		return workspaceUploadErrorResponse(requestId, error);
 	}
@@ -319,7 +380,9 @@ async function readUploadClaims(request: Request): Promise<WorkspaceDirectUpload
 	);
 
 	try {
-		return await verifyWorkspaceDirectUploadToken(env, input.completionToken);
+		return await verifyWorkspaceDirectUploadToken(env, input.completionToken, {
+			allowLocalDevUploadProxy: isLocalDevRequest(request),
+		});
 	} catch {
 		throw invalidUpload("Upload completion token is invalid or expired.");
 	}
@@ -360,6 +423,12 @@ function workspaceUploadErrorResponse(requestId: string, error: unknown) {
 	return apiError(requestId, 500, "UPLOAD_FAILED", "Unable to upload file right now.");
 }
 
+function isLocalDevRequest(request: Request) {
+	const hostname = new URL(request.url).hostname;
+
+	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+}
+
 class WorkspaceUploadRequestError extends Error {
 	constructor(
 		readonly status: number,
@@ -375,6 +444,7 @@ export const Route = createFileRoute("/api/v1/workspaces/$workspaceId/file-uploa
 	server: {
 		handlers: {
 			POST: ({ params, request }) => handleWorkspaceUploadPost(request, params.workspaceId),
+			PUT: ({ params, request }) => handleWorkspaceUploadPut(request, params.workspaceId),
 		},
 	},
 });
