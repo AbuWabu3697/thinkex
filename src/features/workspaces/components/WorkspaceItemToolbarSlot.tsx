@@ -196,7 +196,6 @@ export function WorkspaceItemToolbarSlot({
 						canEdit={registration.canEdit}
 						editor={registration.editor}
 						itemId={registration.itemId}
-						slotId={registration.slotId}
 					/>
 				) : (
 					<WorkspaceFileToolbar

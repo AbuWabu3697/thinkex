@@ -22,7 +22,8 @@ type WorkspacePdfPageRevealRequest = {
 type WorkspaceLocationContextValue = {
 	consumeRevealRequest: (request: WorkspacePdfPageRevealRequest) => void;
 	getPresentation: (location: WorkspaceLocation) => WorkspaceLocationPresentation;
-	reveal: (location: WorkspaceLocation) => string | undefined;
+	hasItem: (itemId: string) => boolean;
+	reveal: (location: WorkspaceLocation) => boolean;
 	revealRequest: WorkspacePdfPageRevealRequest | null;
 };
 
@@ -63,13 +64,16 @@ export function WorkspaceLocationProvider({
 			const { Icon, iconClassName } = getWorkspaceItemDisplay(item);
 			return { Icon, iconClassName, label: itemName, locatorLabel };
 		},
+		hasItem(itemId) {
+			return itemsById.has(itemId);
+		},
 		reveal(location) {
 			const viewInstanceId = navigate(location);
 
 			setRevealRequest(
 				viewInstanceId && location.kind === "pdf-page" ? { location, viewInstanceId } : null,
 			);
-			return viewInstanceId;
+			return Boolean(viewInstanceId);
 		},
 		revealRequest,
 	};

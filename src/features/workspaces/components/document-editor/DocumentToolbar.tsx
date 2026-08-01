@@ -36,28 +36,23 @@ import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
-import {
-	workspaceToolbarGroupClassName,
-	workspaceToolbarTextButtonSizeClass,
-} from "#/features/workspaces/components/workspace-toolbar-styles";
+import { workspaceToolbarTextButtonSizeClass } from "#/features/workspaces/components/workspace-toolbar-styles";
 
 export function DocumentToolbar({
 	canEdit,
 	editor,
 	itemId,
-	slotId,
 }: {
 	canEdit: boolean;
 	editor: Editor | null;
 	itemId: string;
-	slotId: string;
 }) {
 	const editorState = useDocumentEditorUiState(editor);
 	const { activeReview, hideReview } = useDocumentEditReview();
 
 	// Reviewing borrows the toolbar rather than floating over the page: the
 	// formatting controls are unusable mid-review anyway, so the space is free.
-	if (activeReview?.itemId === itemId && activeReview.viewInstanceId === slotId) {
+	if (activeReview?.itemId === itemId) {
 		return (
 			<DocumentEditReviewControls
 				canUndo={canEdit}
@@ -123,9 +118,11 @@ function DocumentEditReviewControls({
 }) {
 	const { workspaceId } = useDocumentEditReview();
 
+	// Wider than the toolbar's icon-button gap: these two carry a border and a
+	// fill, so flush spacing would read as one control.
 	return (
-		<div className={workspaceToolbarGroupClassName}>
-			<span className="min-w-0 truncate px-2 text-muted-foreground text-sm">
+		<div className="flex min-w-0 items-center gap-1.5">
+			<span className="min-w-0 truncate pr-0.5 pl-1 text-muted-foreground text-sm">
 				Reviewing changes:
 			</span>
 			{canUndo ? (

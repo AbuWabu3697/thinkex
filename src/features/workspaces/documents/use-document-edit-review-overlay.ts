@@ -15,20 +15,17 @@ export function useDocumentEditReviewOverlay({
 	canEdit,
 	editor,
 	itemId,
-	viewInstanceId,
 	workspaceId,
 }: {
 	canEdit: boolean;
 	editor: Editor | null;
 	itemId: string;
-	viewInstanceId: string;
 	workspaceId: string;
 }) {
-	const { activeReview, endReviewForView, hideReview } = useDocumentEditReview();
-	const target =
-		activeReview?.itemId === itemId && activeReview.viewInstanceId === viewInstanceId
-			? activeReview
-			: null;
+	const { activeReview, hideReview } = useDocumentEditReview();
+	// Any mounted view of this document shows the marks, so a review opened
+	// before the document was on screen still applies once it mounts.
+	const target = activeReview?.itemId === itemId ? activeReview : null;
 	const reviewQuery = useQuery({
 		...documentEditReceiptReviewQueryOptions({
 			itemId,
@@ -37,14 +34,6 @@ export function useDocumentEditReviewOverlay({
 		}),
 		enabled: Boolean(editor && target),
 	});
-	// Review belongs to this open view. Closing the document ends it, rather than
-	// leaving a session pointing at a view that no longer exists.
-	useEffect(
-		() => () => {
-			endReviewForView({ itemId, viewInstanceId });
-		},
-		[endReviewForView, itemId, viewInstanceId],
-	);
 	useEffect(() => {
 		if (!editor || !target) {
 			return;
@@ -60,15 +49,14 @@ export function useDocumentEditReviewOverlay({
 		if (!review) {
 			return;
 		}
+		// Staleness is the server's call: it compares the live document against the
+		// receipt and reports it here. Re-checking against a just-opened editor
+		// would only catch it mid-sync and refuse to show anything.
 		if (review.status !== "ready") {
 			toast.error(unavailableReviewMessages[review.status]);
 			hideReview();
 			return;
 		}
-
-		// Staleness is the server's call: it compares the live document against the
-		// receipt and reports content_changed above. Re-checking here against a
-		// just-opened editor only catches it mid-sync and refuses to show anything.
 
 		// Reviewing is a reading mode: hold the document still until Done rather
 		// than deciding what a keystroke mid-review was supposed to mean.

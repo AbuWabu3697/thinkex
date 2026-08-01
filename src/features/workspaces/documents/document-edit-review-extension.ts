@@ -11,7 +11,20 @@ import {
 	tiptapDocumentAiRefAttribute,
 } from "#/features/workspaces/documents/tiptap-schema";
 
-const documentEditReviewPluginKey = new PluginKey<DecorationSet>("documentEditReview");
+/**
+ * Review state holds the document as it was before the edit, not the marks it
+ * produced. Marks are derived from it against whatever is on screen right now,
+ * so they are correct no matter when the document arrives — a reopened tab
+ * syncing its content, or a collaborator typing mid-review.
+ */
+interface DocumentEditReviewState {
+	beforeDocument: TiptapDocumentJson;
+	decorations: DecorationSet;
+}
+
+const documentEditReviewPluginKey = new PluginKey<DocumentEditReviewState | null>(
+	"documentEditReview",
+);
 const maximumDeletedTextLength = 240;
 
 type DocumentEditReviewMeta =
@@ -40,30 +53,33 @@ export const DocumentEditReviewExtension = Extension.create({
 
 	addProseMirrorPlugins() {
 		return [
-			new Plugin<DecorationSet>({
+			new Plugin<DocumentEditReviewState | null>({
 				key: documentEditReviewPluginKey,
 				state: {
-					init: () => DecorationSet.empty,
-					apply(transaction, decorations, _oldState, newState) {
+					init: () => null,
+					apply(transaction, review, _oldState, newState) {
 						const meta = transaction.getMeta(documentEditReviewPluginKey) as
 							| DocumentEditReviewMeta
 							| undefined;
+						const beforeDocument =
+							meta?.type === "show" ? meta.beforeDocument : review?.beforeDocument;
 
-						if (meta?.type === "hide") {
-							return DecorationSet.empty;
+						if (meta?.type === "hide" || !beforeDocument) {
+							return null;
 						}
-						if (meta?.type === "show") {
-							return createDocumentEditReviewDecorations(meta.beforeDocument, newState.doc);
+						if (meta?.type !== "show" && !transaction.docChanged) {
+							return review;
 						}
 
-						// The local editor is read-only during review, but collaborators are
-						// not. Map their edits through instead of dropping every mark.
-						return decorations.map(transaction.mapping, transaction.doc);
+						return {
+							beforeDocument,
+							decorations: createDocumentEditReviewDecorations(beforeDocument, newState.doc),
+						};
 					},
 				},
 				props: {
 					decorations(state) {
-						return documentEditReviewPluginKey.getState(state) ?? DecorationSet.empty;
+						return documentEditReviewPluginKey.getState(state)?.decorations ?? DecorationSet.empty;
 					},
 				},
 			}),

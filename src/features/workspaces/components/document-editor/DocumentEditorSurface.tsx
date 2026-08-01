@@ -110,7 +110,6 @@ function DocumentEditorInstance({
 		canEdit: capabilities.canMutateContent,
 		editor,
 		itemId: item.id,
-		viewInstanceId,
 		workspaceId,
 	});
 
