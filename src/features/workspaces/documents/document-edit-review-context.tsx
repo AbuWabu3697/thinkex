@@ -10,6 +10,7 @@ export interface ActiveDocumentEditReview {
 
 interface DocumentEditReviewContextValue {
 	activeReview: ActiveDocumentEditReview | null;
+	endReviewForView: (input: { itemId: string; viewInstanceId: string }) => void;
 	hideReview: () => void;
 	showReview: (input: { itemId: string; receiptIds: string[] }) => boolean;
 	workspaceId: string;
@@ -27,6 +28,19 @@ export function DocumentEditReviewProvider({
 	const { reveal } = useWorkspaceLocationActions();
 	const [activeReview, setActiveReview] = useState<ActiveDocumentEditReview | null>(null);
 	const hideReview = useCallback(() => setActiveReview(null), []);
+	/**
+	 * Ends review only if it still belongs to the given view. A closing view
+	 * cannot just clear the review outright: opening a second document unmounts
+	 * the first, and that teardown would otherwise wipe the review that was just
+	 * opened for the new one.
+	 */
+	const endReviewForView = useCallback((input: { itemId: string; viewInstanceId: string }) => {
+		setActiveReview((current) =>
+			current?.itemId === input.itemId && current.viewInstanceId === input.viewInstanceId
+				? null
+				: current,
+		);
+	}, []);
 	const showReview = useCallback(
 		(input: { itemId: string; receiptIds: string[] }) => {
 			const viewInstanceId = reveal({ itemId: input.itemId, kind: "item", version: 1 });
@@ -44,8 +58,8 @@ export function DocumentEditReviewProvider({
 		[reveal],
 	);
 	const value = useMemo(
-		() => ({ activeReview, hideReview, showReview, workspaceId }),
-		[activeReview, hideReview, showReview, workspaceId],
+		() => ({ activeReview, endReviewForView, hideReview, showReview, workspaceId }),
+		[activeReview, endReviewForView, hideReview, showReview, workspaceId],
 	);
 
 	return <DocumentEditReviewContext value={value}>{children}</DocumentEditReviewContext>;

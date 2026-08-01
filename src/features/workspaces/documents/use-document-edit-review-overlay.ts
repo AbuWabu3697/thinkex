@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
@@ -28,7 +28,7 @@ export function useDocumentEditReviewOverlay({
 	viewInstanceId: string;
 	workspaceId: string;
 }) {
-	const { activeReview, hideReview } = useDocumentEditReview();
+	const { activeReview, endReviewForView, hideReview } = useDocumentEditReview();
 	const target =
 		activeReview?.itemId === itemId && activeReview.viewInstanceId === viewInstanceId
 			? activeReview
@@ -43,17 +43,11 @@ export function useDocumentEditReviewOverlay({
 	});
 	// Review belongs to this open view. Closing the document ends it, rather than
 	// leaving a session pointing at a view that no longer exists.
-	const isTargetRef = useRef(false);
-	useEffect(() => {
-		isTargetRef.current = Boolean(target);
-	}, [target]);
 	useEffect(
 		() => () => {
-			if (isTargetRef.current) {
-				hideReview();
-			}
+			endReviewForView({ itemId, viewInstanceId });
 		},
-		[hideReview],
+		[endReviewForView, itemId, viewInstanceId],
 	);
 	useEffect(() => {
 		if (!editor || !target) {

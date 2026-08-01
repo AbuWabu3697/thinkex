@@ -110,7 +110,9 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 				if (isReviewActive) {
 					hideReview();
 				} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
-					toast.error("This document is no longer open.");
+					// showReview opens the document, switching tabs if needed, so the
+					// only way it fails is the document no longer existing.
+					toast.error("This document no longer exists.");
 				}
 			}}
 		>
