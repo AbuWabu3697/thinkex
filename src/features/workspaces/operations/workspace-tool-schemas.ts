@@ -33,7 +33,7 @@ export {
 };
 
 export const workspaceDocumentHtmlInstruction =
-	'Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>.';
+	'Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>. For checkboxes, use <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Item</p></div></li></ul>. Documents cannot hold images: never use <img> or <figure>, and describe the visual in words instead.';
 
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();
@@ -368,6 +368,10 @@ export const workspaceEditItemOutputSchema = z.object({
 	failed: z.array(
 		z.object({
 			code: z.enum(editWorkspaceItemFailureCodes),
+			detail: z
+				.string()
+				.optional()
+				.describe("Why this edit was refused, when the reason is known."),
 			index: workspaceIndexSchema,
 		}),
 	),

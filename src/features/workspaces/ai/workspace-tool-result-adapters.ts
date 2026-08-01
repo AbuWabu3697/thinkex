@@ -78,7 +78,9 @@ const workspaceCreateItemsResultAdapter = defineWorkspaceToolResultAdapter({
 const workspaceEditItemResultAdapter = defineWorkspaceToolResultAdapter({
 	outputSchema: z.object({
 		applied: z.number(),
-		failed: z.array(z.object({ code: z.string(), index: z.number() })),
+		failed: z.array(
+			z.object({ code: z.string(), detail: z.string().optional(), index: z.number() }),
+		),
 		path: z.string(),
 	}),
 	projectOutput: (output) => output,

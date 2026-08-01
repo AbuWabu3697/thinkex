@@ -29,6 +29,7 @@ export interface EditWorkspaceItemOperationInput {
 
 interface EditWorkspaceItemFailure {
 	code: EditWorkspaceItemFailureCode;
+	detail?: string;
 	index: number;
 }
 

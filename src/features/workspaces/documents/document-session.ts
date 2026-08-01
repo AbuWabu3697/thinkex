@@ -68,6 +68,7 @@ export interface DocumentSessionApplyEditsResult {
 	lineChanges?: DocumentEditLineChanges;
 	failures: {
 		code: DocumentAiEditFailureCode | "content_changed" | "operation_id_conflict";
+		detail?: string;
 		index: number;
 	}[];
 	status: DocumentAiEditResultStatus;

@@ -59,7 +59,9 @@ export interface DocumentAiEditResult {
 	applied: number;
 	document: TiptapDocumentJson;
 	failed: number;
-	failures: { code: DocumentAiEditFailureCode; index: number }[];
+	/** `detail` explains a rejection in the model's own terms, so a retry can fix
+	 * the markup instead of repeating it. */
+	failures: { code: DocumentAiEditFailureCode; detail?: string; index: number }[];
 	status: Exclude<DocumentAiEditResultStatus, "rejected">;
 }
 
@@ -114,7 +116,11 @@ export async function applyDocumentAiEdits(
 
 		const result = applyDocumentAiEdit(current, edit, stableRef);
 		if (result.status === "failed") {
-			failures.push({ code: result.code, index });
+			failures.push({
+				code: result.code,
+				...(result.detail ? { detail: result.detail } : {}),
+				index,
+			});
 			continue;
 		}
 
@@ -187,15 +193,15 @@ function applyDocumentAiEdit(
 	edit: DocumentAiEdit,
 	stableRef?: string,
 ):
-	| { code: DocumentAiEditFailureCode; status: "failed" }
+	| { code: DocumentAiEditFailureCode; detail?: string; status: "failed" }
 	| { document: ProseMirrorNode; status: "applied" } {
 	if (edit.op === "replace_all") {
 		const parsed = parseEditHtml(edit.html);
-		if (!parsed) {
-			return { code: "invalid_html", status: "failed" };
+		if (!parsed.children) {
+			return { code: "invalid_html", detail: parsed.detail, status: "failed" };
 		}
 
-		const next = createDocument(parsed);
+		const next = createDocument(parsed.children);
 		return documentsHaveSameVisibleContent(document, next)
 			? { code: "no_change", status: "failed" }
 			: { document: next, status: "applied" };
@@ -214,17 +220,17 @@ function applyDocumentAiEdit(
 		children.splice(targetIndex, 1);
 	} else {
 		const parsed = parseEditHtml(edit.html);
-		if (!parsed) {
-			return { code: "invalid_html", status: "failed" };
+		if (!parsed.children) {
+			return { code: "invalid_html", detail: parsed.detail, status: "failed" };
 		}
 		const targetRef = readTiptapNodeAiRef(document.child(targetIndex));
-		const firstNode = parsed[0];
+		const firstNode = parsed.children[0];
 		// A replacement inherits the ref of the block it stands in for, so a model
 		// holding that ref can keep editing it.
 		const inserted =
 			edit.op === "replace" && targetRef && firstNode
-				? [withTiptapNodeAiRef(firstNode, targetRef), ...parsed.slice(1)]
-				: parsed;
+				? [withTiptapNodeAiRef(firstNode, targetRef), ...parsed.children.slice(1)]
+				: parsed.children;
 
 		switch (edit.op) {
 			case "insert_after":
@@ -247,10 +253,14 @@ function applyDocumentAiEdit(
 
 function parseEditHtml(html: string) {
 	try {
-		return getDocumentChildren(getTiptapDocumentSchema().nodeFromJSON(parseDocumentAiHtml(html)));
+		return {
+			children: getDocumentChildren(
+				getTiptapDocumentSchema().nodeFromJSON(parseDocumentAiHtml(html)),
+			),
+		};
 	} catch (error) {
 		if (error instanceof DocumentAiHtmlError) {
-			return null;
+			return { detail: error.message };
 		}
 		throw error;
 	}
