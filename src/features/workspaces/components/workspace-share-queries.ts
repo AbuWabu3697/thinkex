@@ -6,7 +6,10 @@ import {
 	getWorkspaceInviteLinkFn,
 	listWorkspaceEmailInvitesFn,
 } from "#/features/workspaces/invites/workspace-invite-functions";
-import { isInviteExpired } from "#/features/workspaces/invites/workspace-invite-rules";
+import {
+	getGrantableInviteRoles,
+	isInviteExpired,
+} from "#/features/workspaces/invites/workspace-invite-rules";
 import { listWorkspaceMembersFn } from "#/features/workspaces/members/workspace-member-functions";
 
 export type WorkspaceInviteLinkResult = Awaited<ReturnType<typeof getWorkspaceInviteLinkFn>>;
@@ -124,15 +127,16 @@ export function prefetchWorkspaceInviteLinks(
 }
 
 export function useWorkspaceShareDialogQueries({
-	grantableRoles,
+	membershipRole,
 	open,
 	workspaceId,
 }: {
-	grantableRoles: WorkspaceMembershipRole[];
+	membershipRole: WorkspaceMembershipRole;
 	open: boolean;
 	workspaceId: string;
 }) {
 	const queryClient = useQueryClient();
+	const grantableRoles = getGrantableInviteRoles(membershipRole);
 
 	const membersQuery = useQuery({
 		...getWorkspaceMembersQueryOptions(workspaceId),
@@ -145,15 +149,20 @@ export function useWorkspaceShareDialogQueries({
 	});
 
 	useEffect(() => {
-		if (!open || grantableRoles.length === 0) {
+		if (!open) {
 			return;
 		}
 
-		void prefetchWorkspaceInviteLinks(queryClient, workspaceId, grantableRoles);
-	}, [grantableRoles, open, queryClient, workspaceId]);
+		void prefetchWorkspaceInviteLinks(
+			queryClient,
+			workspaceId,
+			getGrantableInviteRoles(membershipRole),
+		);
+	}, [membershipRole, open, queryClient, workspaceId]);
 
 	return {
 		emailInvites: emailInvitesQuery.data ?? [],
+		grantableRoles,
 		isLoading: membersQuery.isLoading || emailInvitesQuery.isLoading,
 		members: membersQuery.data ?? [],
 	};
