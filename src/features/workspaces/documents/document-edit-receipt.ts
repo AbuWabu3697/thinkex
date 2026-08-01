@@ -1,15 +1,15 @@
 import type { TiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 
-export const documentEditReceiptStatuses = [
-	"ready",
-	"reverted",
-	"not_found",
-	"not_latest",
-	"content_changed",
-	"review_unavailable",
-] as const;
+export type DocumentEditReceiptStatus =
+	| "content_changed"
+	| "not_found"
+	| "not_latest"
+	| "ready"
+	| "reverted"
+	| "review_unavailable";
 
-export type DocumentEditReceiptStatus = (typeof documentEditReceiptStatuses)[number];
+/** Every status a receipt can report once it is known not to be reviewable. */
+export type DocumentEditReceiptUnavailableStatus = Exclude<DocumentEditReceiptStatus, "ready">;
 
 export interface DocumentEditReceiptStatusResult {
 	status: DocumentEditReceiptStatus;
@@ -22,7 +22,7 @@ export type DocumentEditReceiptReviewResult =
 			status: "ready";
 	  }
 	| {
-			status: Exclude<DocumentEditReceiptStatus, "ready">;
+			status: DocumentEditReceiptUnavailableStatus;
 	  };
 
 export type DocumentEditReceiptReviewRpcResult =
@@ -32,9 +32,9 @@ export type DocumentEditReceiptReviewRpcResult =
 			status: "ready";
 	  }
 	| {
-			status: Exclude<DocumentEditReceiptStatus, "ready">;
+			status: DocumentEditReceiptUnavailableStatus;
 	  };
 
 export interface DocumentEditReceiptUndoResult {
-	status: Exclude<DocumentEditReceiptStatus, "ready">;
+	status: DocumentEditReceiptUnavailableStatus;
 }

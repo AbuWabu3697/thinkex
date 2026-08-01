@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import {
 	createDocumentAiTargetRef,
-	createUnusedDocumentAiRef,
+	createDocumentAiRef,
 	DocumentAiHtmlError,
 	parseDocumentAiHtml,
 	parseDocumentAiTargetRef,
@@ -30,17 +30,7 @@ export const documentAiHtmlSchema = z
 export const documentAiEditSchema = z.union([
 	z.strictObject({
 		html: documentAiHtmlSchema,
-		op: z.literal("replace"),
-		ref: documentAiRefSchema,
-	}),
-	z.strictObject({
-		html: documentAiHtmlSchema,
-		op: z.literal("insert_before"),
-		ref: documentAiRefSchema,
-	}),
-	z.strictObject({
-		html: documentAiHtmlSchema,
-		op: z.literal("insert_after"),
+		op: z.enum(["insert_after", "insert_before", "replace"]),
 		ref: documentAiRefSchema,
 	}),
 	z.strictObject({
@@ -231,8 +221,7 @@ function assignDocumentAiRefs(children: ProseMirrorNode[], firstRef: string | nu
 	return children.map((node, index) => {
 		const existingRef = readTiptapNodeAiRef(node);
 		const candidate = (index === 0 ? firstRef : null) || existingRef;
-		const ref =
-			candidate && !usedRefs.has(candidate) ? candidate : createUnusedDocumentAiRef(usedRefs);
+		const ref = candidate && !usedRefs.has(candidate) ? candidate : createDocumentAiRef();
 		usedRefs.add(ref);
 		return withTiptapNodeAiRef(node, ref);
 	});

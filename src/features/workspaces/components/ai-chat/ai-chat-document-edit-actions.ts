@@ -1,5 +1,7 @@
 import { isToolUIPart } from "ai";
 
+import { asRecord } from "#/features/workspaces/ai/ai-inspector-view-parsing";
+
 import {
 	getToolPartName,
 	isAiChatToolGroupPart,
@@ -73,10 +75,4 @@ function addToGroup(
 			receiptIds: [action.receiptId],
 		});
 	}
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: {};
 }

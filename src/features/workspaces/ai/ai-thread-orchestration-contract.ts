@@ -8,6 +8,7 @@ import {
 	type AIToolOutcome,
 } from "#/features/workspaces/ai/ai-tool-outcome";
 import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
+import { asRecord } from "#/features/workspaces/ai/ai-inspector-view-parsing";
 import {
 	getDocumentEditReceiptMetadata,
 	stripAIThreadToolUiMetadata,
@@ -192,7 +193,7 @@ export function getAIThreadOrchestrationTelemetryOutput(output: unknown) {
 	return {
 		status: parsed.data.status,
 		outcome: parsed.data.outcome,
-		calls: parsed.data.calls.map(({ action: _action, ...call }) => call),
+		calls: withoutCallActions(parsed.data.calls),
 		...(parsed.data.status === "paused" ? { pendingCount: parsed.data.pending.length } : {}),
 	};
 }
@@ -203,10 +204,12 @@ export function getAIThreadOrchestrationModelOutput(output: unknown) {
 		return output;
 	}
 
-	return {
-		...parsed.data,
-		calls: parsed.data.calls.map(({ action: _action, ...call }) => call),
-	};
+	return { ...parsed.data, calls: withoutCallActions(parsed.data.calls) };
+}
+
+/** `action` drives the app's review controls; neither the model nor telemetry sees it. */
+function withoutCallActions(calls: z.output<typeof orchestrationCallSchema>[]) {
+	return calls.map(({ action: _action, ...call }) => call);
 }
 
 function invalidOrchestrationOutput(output: unknown): AIThreadOrchestrationOutput {
@@ -396,10 +399,4 @@ function summarizeOrchestrationCall(outcome: AIToolOutcome) {
 	}
 
 	return "Completed";
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: {};
 }

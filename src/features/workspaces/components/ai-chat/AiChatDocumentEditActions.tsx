@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, FileText, LoaderCircle, Undo2 } from "lucide-react";
-import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { Button } from "#/components/ui/button";
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type { DocumentEditReceiptUndoResult } from "#/features/workspaces/documents/document-edit-receipt";
+import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
 import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
 import {
 	documentEditReceiptQueryKey,
@@ -35,29 +34,16 @@ function DocumentEditActionRow({ group }: { group: AiChatDocumentEditGroup }) {
 	const { activeReview, hideReview, showReview, workspaceId } = useDocumentEditReview();
 	const { itemId } = group;
 	const receiptKey = group.receiptIds.join(":");
-	const target = itemId ? { itemId, receiptIds: group.receiptIds, workspaceId } : null;
-	const statusQuery = useQuery({
-		...documentEditReceiptStatusQueryOptions(
-			target ?? { itemId: "unavailable", receiptIds: group.receiptIds, workspaceId },
-		),
-		enabled: Boolean(target),
-	});
+	const target = { itemId, receiptIds: group.receiptIds, workspaceId };
+	const statusQuery = useQuery(documentEditReceiptStatusQueryOptions(target));
 	const undoMutation = useMutation({
-		mutationFn: async () => {
-			if (!target) {
-				throw new Error("Document is no longer available.");
-			}
-			return await undoDocumentEditReceiptFn({ data: target });
-		},
+		mutationFn: () => undoDocumentEditReceiptFn({ data: target }),
 		onSuccess: async (result) => {
-			if (!target) {
-				return;
-			}
 			if (result.status === "reverted") {
 				hideReview();
 				toast.success("AI changes undone.");
 			} else {
-				toast.error(getUndoUnavailableMessage(result.status));
+				toast.error(undoUnavailableMessages[result.status]);
 			}
 
 			queryClient.setQueryData(documentEditReceiptQueryKey(target, "status"), result);
@@ -69,21 +55,7 @@ function DocumentEditActionRow({ group }: { group: AiChatDocumentEditGroup }) {
 			toast.error(error instanceof Error ? error.message : "Could not undo these changes.");
 		},
 	});
-	useEffect(() => {
-		if (!itemId || statusQuery.data?.status !== "ready") {
-			return;
-		}
-
-		for (const query of queryClient
-			.getQueryCache()
-			.findAll({ queryKey: ["workspace-document-edit-receipt", workspaceId, itemId] })) {
-			if (query.queryKey[3] !== receiptKey && query.queryKey[4] === "status") {
-				queryClient.setQueryData(query.queryKey, { status: "not_latest" });
-			}
-		}
-	}, [itemId, queryClient, receiptKey, statusQuery.data?.status, workspaceId]);
-
-	if (!target || !statusQuery.data) {
+	if (!statusQuery.data) {
 		return null;
 	}
 
@@ -154,17 +126,10 @@ function DocumentEditActionRow({ group }: { group: AiChatDocumentEditGroup }) {
 	);
 }
 
-function getUndoUnavailableMessage(status: DocumentEditReceiptUndoResult["status"]) {
-	switch (status) {
-		case "content_changed":
-			return "The document changed after these AI changes, so they were not undone.";
-		case "not_latest":
-			return "Undo newer AI changes first.";
-		case "review_unavailable":
-			return "Undo is unavailable for this large document.";
-		case "not_found":
-			return "These AI changes are no longer available.";
-		case "reverted":
-			return "These AI changes were already undone.";
-	}
-}
+const undoUnavailableMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {
+	content_changed: "The document changed after these AI changes, so they were not undone.",
+	not_found: "These AI changes are no longer available.",
+	not_latest: "Undo newer AI changes first.",
+	reverted: "These AI changes were already undone.",
+	review_unavailable: "Undo is unavailable for this large document.",
+};

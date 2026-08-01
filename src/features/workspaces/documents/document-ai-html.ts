@@ -128,8 +128,7 @@ export function ensureProseMirrorDocumentAiRefs(document: ProseMirrorNode): {
 
 	document.forEach((node) => {
 		const currentRef = readTiptapNodeAiRef(node);
-		const ref =
-			currentRef && !usedRefs.has(currentRef) ? currentRef : createUnusedDocumentAiRef(usedRefs);
+		const ref = currentRef && !usedRefs.has(currentRef) ? currentRef : createDocumentAiRef();
 		usedRefs.add(ref);
 		changed ||= ref !== currentRef;
 		children.push(withTiptapNodeAiRef(node, ref));
@@ -147,14 +146,6 @@ export function ensureProseMirrorDocumentAiRefs(document: ProseMirrorNode): {
 
 export function createDocumentAiRef() {
 	return `b_${nanoid(12)}`;
-}
-
-export function createUnusedDocumentAiRef(usedRefs: ReadonlySet<string>) {
-	let ref = createDocumentAiRef();
-	while (usedRefs.has(ref)) {
-		ref = createDocumentAiRef();
-	}
-	return ref;
 }
 
 export function readTiptapNodeAiRef(node: ProseMirrorNode) {

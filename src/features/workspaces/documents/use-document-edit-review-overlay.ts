@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type { DocumentEditReceiptStatus } from "#/features/workspaces/documents/document-edit-receipt";
+import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
 import {
 	hideDocumentEditReview,
 	showDocumentEditReview,
@@ -58,7 +58,7 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 		if (review.status !== "ready") {
-			toast.error(getUnavailableReviewMessage(review.status));
+			toast.error(unavailableReviewMessages[review.status]);
 			hideReview();
 			return;
 		}
@@ -88,19 +88,10 @@ export function useDocumentEditReviewOverlay({
 	}, [editor, hideReview, reviewQuery.data, reviewQuery.isError, target]);
 }
 
-function getUnavailableReviewMessage(status: DocumentEditReceiptStatus) {
-	switch (status) {
-		case "content_changed":
-			return "The document changed after this AI edit.";
-		case "review_unavailable":
-			return "Change review is unavailable for this large document.";
-		case "not_latest":
-			return "Only the latest unchanged AI edit can be reviewed.";
-		case "not_found":
-			return "These changes are no longer available.";
-		case "reverted":
-			return "These changes were already undone.";
-		case "ready":
-			return "Changes are ready.";
-	}
-}
+const unavailableReviewMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {
+	content_changed: "The document changed after this AI edit.",
+	not_found: "These changes are no longer available.",
+	not_latest: "Only the latest unchanged AI edit can be reviewed.",
+	reverted: "These changes were already undone.",
+	review_unavailable: "Change review is unavailable for this large document.",
+};
