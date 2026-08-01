@@ -1,7 +1,9 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
+import { Check, Download, EllipsisVertical, FileText, Redo2, Sparkles, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button } from "#/components/ui/button";
+import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -34,8 +36,38 @@ import {
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
 
-export function DocumentToolbar({ editor }: { editor: Editor | null }) {
+export function DocumentToolbar({
+	canEdit,
+	editor,
+	itemId,
+	slotId,
+}: {
+	canEdit: boolean;
+	editor: Editor | null;
+	itemId: string;
+	slotId: string;
+}) {
 	const editorState = useDocumentEditorUiState(editor);
+	const { activeReview, hideReview } = useDocumentEditReview();
+
+	// Reviewing borrows the toolbar rather than floating over the page: the
+	// formatting controls are unusable mid-review anyway, so the space is free.
+	if (activeReview?.itemId === itemId && activeReview.viewInstanceId === slotId) {
+		return <DocumentEditReviewControls onDone={hideReview} />;
+	}
+
+	// Read-only viewers get every formatting control disabled, which reads as a
+	// broken toolbar. Show only what still works.
+	if (!canEdit) {
+		return (
+			<WorkspaceResponsiveToolbar
+				mobileLabel="Document actions"
+				mobileContent={<DocumentExportMenuGroup />}
+			>
+				<DocumentMoreMenu />
+			</WorkspaceResponsiveToolbar>
+		);
+	}
 
 	return (
 		<WorkspaceResponsiveToolbar
@@ -63,6 +95,20 @@ export function DocumentToolbar({ editor }: { editor: Editor | null }) {
 			</ToolbarButton>
 			<DocumentMoreMenu disabled={!editor} />
 		</WorkspaceResponsiveToolbar>
+	);
+}
+
+function DocumentEditReviewControls({ onDone }: { onDone: () => void }) {
+	return (
+		<div className="flex min-w-0 items-center gap-1.5 pr-1">
+			<span className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+				<Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
+				<span className="truncate">Reviewing changes</span>
+			</span>
+			<Button type="button" variant="outline" size="xs" onClick={onDone}>
+				Done
+			</Button>
+		</div>
 	);
 }
 

@@ -6,7 +6,6 @@ import { useState } from "react";
 
 import { Skeleton } from "#/components/ui/skeleton";
 import { DocumentAskSelectionMenu } from "#/features/workspaces/components/document-editor/DocumentAskSelectionMenu";
-import { DocumentEditReviewBar } from "#/features/workspaces/components/document-editor/DocumentEditReviewBar";
 import { DocumentWordCount } from "#/features/workspaces/components/document-editor/DocumentWordCount";
 import { useDocumentEditorToolbar } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
 import { useWorkspacePaneRuntime } from "#/features/workspaces/components/WorkspacePaneRuntime";
@@ -101,7 +100,12 @@ function DocumentEditorInstance({
 		},
 	});
 
-	useDocumentEditorToolbar(viewInstanceId, capabilities.canMutateContent ? editor : null);
+	useDocumentEditorToolbar({
+		canEdit: capabilities.canMutateContent,
+		editor: capabilities.canMutateContent ? editor : null,
+		itemId: item.id,
+		slotId: viewInstanceId,
+	});
 	useDocumentEditReviewOverlay({
 		editor,
 		itemId: item.id,
@@ -111,7 +115,6 @@ function DocumentEditorInstance({
 
 	return (
 		<section className="relative flex h-full min-h-0 flex-col bg-background">
-			<DocumentEditReviewBar itemId={item.id} viewInstanceId={viewInstanceId} />
 			<div data-scroll-root ref={setScrollTarget} className="min-h-0 flex-1 overflow-y-auto">
 				<div className="min-h-full w-full pb-8">
 					<DocumentAskSelectionMenu

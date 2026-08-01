@@ -15,7 +15,9 @@ import { WorkspaceFileToolbar } from "#/features/workspaces/components/Workspace
 
 type WorkspaceItemToolbarRegistration =
 	| {
+			canEdit: boolean;
 			editor: Editor | null;
+			itemId: string;
 			kind: "document";
 			slotId: string;
 	  }
@@ -49,7 +51,17 @@ export function WorkspaceItemToolbarProvider({ children }: { children: ReactNode
 	);
 }
 
-export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) {
+export function useDocumentEditorToolbar({
+	canEdit,
+	editor,
+	itemId,
+	slotId,
+}: {
+	canEdit: boolean;
+	editor: Editor | null;
+	itemId: string;
+	slotId: string;
+}) {
 	const context = use(WorkspaceItemToolbarContext);
 	const setRegistration = context?.setRegistration;
 
@@ -58,12 +70,14 @@ export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) 
 			return;
 		}
 
-		const registration = { editor, kind: "document" as const, slotId };
+		const registration = { canEdit, editor, itemId, kind: "document" as const, slotId };
 		setRegistration((current) => {
 			const existing = current[slotId];
 			if (
 				existing?.kind === "document" &&
+				existing.canEdit === canEdit &&
 				existing.editor === editor &&
+				existing.itemId === itemId &&
 				existing.slotId === slotId
 			) {
 				return current;
@@ -87,7 +101,7 @@ export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) 
 				return next;
 			});
 		};
-	}, [editor, slotId, setRegistration]);
+	}, [canEdit, editor, itemId, slotId, setRegistration]);
 }
 
 export function useFileItemToolbar({
@@ -178,7 +192,12 @@ export function WorkspaceItemToolbarSlot({
 		<div className="flex min-w-0 shrink-0 items-center overflow-hidden">
 			<TooltipProvider>
 				{registration.kind === "document" ? (
-					<DocumentToolbar editor={registration.editor} />
+					<DocumentToolbar
+						canEdit={registration.canEdit}
+						editor={registration.editor}
+						itemId={registration.itemId}
+						slotId={registration.slotId}
+					/>
 				) : (
 					<WorkspaceFileToolbar
 						capture={registration.capture}
