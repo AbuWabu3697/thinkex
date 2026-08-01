@@ -29,6 +29,7 @@ const supportedDocumentAiHtmlTags = new Set([
 	"h1",
 	"h2",
 	"h3",
+	"h4",
 	"hr",
 	"i",
 	"input",

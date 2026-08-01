@@ -33,7 +33,7 @@ export {
 };
 
 export const workspaceDocumentHtmlInstruction =
-	'Use semantic HTML with paragraphs, h1-h3, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>.';
+	'Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>.';
 
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();

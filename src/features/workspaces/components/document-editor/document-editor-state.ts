@@ -1,6 +1,7 @@
 import { type Editor, useEditorState } from "@tiptap/react";
 
-export type DocumentFontSize = "16" | "18" | "24" | "32";
+/** Paragraph plus the heading levels the schema allows. */
+export type DocumentTextStyle = "heading1" | "heading2" | "heading3" | "heading4" | "paragraph";
 export type DocumentTextAlign = "center" | "justify" | "left" | "right";
 export type DocumentStructureBlock =
 	| "blockMath"
@@ -28,7 +29,7 @@ export interface DocumentEditorCounts {
 
 export interface DocumentEditorUiState {
 	block:
-		| { kind: "fontSize"; size: DocumentFontSize }
+		| { kind: "textStyle"; style: DocumentTextStyle }
 		| { kind: "structure"; type: DocumentStructureBlock };
 	canRedo: boolean;
 	canUndo: boolean;
@@ -38,7 +39,7 @@ export interface DocumentEditorUiState {
 }
 
 const emptyDocumentEditorUiState: DocumentEditorUiState = {
-	block: { kind: "fontSize", size: "16" },
+	block: { kind: "textStyle", style: "paragraph" },
 	canRedo: false,
 	canUndo: false,
 	counts: {
@@ -165,19 +166,13 @@ function getActiveBlock(editor: Editor): DocumentEditorUiState["block"] {
 		return { kind: "structure", type: "taskList" };
 	}
 
-	if (editor.isActive("heading", { level: 1 })) {
-		return { kind: "fontSize", size: "32" };
+	for (const level of [1, 2, 3, 4] as const) {
+		if (editor.isActive("heading", { level })) {
+			return { kind: "textStyle", style: `heading${level}` } as const;
+		}
 	}
 
-	if (editor.isActive("heading", { level: 2 })) {
-		return { kind: "fontSize", size: "24" };
-	}
-
-	if (editor.isActive("heading", { level: 3 })) {
-		return { kind: "fontSize", size: "18" };
-	}
-
-	return { kind: "fontSize", size: "16" };
+	return { kind: "textStyle", style: "paragraph" };
 }
 
 function getEditorCounts(editor: Editor): DocumentEditorCounts {

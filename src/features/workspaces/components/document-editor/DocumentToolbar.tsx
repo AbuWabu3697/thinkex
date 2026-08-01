@@ -23,10 +23,10 @@ import {
 import {
 	type DocumentToolbarAction,
 	documentBlockActions,
-	documentFontSizeActions,
+	documentTextStyleActions,
 	documentInlineActions,
 	documentTextAlignActions,
-	getFontSizeIcon,
+	getTextStyleIcon,
 	getInlineMarkIcon,
 	getStructureBlockIcon,
 	getTextAlignIcon,
@@ -155,7 +155,7 @@ function DocumentMobileMenuContent({
 	return (
 		<>
 			<DocumentActionGroup
-				actions={documentFontSizeActions}
+				actions={documentTextStyleActions}
 				editor={editor}
 				editorState={editorState}
 				label="Text style"
@@ -242,13 +242,13 @@ function BlockTypeMenu({
 				{editorState.block.kind === "structure" ? (
 					getStructureBlockIcon(editorState.block.type)
 				) : (
-					<span className="truncate">{getFontSizeIcon(editorState.block.size)}</span>
+					<span className="truncate">{getTextStyleIcon(editorState.block.style)}</span>
 				)}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-44">
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>Text style</DropdownMenuLabel>
-					{documentFontSizeActions.map((action) => (
+					{documentTextStyleActions.map((action) => (
 						<DocumentMenuAction
 							key={action.id}
 							action={action}
