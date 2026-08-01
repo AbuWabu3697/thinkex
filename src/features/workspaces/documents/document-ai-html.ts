@@ -99,8 +99,11 @@ export async function createDocumentAiTargetRef(node: ProseMirrorNode) {
 		throw new Error(`Top-level document node ${node.type.name} is missing an AI ref.`);
 	}
 
-	const html = serializeTiptapFragmentToAiHtml(Fragment.from(withTiptapNodeAiRef(node, null)));
-	const revision = (await sha256Base64UrlText(html)).slice(0, 10);
+	// Fingerprint the block's JSON rather than its HTML: rendering costs a whole
+	// second DOM pass per block per read, and the ref only has to change whenever
+	// the block's content does.
+	const content = JSON.stringify(withTiptapNodeAiRef(node, null).toJSON());
+	const revision = (await sha256Base64UrlText(content)).slice(0, 10);
 	return `${ref}.r_${revision}`;
 }
 
