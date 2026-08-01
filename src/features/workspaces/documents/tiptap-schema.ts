@@ -75,7 +75,7 @@ export function getTiptapDocumentSchemaExtensions({
 		UnderlineExtension,
 		Highlight,
 		Link.configure({
-			openOnClick: false,
+			openOnClick: true,
 			autolink: true,
 			defaultProtocol: "https",
 		}),
