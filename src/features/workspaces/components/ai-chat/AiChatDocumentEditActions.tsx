@@ -1,5 +1,4 @@
 import { FilePen } from "lucide-react";
-import { toast } from "sonner";
 
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
@@ -58,9 +57,7 @@ function DocumentEditRow({ group }: { group: AiChatDocumentEditGroup }) {
 			type="button"
 			className="flex w-full min-w-0 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-foreground/5"
 			onClick={() => {
-				if (!showReview({ itemId: group.itemId, receiptIds: group.receiptIds })) {
-					toast.error("This document no longer exists.");
-				}
+				void showReview({ itemId: group.itemId, receiptIds: group.receiptIds });
 			}}
 		>
 			<div className="min-w-0 flex-1">

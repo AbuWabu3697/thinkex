@@ -132,7 +132,6 @@ function DocumentEditorInstance({
 		canEdit: capabilities.canMutateContent,
 		editor,
 		itemId: item.id,
-		workspaceId,
 	});
 
 	return (

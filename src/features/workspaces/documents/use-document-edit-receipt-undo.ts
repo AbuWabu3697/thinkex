@@ -2,9 +2,11 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
+import type {
+	DocumentEditReceiptTarget,
+	DocumentEditReceiptUnavailableStatus,
+} from "#/features/workspaces/documents/document-edit-receipt";
 import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
-import type { DocumentEditReceiptTarget } from "#/features/workspaces/documents/document-edit-review-queries";
 
 /**
  * Undo shared by the chat receipt and the review toolbar, so the same edits
