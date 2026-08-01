@@ -4,9 +4,9 @@ import type {
 	WorkspaceContentReadResult,
 } from "#/features/workspaces/content/workspace-content-contract";
 import type {
-	DocumentMarkdownChunkReadInput,
-	DocumentMarkdownChunkReadResult,
-} from "#/features/workspaces/documents/document-markdown-chunk";
+	DocumentHtmlChunkReadInput,
+	DocumentHtmlChunkReadResult,
+} from "#/features/workspaces/documents/document-html-chunk";
 import { readWorkspacePageProjection } from "#/features/workspaces/extraction/workspace-page-projection";
 import {
 	resolveWorkspaceProjectionReadiness,
@@ -21,18 +21,18 @@ import {
 	encodeWorkspaceContentCursor,
 } from "#/features/workspaces/content/workspace-content-cursor";
 
-const maxWorkspaceContentBatchBytes = 2 * 1024 * 1024 + 64 * 1024;
+// A tool call may read several paths, but their combined bodies must leave room
+// for the conversation, reasoning, and response in the smallest model window.
+const maxWorkspaceContentBatchBytes = 256 * 1024;
 
 interface DocumentContentReader {
-	readMarkdownChunk(
-		input: DocumentMarkdownChunkReadInput,
-	): Promise<DocumentMarkdownChunkReadResult>;
+	readHtmlChunk(input: DocumentHtmlChunkReadInput): Promise<DocumentHtmlChunkReadResult>;
 }
 
 interface PendingReadyResult {
 	item: WorkspaceItemSummary;
 	read: Extract<WorkspaceContentReadResult, { status: "ready" }>;
-	relations: Awaited<ReturnType<WorkspaceKernelClient["listItemRelations"]>>;
+	relations: ReturnType<WorkspaceKernelClient["listItemRelations"]>;
 }
 
 export async function readWorkspaceContent(input: {
@@ -49,6 +49,7 @@ export async function readWorkspaceContent(input: {
 	const results: WorkspaceContentReadResult[] = [];
 	const readyResults: PendingReadyResult[] = [];
 	let returnedContentBytes = 0;
+	let readBudgetExhausted = false;
 
 	// Reads stay ordered so each body is consumed before the shared byte budget advances.
 	for (const [index, resolution] of resolutions.entries()) {
@@ -72,6 +73,16 @@ export async function readWorkspaceContent(input: {
 			results.push({ code: "path_is_folder", path: resolution.path, status: "failed" });
 			continue;
 		}
+		const readBudgetFailure = {
+			code: "read_budget_exceeded" as const,
+			path: resolution.path,
+			status: "failed" as const,
+			...(resolution.item.type === "file" ? { type: "file" as const } : {}),
+		};
+		if (readBudgetExhausted) {
+			results.push(readBudgetFailure);
+			continue;
+		}
 
 		try {
 			const read = await readWorkspaceItem({
@@ -86,12 +97,8 @@ export async function readWorkspaceContent(input: {
 			}
 			const contentBytes = encoder.encode(read.content).byteLength;
 			if (returnedContentBytes + contentBytes > maxWorkspaceContentBatchBytes) {
-				results.push({
-					code: "read_budget_exceeded",
-					path: resolution.path,
-					status: "failed",
-					...(resolution.item.type === "file" ? { type: "file" as const } : {}),
-				});
+				readBudgetExhausted = true;
+				results.push(readBudgetFailure);
 				continue;
 			}
 			returnedContentBytes += contentBytes;
@@ -99,7 +106,7 @@ export async function readWorkspaceContent(input: {
 			const pending = {
 				item: resolution.item,
 				read,
-				relations: await input.kernel.listItemRelations({ itemId: resolution.item.id }),
+				relations: input.kernel.listItemRelations({ itemId: resolution.item.id }),
 			};
 			readyResults.push(pending);
 			results.push(read);
@@ -150,7 +157,7 @@ async function readDocument(input: {
 	}
 
 	const documentSession = await input.getDocumentSession(input.item.id);
-	const chunk = await documentSession.readMarkdownChunk({
+	const chunk = await documentSession.readHtmlChunk({
 		expectedRevision: cursor?.kind === "document" ? cursor.revision : undefined,
 		offset: cursor?.kind === "document" ? cursor.offset : 0,
 	});
@@ -163,9 +170,9 @@ async function readDocument(input: {
 
 	return {
 		content: chunk.content,
-		format: "markdown",
+		format: "html",
 		itemId: input.item.id,
-		location: { kind: "lines", ...chunk.location },
+		location: { kind: "blocks", ...chunk.location },
 		...(chunk.nextOffset === undefined
 			? {}
 			: {
@@ -174,7 +181,7 @@ async function readDocument(input: {
 						offset: chunk.nextOffset,
 						path: input.path,
 						revision: chunk.revision,
-						version: 2,
+						version: 3,
 					}),
 				}),
 		path: input.path,
@@ -302,8 +309,14 @@ async function attachRelationPaths(
 	if (readyResults.length === 0) {
 		return;
 	}
+	const resolvedResults = await Promise.all(
+		readyResults.map(async ({ relations, ...result }) => ({
+			...result,
+			relations: await relations,
+		})),
+	);
 	const relatedItemIds = new Set<string>();
-	for (const result of readyResults) {
+	for (const result of resolvedResults) {
 		relatedItemIds.add(result.item.id);
 		for (const relation of result.relations) {
 			relatedItemIds.add(relation.fromItemId);
@@ -313,7 +326,7 @@ async function attachRelationPaths(
 	const itemPaths = await kernel.getItemPaths({ itemIds: Array.from(relatedItemIds) });
 	const pathsByItemId = new Map(itemPaths.map((item) => [item.itemId, item.path]));
 
-	for (const result of readyResults) {
+	for (const result of resolvedResults) {
 		const relations = serializeWorkspaceRelations({
 			item: result.item,
 			pathsByItemId,

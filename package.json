@@ -112,6 +112,7 @@
 		"drizzle-orm": "^0.45.1",
 		"hast-util-to-string": "^3.0.1",
 		"katex": "^0.17.0",
+		"linkedom": "0.18.13",
 		"lucide-react": "^1.27.0",
 		"matter-js": "^0.20.0",
 		"mermaid": "11.16.0",

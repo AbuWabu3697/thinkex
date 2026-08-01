@@ -16,7 +16,7 @@ import {
 	workspaceDeleteItemsInputExamples,
 	workspaceDeleteItemsInputSchema,
 	workspaceDeleteItemsOutputSchema,
-	workspaceDocumentMarkdownMathInstruction,
+	workspaceDocumentHtmlInstruction,
 	workspaceEditItemInputExamples,
 	workspaceEditItemInputSchema,
 	workspaceEditItemOutputSchema,
@@ -149,7 +149,7 @@ export const workspaceToolDefinitions = [
 		name: "workspace_read_items",
 		access: "read",
 		description:
-			"Read ThinkEx documents and extracted files by absolute path. Documents return bounded line chunks; files support explicit physical-page selections. Continue either kind with the returned nextCursor. Uploaded files extract in the background, so a read can come back pending or report that extraction failed; each result carries the guidance for handling it.",
+			"Read ThinkEx documents and extracted files by absolute path. Documents return bounded HTML block chunks; each top-level data-ref is an item-local edit target, not a citation ref. Files support explicit physical-page selections. Continue either kind with nextCursor. Uploaded files may still be extracting; each result carries any needed handling guidance.",
 		inputSchema: workspaceReadItemsInputSchema,
 		inputExamples: workspaceReadItemsInputExamples,
 		outputSchema: workspaceReadItemsOutputSchema,
@@ -214,7 +214,7 @@ export const workspaceToolDefinitions = [
 	defineWorkspaceTool({
 		name: "workspace_create_items",
 		access: "write",
-		description: `Create one or more folders or documents at exact absolute paths. If a path already exists, creation fails instead of renaming. ${workspaceDocumentMarkdownMathInstruction}`,
+		description: `Create one or more folders or documents at exact absolute paths. If a path already exists, creation fails instead of renaming. ${workspaceDocumentHtmlInstruction}`,
 		inputSchema: workspaceCreateItemsInputSchema,
 		inputExamples: workspaceCreateItemsInputExamples,
 		outputSchema: workspaceCreateItemsOutputSchema,
@@ -244,7 +244,7 @@ export const workspaceToolDefinitions = [
 	defineWorkspaceTool({
 		name: "workspace_edit_item",
 		access: "write",
-		description: `Edit one actual ThinkEx workspace document by absolute path. Use workspace_link_items to add relationships. Read before editing unless the user requested a simple append or prepend. ${workspaceDocumentMarkdownMathInstruction}`,
+		description: `Edit one actual ThinkEx workspace document by absolute path using structural HTML operations. Read first for targeted edits; replace_all can rewrite the whole document without a read. Use workspace_link_items to add relationships. ${workspaceDocumentHtmlInstruction}`,
 		inputSchema: workspaceEditItemInputSchema,
 		inputExamples: workspaceEditItemInputExamples,
 		outputSchema: workspaceEditItemOutputSchema,
