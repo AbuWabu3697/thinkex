@@ -9,6 +9,8 @@ import { Collapsible, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { Message, MessageContent, MessageFooter } from "#/components/ui/message";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "#/components/ui/tooltip";
 import { AiChatMessagePartView } from "#/features/workspaces/components/ai-chat/AiChatMessagePartView";
+import { AiChatDocumentEditActions } from "#/features/workspaces/components/ai-chat/AiChatDocumentEditActions";
+import { getAiChatDocumentEditGroups } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import {
 	getWorkspaceCitationLocations,
 	stripWorkspaceCitationTags,
@@ -204,14 +206,20 @@ function AssistantMessageBody({
 	workspaceCitationLocations: ReturnType<typeof getWorkspaceCitationLocations>;
 }) {
 	if (display.kind === "content") {
-		return display.parts.map((part, index) => (
-			<AiChatMessagePartView
-				key={getMessagePartKey(message.id, part, index)}
-				isStreaming={isStreaming}
-				part={part}
-				workspaceCitationLocations={workspaceCitationLocations}
-			/>
-		));
+		const editGroups = isStreaming ? [] : getAiChatDocumentEditGroups(display.parts);
+		return (
+			<>
+				{display.parts.map((part, index) => (
+					<AiChatMessagePartView
+						key={getMessagePartKey(message.id, part, index)}
+						isStreaming={isStreaming}
+						part={part}
+						workspaceCitationLocations={workspaceCitationLocations}
+					/>
+				))}
+				{editGroups.length > 0 ? <AiChatDocumentEditActions groups={editGroups} /> : null}
+			</>
+		);
 	}
 
 	if (display.kind === "empty-terminal") {

@@ -25,6 +25,7 @@ vi.mock("#/features/workspaces/operations/workspace-tool-definitions", () => ({
 
 import {
 	createAIThreadOrchestrationTool,
+	getAIThreadOrchestrationModelOutput,
 	getAIThreadOrchestrationTelemetryOutput,
 	normalizeAIThreadOrchestrationOutput,
 } from "#/features/workspaces/ai/ai-thread-orchestration";
@@ -119,6 +120,54 @@ describe("AI thread orchestration", () => {
 		});
 		expect(JSON.stringify(output.calls)).not.toContain("private query");
 		expect(JSON.stringify(output.calls)).not.toContain("example.com");
+	});
+
+	it("keeps document edit controls app-only", () => {
+		const output = normalizeAIThreadOrchestrationOutput({
+			status: "completed",
+			executionId: "execution-edit",
+			result: {
+				nested: {
+					__thinkexUi: { documentEditReceiptId: "receipt-secret" },
+				},
+			},
+			calls: [
+				{
+					seq: 1,
+					connector: "tools",
+					method: "workspace_edit_item",
+					state: "applied",
+					requiresApproval: false,
+					args: { path: "/Notes" },
+					result: {
+						applied: 1,
+						failed: [],
+						itemId: "document-1",
+						path: "/Notes",
+						__thinkexUi: { documentEditReceiptId: "receipt-secret" },
+					},
+				},
+			],
+		});
+
+		expect(output.calls[0]).toMatchObject({
+			action: {
+				itemId: "document-1",
+				kind: "document-edit",
+				path: "/Notes",
+				receiptId: "receipt-secret",
+			},
+		});
+		if (output.status !== "completed") {
+			throw new Error("Expected completed orchestration output.");
+		}
+		expect(JSON.stringify(output.result)).not.toContain("__thinkexUi");
+
+		const modelOutput = getAIThreadOrchestrationModelOutput(output);
+		const telemetryOutput = getAIThreadOrchestrationTelemetryOutput(output);
+		expect(JSON.stringify(modelOutput)).not.toContain("receipt-secret");
+		expect(JSON.stringify(modelOutput)).not.toContain('"action"');
+		expect(JSON.stringify(telemetryOutput)).not.toContain("receipt-secret");
 	});
 
 	it("fails closed when a completed runtime result contains a malformed child call", () => {

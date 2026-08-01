@@ -29,6 +29,7 @@ import type {
 } from "#/features/workspaces/contracts";
 import type { WorkspaceLocation } from "#/features/workspaces/locations/workspace-location";
 import { WorkspaceLocationProvider } from "#/features/workspaces/locations/workspace-location-context";
+import { DocumentEditReviewProvider } from "#/features/workspaces/documents/document-edit-review-context";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { isWorkspaceItemView } from "#/features/workspaces/model/view";
 import { workspaceItemRequiresHeavyViewerRuntime } from "#/features/workspaces/model/workspace-file";
@@ -305,11 +306,13 @@ export function WorkspaceShell({
 	return (
 		<WorkspaceMutationAccessProvider membershipRole={workspace.membershipRole}>
 			<WorkspaceLocationProvider itemsById={itemsById} navigate={navigateToWorkspaceLocation}>
-				{hasHeavyViewerRuntimeItems ? (
-					<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
-				) : (
-					workspaceInteractionContent
-				)}
+				<DocumentEditReviewProvider workspaceId={workspace.id}>
+					{hasHeavyViewerRuntimeItems ? (
+						<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
+					) : (
+						workspaceInteractionContent
+					)}
+				</DocumentEditReviewProvider>
 			</WorkspaceLocationProvider>
 		</WorkspaceMutationAccessProvider>
 	);

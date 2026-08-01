@@ -7,12 +7,16 @@ import { z } from "zod";
 
 import { generateAIThreadCodemodeTypes } from "#/features/workspaces/ai/ai-codemode-types";
 import { createAIThreadBrowserConnector } from "#/features/workspaces/ai/ai-thread-browser";
-import { normalizeAIThreadOrchestrationOutput } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
+import {
+	getAIThreadOrchestrationModelOutput,
+	normalizeAIThreadOrchestrationOutput,
+} from "#/features/workspaces/ai/ai-thread-orchestration-contract";
 import {
 	aiThreadActivityTitleSchema,
 	getModelToolDefinition,
 	requireAIThreadToolRuntime,
 } from "#/features/workspaces/ai/ai-thread-tool";
+import { attachDocumentEditReceiptMetadata } from "#/features/workspaces/ai/ai-thread-tool-ui-metadata";
 
 type AIThreadOrchestrationRuntime = ReturnType<typeof createExecuteRuntime>["runtime"];
 
@@ -30,6 +34,7 @@ const aiThreadOrchestrationInputSchema = z.object({
 
 export {
 	getAIThreadOrchestrationTelemetryOutput,
+	getAIThreadOrchestrationModelOutput,
 	normalizeAIThreadOrchestrationOutput,
 } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
 export type { AIThreadOrchestrationOutput } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
@@ -72,6 +77,10 @@ export function createAIThreadOrchestrationTool(input: CreateAIThreadOrchestrati
 	return {
 		...getModelToolDefinition(runtime.tool),
 		inputSchema: aiThreadOrchestrationInputSchema,
+		toModelOutput: ({ output }) => ({
+			type: "json" as const,
+			value: getAIThreadOrchestrationModelOutput(output),
+		}),
 		execute: async (...args: Parameters<typeof execute>) => {
 			return normalizeAIThreadOrchestrationOutput(await execute(...args));
 		},
@@ -114,11 +123,16 @@ class AIThreadToolSetConnector extends CodemodeConnector {
 							? { requiresApproval: true }
 							: {}),
 						execute: async (args, context) => {
-							return runtime.execute(args, {
+							const invocationId = crypto.randomUUID();
+							const output = await runtime.execute(args, {
 								codemodeExecutionId: context?.executionId,
-								invocationId: crypto.randomUUID(),
+								invocationId,
 								source: "codemode",
 							});
+
+							return toolName === "workspace_edit_item"
+								? attachDocumentEditReceiptMetadata(output, invocationId)
+								: output;
 						},
 					};
 

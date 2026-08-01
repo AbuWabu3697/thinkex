@@ -60,7 +60,7 @@ export function AiChatToolActivityRow({
 							</CollapsibleTrigger>
 							<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
 						</div>
-						<CollapsibleContent className="mt-2 space-y-3 pl-7">
+						<CollapsibleContent className="mt-2 space-y-3">
 							{details}
 							{sourcePreviews.length > 0 ? <SourceDetailList sources={sourcePreviews} /> : null}
 							{nestedChildren.length > 0 ? (

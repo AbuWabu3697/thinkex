@@ -13,6 +13,12 @@ import {
 } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 
 export interface AiChatToolChildActivity {
+	action?: {
+		kind: "document-edit";
+		itemId: string;
+		path: string;
+		receiptId: string;
+	};
 	id: string;
 	presentation: AiToolPresentation;
 	status: AiChatToolReceiptStatus;
@@ -77,12 +83,14 @@ function isCompactToolActivity(
 		return false;
 	}
 	const record = value as Record<string, unknown>;
+	const action = record.action;
 
 	return (
 		typeof record.id === "string" &&
 		isReceiptStatus(record.status) &&
 		typeof record.summary === "string" &&
-		typeof record.toolName === "string"
+		typeof record.toolName === "string" &&
+		(action === undefined || isDocumentEditAction(action))
 	);
 }
 
@@ -178,4 +186,20 @@ function isCallState(value: unknown): value is ToolLogEntry["state"] {
 
 function isReceiptStatus(value: unknown): value is AiChatToolReceiptStatus {
 	return value === "completed" || value === "failed" || value === "running";
+}
+
+function isDocumentEditAction(
+	value: unknown,
+): value is NonNullable<AiChatToolChildActivity["action"]> {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const record = value as Record<string, unknown>;
+
+	return (
+		record.kind === "document-edit" &&
+		typeof record.itemId === "string" &&
+		typeof record.path === "string" &&
+		typeof record.receiptId === "string"
+	);
 }

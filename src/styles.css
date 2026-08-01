@@ -504,6 +504,27 @@
 		color: var(--foreground);
 	}
 
+	.workspace-document-prose .workspace-document-ai-inserted {
+		border-radius: 0.2rem;
+		background: color-mix(in oklab, var(--color-blue-500) 18%, transparent);
+		box-decoration-break: clone;
+		-webkit-box-decoration-break: clone;
+	}
+
+	.workspace-document-prose .workspace-document-ai-deleted {
+		margin-inline: 0.15rem;
+		border-radius: 0.2rem;
+		background: color-mix(in oklab, var(--color-muted) 82%, transparent);
+		color: var(--color-muted-foreground);
+		text-decoration: line-through;
+	}
+
+	.workspace-document-prose .workspace-document-ai-changed-block {
+		border-radius: 0.35rem;
+		box-shadow: inset 2px 0 color-mix(in oklab, var(--color-blue-500) 60%, transparent);
+		background: color-mix(in oklab, var(--color-blue-500) 7%, transparent);
+	}
+
 	.dark .workspace-document-prose {
 		--workspace-document-highlight: oklch(0.82 0.12 88 / 82%);
 		--workspace-document-highlight-foreground: var(--foreground);

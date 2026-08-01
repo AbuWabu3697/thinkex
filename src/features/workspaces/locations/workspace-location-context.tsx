@@ -22,7 +22,7 @@ type WorkspacePdfPageRevealRequest = {
 type WorkspaceLocationContextValue = {
 	consumeRevealRequest: (request: WorkspacePdfPageRevealRequest) => void;
 	getPresentation: (location: WorkspaceLocation) => WorkspaceLocationPresentation;
-	reveal: (location: WorkspaceLocation) => boolean;
+	reveal: (location: WorkspaceLocation) => string | undefined;
 	revealRequest: WorkspacePdfPageRevealRequest | null;
 };
 
@@ -69,7 +69,7 @@ export function WorkspaceLocationProvider({
 			setRevealRequest(
 				viewInstanceId && location.kind === "pdf-page" ? { location, viewInstanceId } : null,
 			);
-			return Boolean(viewInstanceId);
+			return viewInstanceId;
 		},
 		revealRequest,
 	};
