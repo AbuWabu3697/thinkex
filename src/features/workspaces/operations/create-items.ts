@@ -123,8 +123,8 @@ export async function createWorkspaceItemsOperation(
 				? {
 						...itemInput,
 						initialContent: await resolveDocumentCitations({
+							context: accessContext,
 							html: itemInput.initialContent,
-							kernel,
 						}),
 					}
 				: itemInput,

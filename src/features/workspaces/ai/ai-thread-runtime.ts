@@ -90,6 +90,7 @@ export function createAIThreadTools(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 	timeZone?: string;
 }): ToolSet {
 	return createAIThreadToolCatalog(input).tools;
@@ -144,6 +145,7 @@ function createAIThreadToolCatalog(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 	timeZone?: string;
 }) {
 	const sandboxTools = createSandboxTools(input.workspace);
@@ -159,6 +161,7 @@ function createAIThreadToolCatalog(input: {
 	const workspaceTools = createAIThreadWorkspaceTools({
 		getThreadContext: input.getThreadContext,
 		onWorkspaceReferences: input.onWorkspaceReferences,
+		resolveWorkspaceReferences: input.resolveWorkspaceReferences,
 	});
 	const entries: AIThreadToolEntry[] = [];
 

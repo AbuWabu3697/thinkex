@@ -84,7 +84,10 @@ export async function editWorkspaceItemOperation(
 		edits: await Promise.all(
 			edits.map(async (edit) =>
 				"html" in edit
-					? { ...edit, html: await resolveDocumentCitations({ html: edit.html, kernel }) }
+					? {
+							...edit,
+							html: await resolveDocumentCitations({ context: accessContext, html: edit.html }),
+						}
 					: edit,
 			),
 		),

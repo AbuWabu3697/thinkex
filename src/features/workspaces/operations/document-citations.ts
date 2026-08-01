@@ -1,33 +1,44 @@
 import {
-	applyDocumentCitationItemIds,
-	readDocumentCitationPaths,
+	applyDocumentCitationLocations,
+	readDocumentCitationRefs,
 } from "#/features/workspaces/documents/document-ai-html";
-import type { WorkspaceKernelClient } from "#/features/workspaces/kernel/workspace-kernel-access";
+import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
 
 /**
- * Turn the paths an assistant cited into the item ids a document can keep.
+ * Turn the refs an assistant cited into the locations a document can keep.
  *
- * The assistant cites what it knows — an absolute path — but a path changes
- * when an item is renamed or moved, and a document outlives the turn that
- * wrote it. Resolving here, where paths are resolved anyway, means the stored
- * citation survives both.
+ * The assistant cites `wr_` refs, the same way it cites in a chat reply, but a
+ * ref only means something inside the turn that produced it. Resolving here
+ * lets the document store the item and page it actually points at.
  */
 export async function resolveDocumentCitations(input: {
+	context: WorkspaceAccessContext;
 	html: string;
-	kernel: WorkspaceKernelClient;
 }): Promise<string> {
-	const paths = readDocumentCitationPaths(input.html);
+	const refs = readDocumentCitationRefs(input.html);
 
-	if (paths.length === 0) {
+	if (refs.length === 0 || !input.context.resolveWorkspaceReferences) {
 		return input.html;
 	}
 
-	const resolutions = await input.kernel.resolvePaths({ paths });
-	const itemIdsByPath = new Map(
-		resolutions.flatMap((resolution) =>
-			resolution.status === "item" ? [[resolution.path, resolution.item.id] as const] : [],
+	const records = await input.context.resolveWorkspaceReferences(refs);
+	const locationsByRef = new Map(
+		records.flatMap((record) =>
+			record.location.kind === "item" || record.location.kind === "pdf-page"
+				? [
+						[
+							record.ref,
+							{
+								itemId: record.location.itemId,
+								...(record.location.kind === "pdf-page"
+									? { pageNumber: record.location.pageNumber }
+									: {}),
+							},
+						] as const,
+					]
+				: [],
 		),
 	);
 
-	return applyDocumentCitationItemIds(input.html, itemIdsByPath);
+	return applyDocumentCitationLocations(input.html, locationsByRef);
 }

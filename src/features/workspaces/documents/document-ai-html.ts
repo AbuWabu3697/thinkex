@@ -231,37 +231,41 @@ function isSupportedSpecialElement(element: Element) {
 	return true;
 }
 
-/** Absolute paths the assistant cited, for the caller to resolve to item ids. */
-export function readDocumentCitationPaths(html: string) {
+/** Short refs the assistant cited, for the caller to resolve to locations. */
+export function readDocumentCitationRefs(html: string) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
 	return [
 		...new Set(
-			[...htmlDocument.body.querySelectorAll("citation[path]")].flatMap(
-				(element) => element.getAttribute("path") ?? [],
+			[...htmlDocument.body.querySelectorAll("citation[ref]")].flatMap(
+				(element) => element.getAttribute("ref") ?? [],
 			),
 		),
 	];
 }
 
-/** Rewrite cited paths to the item ids they resolved to. */
-export function applyDocumentCitationItemIds(html: string, itemIdsByPath: Map<string, string>) {
+/**
+ * Rewrite cited refs to the locations they stand for. A ref belongs to one chat
+ * turn; the location outlives it, so that is what the document keeps.
+ */
+export function applyDocumentCitationLocations(
+	html: string,
+	locationsByRef: Map<string, { itemId: string; pageNumber?: number }>,
+) {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
 
-	for (const element of htmlDocument.body.querySelectorAll("citation[path]")) {
-		const itemId = itemIdsByPath.get(element.getAttribute("path") ?? "");
-		const page = element.getAttribute("page");
-		element.removeAttribute("path");
-		element.removeAttribute("page");
+	for (const element of htmlDocument.body.querySelectorAll("citation[ref]")) {
+		const location = locationsByRef.get(element.getAttribute("ref") ?? "");
+		element.removeAttribute("ref");
 
-		if (!itemId) {
+		if (!location) {
 			continue;
 		}
-		element.setAttribute("data-item-id", itemId);
-		if (page) {
-			element.setAttribute("data-page", page);
+		element.setAttribute("data-item-id", location.itemId);
+		if (location.pageNumber) {
+			element.setAttribute("data-page", String(location.pageNumber));
 		}
 	}
 
