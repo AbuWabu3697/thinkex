@@ -1,4 +1,4 @@
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { FilePen, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -6,15 +6,9 @@ import { Button } from "#/components/ui/button";
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type {
-	DocumentEditLineChanges,
-	DocumentEditReceiptUnavailableStatus,
-} from "#/features/workspaces/documents/document-edit-receipt";
-import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
-import {
-	documentEditReceiptQueryKey,
-	documentEditReceiptStatusQueryOptions,
-} from "#/features/workspaces/documents/document-edit-review-queries";
+import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
+import { documentEditReceiptStatusQueryOptions } from "#/features/workspaces/documents/document-edit-review-queries";
+import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
 import { getWorkspacePathName } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
 interface SettledDocumentEditGroup {
@@ -67,9 +61,9 @@ export function AiChatDocumentEditActions({
 			aria-label="Document changes from this response"
 			className="mt-2 overflow-hidden rounded-lg bg-muted/40"
 		>
-			<div className="flex items-center gap-2 px-2.5 py-2">
-				<FilePen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-				<span className="font-medium text-sm">
+			<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground text-xs">
+				<FilePen className="size-3 shrink-0" aria-hidden="true" />
+				<span className="font-medium">
 					Edited {settledGroups.length} {settledGroups.length === 1 ? "document" : "documents"}
 				</span>
 			</div>
@@ -83,31 +77,15 @@ export function AiChatDocumentEditActions({
 }
 
 function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
-	const queryClient = useQueryClient();
 	const { capabilities } = useWorkspaceMutationAccess();
 	const { activeReview, hideReview, showReview, workspaceId } = useDocumentEditReview();
 	const { group, reverted } = settled;
 	const { itemId } = group;
 	const receiptKey = group.receiptIds.join(":");
-	const target = { itemId, receiptIds: group.receiptIds, workspaceId };
-	const undoMutation = useMutation({
-		mutationFn: () => undoDocumentEditReceiptFn({ data: target }),
-		onSuccess: async (result) => {
-			if (result.status === "reverted") {
-				hideReview();
-				toast.success("Changes undone.");
-			} else {
-				toast.error(undoUnavailableMessages[result.status]);
-			}
-
-			queryClient.setQueryData(documentEditReceiptQueryKey(target, "status"), result);
-			await queryClient.invalidateQueries({
-				queryKey: ["workspace-document-edit-receipt", workspaceId, itemId],
-			});
-		},
-		onError: (error) => {
-			toast.error(error instanceof Error ? error.message : "Could not undo these changes.");
-		},
+	const undoMutation = useDocumentEditReceiptUndo({
+		itemId,
+		receiptIds: group.receiptIds,
+		workspaceId,
 	});
 	const isReviewActive = Boolean(
 		activeReview &&
@@ -190,7 +168,7 @@ function ChangeSummary({
 	// rather than an alarm.
 	return (
 		<div className="mt-0.5 flex items-center gap-1.5 text-muted-foreground text-xs">
-			<span>Lines</span>
+			<span>Lines:</span>
 			{changes.added > 0 ? <span className="text-success/90">+{changes.added}</span> : null}
 			{changes.added > 0 && changes.removed > 0 ? (
 				<span className="text-muted-foreground/50">·</span>
@@ -199,11 +177,3 @@ function ChangeSummary({
 		</div>
 	);
 }
-
-const undoUnavailableMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {
-	content_changed: "This document changed after these edits, so they were not undone.",
-	not_found: "These changes are no longer available.",
-	not_latest: "Undo the newer changes first.",
-	reverted: "These changes were already undone.",
-	review_unavailable: "Undo is unavailable for this large document.",
-};

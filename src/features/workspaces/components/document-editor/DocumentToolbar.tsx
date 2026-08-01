@@ -1,9 +1,17 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
+import {
+	Check,
+	Download,
+	EllipsisVertical,
+	FileText,
+	LoaderCircle,
+	Redo2,
+	Undo2,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "#/components/ui/button";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
+import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -34,6 +42,7 @@ import {
 import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
+	WorkspaceToolbarTextButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
 
 export function DocumentToolbar({
@@ -53,7 +62,14 @@ export function DocumentToolbar({
 	// Reviewing borrows the toolbar rather than floating over the page: the
 	// formatting controls are unusable mid-review anyway, so the space is free.
 	if (activeReview?.itemId === itemId && activeReview.viewInstanceId === slotId) {
-		return <DocumentEditReviewControls onDone={hideReview} />;
+		return (
+			<DocumentEditReviewControls
+				canUndo={canEdit}
+				itemId={itemId}
+				receiptIds={activeReview.receiptIds}
+				onDone={hideReview}
+			/>
+		);
 	}
 
 	// Read-only viewers get every formatting control disabled, which reads as a
@@ -98,13 +114,37 @@ export function DocumentToolbar({
 	);
 }
 
-function DocumentEditReviewControls({ onDone }: { onDone: () => void }) {
+function DocumentEditReviewControls({
+	canUndo,
+	itemId,
+	onDone,
+	receiptIds,
+}: {
+	canUndo: boolean;
+	itemId: string;
+	onDone: () => void;
+	receiptIds: string[];
+}) {
+	const { workspaceId } = useDocumentEditReview();
+	const undoMutation = useDocumentEditReceiptUndo({ itemId, receiptIds, workspaceId });
+
 	return (
-		<div className="flex min-w-0 items-center gap-2 rounded-md bg-success/10 py-1 pr-1 pl-2.5">
+		<div className="flex min-w-0 items-center gap-1 rounded-md bg-success/10 pl-2.5">
 			<span className="min-w-0 truncate font-medium text-sm">Reviewing changes</span>
-			<Button type="button" size="xs" onClick={onDone}>
+			{canUndo ? (
+				<WorkspaceToolbarTextButton
+					disabled={undoMutation.isPending}
+					onClick={() => undoMutation.mutate()}
+				>
+					{undoMutation.isPending ? (
+						<LoaderCircle className="animate-spin" aria-hidden="true" />
+					) : null}
+					Undo
+				</WorkspaceToolbarTextButton>
+			) : null}
+			<WorkspaceToolbarTextButton variant="default" onClick={onDone}>
 				Done
-			</Button>
+			</WorkspaceToolbarTextButton>
 		</div>
 	);
 }
