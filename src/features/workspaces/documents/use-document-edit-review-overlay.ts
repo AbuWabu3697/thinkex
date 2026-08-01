@@ -10,10 +10,6 @@ import {
 	showDocumentEditReview,
 } from "#/features/workspaces/documents/document-edit-review-extension";
 import { documentEditReceiptReviewQueryOptions } from "#/features/workspaces/documents/document-edit-review-queries";
-import {
-	coerceTiptapDocumentJson,
-	stringifyTiptapDocumentJson,
-} from "#/features/workspaces/documents/tiptap-document";
 
 export function useDocumentEditReviewOverlay({
 	canEdit,
@@ -70,13 +66,9 @@ export function useDocumentEditReviewOverlay({
 			return;
 		}
 
-		// The marks only describe the document as it was when they were computed.
-		const currentDocument = stringifyTiptapDocumentJson(coerceTiptapDocumentJson(editor.getJSON()));
-		if (currentDocument !== stringifyTiptapDocumentJson(review.afterDocument)) {
-			toast.error(unavailableReviewMessages.content_changed);
-			hideReview();
-			return;
-		}
+		// Staleness is the server's call: it compares the live document against the
+		// receipt and reports content_changed above. Re-checking here against a
+		// just-opened editor only catches it mid-sync and refuses to show anything.
 
 		// Reviewing is a reading mode: hold the document still until Done rather
 		// than deciding what a keystroke mid-review was supposed to mean.
