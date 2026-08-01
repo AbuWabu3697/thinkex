@@ -26,6 +26,13 @@ export async function resolveDocumentCitations(input: {
 	}
 
 	const records = await input.context.resolveWorkspaceReferences(refs);
+
+	// A ref the assistant invented or carried over from an older turn resolves to
+	// nothing, and there are no items left to name.
+	if (records.length === 0) {
+		return input.html;
+	}
+
 	const itemPaths = await input.kernel.getItemPaths({
 		itemIds: [...new Set(records.map((record) => record.location.itemId))],
 	});
