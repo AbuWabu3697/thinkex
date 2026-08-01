@@ -1,11 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
-import { Eye, FilePen, X } from "lucide-react";
+import { FilePen } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "#/components/ui/button";
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
-import { DocumentEditUndoButton } from "#/features/workspaces/components/DocumentEditUndoButton";
-import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
 import { documentEditReceiptStatusQueryOptions } from "#/features/workspaces/documents/document-edit-review-queries";
@@ -77,8 +74,7 @@ export function AiChatDocumentEditActions({
 }
 
 function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
-	const { capabilities } = useWorkspaceMutationAccess();
-	const { activeReview, hideReview, showReview, workspaceId } = useDocumentEditReview();
+	const { activeReview, hideReview, showReview } = useDocumentEditReview();
 	const { group, reverted } = settled;
 	const { itemId } = group;
 	const receiptKey = group.receiptIds.join(":");
@@ -87,42 +83,42 @@ function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
 		activeReview.itemId === itemId &&
 		activeReview.receiptIds.join(":") === receiptKey,
 	);
-
-	return (
-		<div className="flex min-w-0 items-center gap-2 px-2.5 py-2">
-			<div className={`min-w-0 flex-1 ${reverted ? "opacity-60" : ""}`}>
-				<div className="truncate text-sm" title={group.path}>
-					<DocumentPathLabel path={group.path} />
-				</div>
-				<ChangeSummary changes={settled.changes} reverted={reverted} />
+	const summary = (
+		<>
+			<div className="truncate text-sm" title={group.path}>
+				<DocumentPathLabel path={group.path} />
 			</div>
-			{reverted ? null : (
-				<div className="flex shrink-0 items-center gap-1">
-					{capabilities.canMutateContent ? (
-						<DocumentEditUndoButton
-							itemId={itemId}
-							receiptIds={group.receiptIds}
-							workspaceId={workspaceId}
-						/>
-					) : null}
-					<Button
-						type="button"
-						variant="outline"
-						size="xs"
-						onClick={() => {
-							if (isReviewActive) {
-								hideReview();
-							} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
-								toast.error("This document is no longer open.");
-							}
-						}}
-					>
-						{isReviewActive ? <X aria-hidden="true" /> : <Eye aria-hidden="true" />}
-						{isReviewActive ? "Hide" : "Review"}
-					</Button>
-				</div>
-			)}
-		</div>
+			<ChangeSummary changes={settled.changes} reverted={reverted} />
+		</>
+	);
+
+	// An undone edit has nothing left to look at, so the row stops being a place
+	// you can go.
+	if (reverted) {
+		return <div className="min-w-0 px-2.5 py-2 opacity-60">{summary}</div>;
+	}
+
+	// The row is the control. Opening the changes is the only thing to do from
+	// here; undo lives in the toolbar, next to Done, once you can see what you
+	// would be undoing.
+	return (
+		<button
+			type="button"
+			aria-pressed={isReviewActive}
+			className="flex w-full min-w-0 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-foreground/5 aria-pressed:bg-foreground/5"
+			onClick={() => {
+				if (isReviewActive) {
+					hideReview();
+				} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
+					toast.error("This document is no longer open.");
+				}
+			}}
+		>
+			<div className="min-w-0 flex-1">{summary}</div>
+			<span className="shrink-0 text-muted-foreground text-xs">
+				{isReviewActive ? "Reviewing" : "Review"}
+			</span>
+		</button>
 	);
 }
 

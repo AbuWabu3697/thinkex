@@ -15,21 +15,18 @@ import { Button } from "#/components/ui/button";
 import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
 
 /**
- * Undo with a confirmation step, shared by the chat receipt and the review
- * toolbar. Reverting is one click away from a wall of the reader's own work,
- * so it asks first even though the change itself is recoverable by the model.
+ * Undo, with a confirmation step because it throws away work the reader may
+ * have asked for and only skimmed.
  */
 export function DocumentEditUndoButton({
 	className,
 	itemId,
 	receiptIds,
-	size = "xs",
 	workspaceId,
 }: {
 	className?: string;
 	itemId: string;
 	receiptIds: string[];
-	size?: "sm" | "xs";
 	workspaceId: string;
 }) {
 	const [isConfirming, setIsConfirming] = useState(false);
@@ -40,7 +37,7 @@ export function DocumentEditUndoButton({
 			<Button
 				type="button"
 				variant="ghost"
-				size={size}
+				size="sm"
 				className={className}
 				disabled={undoMutation.isPending}
 				onClick={() => setIsConfirming(true)}

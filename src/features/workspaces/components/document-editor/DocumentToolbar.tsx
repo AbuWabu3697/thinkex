@@ -3,7 +3,7 @@ import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucid
 import type { ReactNode } from "react";
 
 import { Button } from "#/components/ui/button";
-import { DocumentEditUndoButton } from "#/features/workspaces/components/DocumentEditUndoButton";
+import { DocumentEditUndoButton } from "#/features/workspaces/components/document-editor/DocumentEditUndoButton";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import {
 	DropdownMenu,
@@ -128,7 +128,6 @@ function DocumentEditReviewControls({
 					className={workspaceToolbarTextButtonClass}
 					itemId={itemId}
 					receiptIds={receiptIds}
-					size="sm"
 					workspaceId={workspaceId}
 				/>
 			) : null}
