@@ -126,7 +126,9 @@ function DocumentEditReviewControls({
 
 	return (
 		<div className={workspaceToolbarGroupClassName}>
-			<span className="min-w-0 truncate px-2 text-muted-foreground text-sm">Reviewing changes</span>
+			<span className="min-w-0 truncate px-2 text-muted-foreground text-sm">
+				Reviewing changes:
+			</span>
 			{canUndo ? (
 				<DocumentEditUndoButton
 					className={workspaceToolbarTextButtonClass}
