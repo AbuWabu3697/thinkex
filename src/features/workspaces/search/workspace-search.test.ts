@@ -43,6 +43,15 @@ describe("workspace search", () => {
 		expect(input.types).toEqual(["file"]);
 	});
 
+	it("deduplicates more repeats than there are content types", () => {
+		const input = workspaceSearchInputSchema.parse({
+			query: "search everything",
+			types: ["document", "document", "file"],
+		});
+
+		expect(input.types).toEqual(["document", "file"]);
+	});
+
 	it("builds canonical source versions for documents and files", () => {
 		expect(
 			buildWorkspaceSearchSourceVersion({
