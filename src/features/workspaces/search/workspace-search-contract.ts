@@ -26,13 +26,6 @@ export const workspaceSearchInputSchema = z.object({
 		.overwrite((types) => Array.from(new Set(types)))
 		.optional()
 		.describe("Optional content types to include. Defaults to documents and files."),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(25)
-		.optional()
-		.describe("Maximum results to return. Defaults to 10 and is capped at 25."),
 });
 
 const workspaceSearchLocationSchema = z.discriminatedUnion("kind", [

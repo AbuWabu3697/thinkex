@@ -1,5 +1,5 @@
-import type { FlexibleSchema, Tool, ToolExecutionOptions } from "ai";
-import { asSchema, tool } from "ai";
+import type { FlexibleSchema, Schema, Tool, ToolExecutionOptions } from "ai";
+import { asSchema, jsonSchema, tool } from "ai";
 import { z } from "zod";
 
 export const aiThreadActivityTitleSchema = z
@@ -64,9 +64,10 @@ export function defineAIThreadTool<INPUT, OUTPUT>(
 ): AIThreadTool<INPUT, OUTPUT> {
 	const modelDefinition = getModelToolDefinition(definition);
 	const inputSchema = asSchema(definition.inputSchema);
-	const modelInputSchema = definition.modelInputSchema
+	const rawModelInputSchema = definition.modelInputSchema
 		? asSchema(definition.modelInputSchema)
 		: inputSchema;
+	const modelInputSchema = createProviderCompatibleInputSchema(rawModelInputSchema);
 	const outputSchema = asSchema(definition.outputSchema);
 	const executeDefinition = definition.execute;
 
@@ -105,6 +106,25 @@ export function defineAIThreadTool<INPUT, OUTPUT>(
 		INPUT,
 		OUTPUT
 	>;
+}
+
+type ModelJsonSchema = Awaited<Schema["jsonSchema"]>;
+
+/**
+ * Anthropic-compatible providers reject `maxItems` on custom tools. Runtime
+ * validation still uses the original schema, so omitting this model-facing
+ * hint improves portability without changing accepted application input.
+ */
+function createProviderCompatibleInputSchema<INPUT>(schema: Schema<INPUT>): Schema<INPUT> {
+	return jsonSchema<INPUT>(
+		async () =>
+			JSON.parse(
+				JSON.stringify(await schema.jsonSchema, (key, value) =>
+					key === "maxItems" ? undefined : value,
+				),
+			) as ModelJsonSchema,
+		schema.validate ? { validate: schema.validate } : {},
+	);
 }
 
 /**

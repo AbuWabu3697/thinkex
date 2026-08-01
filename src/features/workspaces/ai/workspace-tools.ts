@@ -29,7 +29,7 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 		inputSchema: definition.inputSchema,
 		inputExamples: definition.inputExamples,
 		outputSchema: definition.outputSchema,
-		strict: true,
+		strict: definition.strict ?? true,
 		...(resultAdapter
 			? {
 					toModelOutput: ({ output }) => ({

@@ -25,6 +25,7 @@ import { recordOperationalFailure } from "#/integrations/observability/operation
 
 const semanticQueryConcurrency = 4;
 const maximumSemanticQueries = 16;
+const workspaceSearchResultLimit = 10;
 
 interface SearchChunkRow {
 	chunk_id: string;
@@ -69,7 +70,6 @@ export class WorkspaceSearchQuery {
 		status: WorkspaceSearchStatus;
 	}> {
 		const status = this.getStatus();
-		const limit = input.limit ?? 10;
 		const types = input.types ?? ["document", "file"];
 		const items = this.getItems();
 		const resolvedScope = resolveWorkspaceSearchScope({
@@ -81,7 +81,7 @@ export class WorkspaceSearchQuery {
 			return { failed: [resolvedScope.failure], results: [], status };
 		}
 		const { scope } = resolvedScope;
-		const candidateLimit = Math.min(100, Math.max(50, limit * 6));
+		const candidateLimit = workspaceSearchResultLimit * 6;
 		const keyword = this.searchKeyword({
 			candidateLimit,
 			query: input.query,
@@ -98,7 +98,7 @@ export class WorkspaceSearchQuery {
 		const paths = buildWorkspaceKernelItemPathIndex(items);
 		const ranked = fuseWorkspaceSearchRanks({
 			keyword,
-			limit,
+			limit: workspaceSearchResultLimit,
 			semantic: semantic.candidates,
 		});
 

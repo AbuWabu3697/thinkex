@@ -101,13 +101,6 @@ export const workspaceListItemsInputSchema = z.object({
 		.min(0)
 		.optional()
 		.describe("Zero-based item offset. Use nextOffset from the previous result to continue."),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(200)
-		.optional()
-		.describe("Maximum number of workspace items to return. Defaults to 100."),
 	path: z
 		.string()
 		.min(1)
@@ -205,7 +198,6 @@ export const workspaceListItemsInputExamples = createInputExamples<
 	z.input<typeof workspaceListItemsInputSchema>
 >({
 	path: "/",
-	limit: 50,
 	recursive: false,
 });
 
@@ -233,7 +225,6 @@ export const workspaceSearchInputExamples = createInputExamples<
 		query: "What does the market report say about adoption?",
 		path: "/Research",
 		types: ["document", "file"],
-		limit: 10,
 	},
 	{
 		query: "photosynthesis experiment results",

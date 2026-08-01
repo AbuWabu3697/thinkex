@@ -2,11 +2,15 @@ import type { WorkspaceAiChatModelId } from "#/features/workspaces/ai/models";
 
 type GatewayRoutingOptions = {
 	models: string[];
+	only?: string[];
 	order: string[];
 	sort: "ttft";
 };
 
 const GOOGLE_GATEWAY_PROVIDER_ORDER = ["google", "vertex"];
+// Bedrock spends about a minute compiling this tool catalog before rejecting
+// unsupported string constraints. Keep Haiku on providers that accept it.
+const HAIKU_GATEWAY_PROVIDERS = ["vertex", "anthropic"];
 
 // Keep the policy server-side and independent from picker copy. Each order
 // puts ThinkEx's configured BYOK providers first. It is intentionally a
@@ -24,7 +28,8 @@ const workspaceAiGatewayRouting: Record<WorkspaceAiChatModelId, GatewayRoutingOp
 		sort: "ttft",
 	},
 	"claude-haiku": {
-		order: ["bedrock", "vertex"],
+		only: HAIKU_GATEWAY_PROVIDERS,
+		order: HAIKU_GATEWAY_PROVIDERS,
 		models: ["openai/gpt-5.6-luna", "google/gemini-3-flash"],
 		sort: "ttft",
 	},
