@@ -59,6 +59,14 @@ export class DocumentAiHtmlError extends Error {}
 export function parseDocumentAiHtml(html: string): TiptapDocumentJson {
 	const htmlDocument = createHtmlDocument();
 	htmlDocument.body.innerHTML = html;
+
+	// Citation tags are taught for chat replies, and models carry the habit into
+	// documents. They are empty elements, so dropping them before validation
+	// costs nothing visible and beats refusing an otherwise good document.
+	for (const element of htmlDocument.body.querySelectorAll("citation")) {
+		element.remove();
+	}
+
 	validateDocumentAiHtml(htmlDocument.body);
 
 	for (const element of htmlDocument.body.querySelectorAll("[data-ref]")) {
