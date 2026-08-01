@@ -4,19 +4,29 @@ import { toast } from "sonner";
 
 import type { AiChatDocumentEditGroup } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
-import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
+import { useWorkspaceLocationActions } from "#/features/workspaces/locations/workspace-location-context";
+import type {
+	DocumentEditLineChanges,
+	DocumentEditReceiptStatus,
+	DocumentEditReceiptUnavailableStatus,
+} from "#/features/workspaces/documents/document-edit-receipt";
 import { documentEditReceiptStatusQueryOptions } from "#/features/workspaces/documents/document-edit-review-queries";
 import { getWorkspacePathName } from "#/features/workspaces/kernel/workspace-kernel-paths";
 
 interface SettledDocumentEditGroup {
 	changes?: DocumentEditLineChanges;
 	group: AiChatDocumentEditGroup;
-	reverted: boolean;
+	status: DocumentEditReceiptStatus;
 }
 
 /**
  * Receipt for the documents the assistant changed in one turn: a header saying
- * how much happened, then one row per document with its line tally and actions.
+ * how much happened, then one row per document with its line tally.
+ *
+ * Every document the assistant touched keeps its row for good. Whether the
+ * changes can still be reviewed or undone comes and goes — editing the document
+ * yourself closes that window — but the record of what happened should not
+ * disappear from the transcript when it does.
  */
 export function AiChatDocumentEditActions({
 	groups,
@@ -24,8 +34,12 @@ export function AiChatDocumentEditActions({
 	groups: readonly AiChatDocumentEditGroup[];
 }) {
 	const { workspaceId } = useDocumentEditReview();
+	// A deleted document has no receipts left to ask about, and asking anyway
+	// makes the server load a document that is gone.
+	const { hasItem } = useWorkspaceLocationActions();
+	const knownGroups = groups.filter((group) => hasItem(group.itemId));
 	const statusQueries = useQueries({
-		queries: groups.map((group) =>
+		queries: knownGroups.map((group) =>
 			documentEditReceiptStatusQueryOptions({
 				itemId: group.itemId,
 				receiptIds: group.receiptIds,
@@ -33,20 +47,12 @@ export function AiChatDocumentEditActions({
 			}),
 		),
 	});
-	const settledGroups = groups.flatMap<SettledDocumentEditGroup>((group, index) => {
+	const settledGroups = knownGroups.flatMap<SettledDocumentEditGroup>((group, index) => {
 		const result = statusQueries[index]?.data;
 
-		if (result?.status !== "ready" && result?.status !== "reverted") {
-			return [];
-		}
-
-		return [
-			{
-				...(result.changes ? { changes: result.changes } : {}),
-				group,
-				reverted: result.status === "reverted",
-			},
-		];
+		return result
+			? [{ ...(result.changes ? { changes: result.changes } : {}), group, status: result.status }]
+			: [];
 	});
 
 	if (settledGroups.length === 0) {
@@ -74,44 +80,32 @@ export function AiChatDocumentEditActions({
 }
 
 function DocumentEditRow({ settled }: { settled: SettledDocumentEditGroup }) {
-	const { activeReview, hideReview, showReview } = useDocumentEditReview();
-	const { group, reverted } = settled;
-	const { itemId } = group;
-	const receiptKey = group.receiptIds.join(":");
-	const isReviewActive = Boolean(
-		activeReview &&
-		activeReview.itemId === itemId &&
-		activeReview.receiptIds.join(":") === receiptKey,
-	);
+	const { showReview } = useDocumentEditReview();
+	const { group, status } = settled;
 	const summary = (
 		<>
 			<div className="truncate text-sm" title={group.path}>
 				<DocumentPathLabel path={group.path} />
 			</div>
-			<ChangeSummary changes={settled.changes} reverted={reverted} />
+			<ChangeSummary changes={settled.changes} status={status} />
 		</>
 	);
 
-	// An undone edit has nothing left to look at, so the row stops being a place
-	// you can go.
-	if (reverted) {
+	// Once the changes cannot be reviewed the row stays, but as a record rather
+	// than a destination.
+	if (status !== "ready") {
 		return <div className="min-w-0 px-2.5 py-2 opacity-60">{summary}</div>;
 	}
 
-	// The row is the control. Opening the changes is the only thing to do from
-	// here; undo lives in the toolbar, next to Done, once you can see what you
-	// would be undoing.
+	// The row is a destination, not a toggle: clicking it always takes you to the
+	// changes, opening the document or switching tabs as needed. Review ends from
+	// the toolbar, where Done sits next to Undo.
 	return (
 		<button
 			type="button"
-			aria-pressed={isReviewActive}
 			className="flex w-full min-w-0 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-foreground/5"
 			onClick={() => {
-				if (isReviewActive) {
-					hideReview();
-				} else if (!showReview({ itemId, receiptIds: group.receiptIds })) {
-					// showReview opens the document, switching tabs if needed, so the
-					// only way it fails is the document no longer existing.
+				if (!showReview({ itemId: group.itemId, receiptIds: group.receiptIds })) {
 					toast.error("This document no longer exists.");
 				}
 			}}
@@ -135,13 +129,13 @@ function DocumentPathLabel({ path }: { path: string }) {
 
 function ChangeSummary({
 	changes,
-	reverted,
+	status,
 }: {
 	changes?: DocumentEditLineChanges;
-	reverted: boolean;
+	status: DocumentEditReceiptStatus;
 }) {
-	if (reverted) {
-		return <div className="mt-0.5 text-muted-foreground text-xs">Undone</div>;
+	if (status !== "ready") {
+		return <div className="mt-0.5 text-muted-foreground text-xs">{unreviewableNotes[status]}</div>;
 	}
 
 	if (!changes?.added && !changes?.removed) {
@@ -161,3 +155,11 @@ function ChangeSummary({
 		</div>
 	);
 }
+
+const unreviewableNotes: Record<DocumentEditReceiptUnavailableStatus, string> = {
+	content_changed: "Edited since",
+	not_found: "No longer available",
+	not_latest: "Newer changes since",
+	reverted: "Undone",
+	review_unavailable: "Too large to review",
+};
