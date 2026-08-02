@@ -24,7 +24,7 @@
 		"knip": "knip",
 		"prepare": "vp config --no-agent",
 		"test": "vp test --run",
-		"test:workers": "vp test --run --passWithNoTests --config vitest.cloudflare.config.ts",
+		"test:workers": "vp test --run --project=workers",
 		"deploy:worker": "CLOUDFLARE_ENV=production wrangler deploy",
 		"deploy:worker:staging": "CLOUDFLARE_ENV=staging wrangler deploy --containers-rollout=none",
 		"deploy": "vp run build:production && vp run deploy:worker",

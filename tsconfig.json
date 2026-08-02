@@ -2,9 +2,9 @@
 	"include": [
 		"src/**/*.ts",
 		"src/**/*.tsx",
+		"test/**/*.ts",
 		"drizzle.config.ts",
 		"vite.config.ts",
-		"vitest.cloudflare.config.ts",
 		"vitest.config.ts"
 	],
 	"compilerOptions": {
@@ -16,7 +16,12 @@
 			"@/*": ["./src/*"]
 		},
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
-		"types": ["./worker-configuration.d.ts", "node", "vite/client"],
+		"types": [
+			"./worker-configuration.d.ts",
+			"node",
+			"vite/client",
+			"@cloudflare/vitest-pool-workers/types"
+		],
 
 		/* Bundler mode */
 		"moduleResolution": "bundler",
