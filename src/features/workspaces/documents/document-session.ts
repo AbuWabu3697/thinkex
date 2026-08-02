@@ -328,7 +328,7 @@ export class DocumentSession extends YServer {
 
 		await this.checkpointToKernel(`undo:${group.lastReceiptId}`);
 
-		return { status: "reverted" };
+		return { status: "undone" };
 	}
 
 	async readHtmlChunk(input: DocumentHtmlChunkReadInput): Promise<DocumentHtmlChunkReadResult> {

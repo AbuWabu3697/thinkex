@@ -40,6 +40,11 @@ export type DocumentEditReceiptReviewRpcResult =
 			status: DocumentEditReceiptUnavailableStatus;
 	  };
 
+/**
+ * `undone` is the only outcome that changed the document. Everything else
+ * names why it did not — including `reverted`, which means an earlier undo
+ * already did the work this one was asked to do.
+ */
 export interface DocumentEditReceiptUndoResult {
-	status: DocumentEditReceiptUnavailableStatus;
+	status: "undone" | DocumentEditReceiptUnavailableStatus;
 }

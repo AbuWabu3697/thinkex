@@ -43,7 +43,7 @@ export function DocumentEditUndoButton({
 			// after that would be showing a diff we have just been told is wrong.
 			hideReview();
 
-			if (result.status === "reverted") {
+			if (result.status === "undone") {
 				toast.success("Changes undone.");
 			} else {
 				toast.error(undoUnavailableMessages[result.status]);
