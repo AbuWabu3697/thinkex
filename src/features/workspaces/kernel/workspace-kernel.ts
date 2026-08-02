@@ -146,8 +146,12 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 
 	constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
 		super(ctx, env);
-		initializeWorkspaceKernelStorage(this.kernelSql);
-		this.search.initialize();
+		// Constructor writes commit with whichever invocation constructed the
+		// instance, so a canceled one rolls the schema back under a live object.
+		void ctx.blockConcurrencyWhile(async () => {
+			initializeWorkspaceKernelStorage(this.kernelSql);
+			this.search.initialize();
+		});
 	}
 
 	async onStart() {
