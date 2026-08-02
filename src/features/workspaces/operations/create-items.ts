@@ -6,7 +6,8 @@ import {
 } from "#/features/workspaces/operations/relations";
 import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
 import type { WorkspaceKernelPathResolution } from "#/features/workspaces/kernel/workspace-kernel-types";
-import { parseMarkdownToTiptapDocumentProjection } from "#/features/workspaces/documents/document-markdown";
+import { parseDocumentAiHtml } from "#/features/workspaces/documents/document-ai-html";
+import { resolveDocumentCitations } from "#/features/workspaces/operations/document-citations";
 import { stringifyTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 import {
 	createWorkspaceReferenceRecords,
@@ -54,7 +55,6 @@ export interface CreatedWorkspaceItem {
 	itemId: string;
 	path: string;
 	type: "document" | "folder";
-	warnings?: string[];
 }
 
 export interface CreateWorkspaceItemsOperationResult {
@@ -118,7 +118,17 @@ export async function createWorkspaceItemsOperation(
 			continue;
 		}
 
-		const initialContent = getCreateWorkspaceItemInitialContent(itemInput);
+		const initialContent = getCreateWorkspaceItemInitialContent(
+			itemInput.type === "document" && itemInput.initialContent !== undefined
+				? {
+						...itemInput,
+						initialContent: await resolveDocumentCitations({
+							context: accessContext,
+							html: itemInput.initialContent,
+						}),
+					}
+				: itemInput,
+		);
 
 		if (initialContent.status === "failed") {
 			failed.push({
@@ -177,9 +187,6 @@ export async function createWorkspaceItemsOperation(
 			itemId: id,
 			path: createdPath,
 			type: itemInput.type,
-			...(initialContent.warnings && initialContent.warnings.length > 0
-				? { warnings: initialContent.warnings }
-				: {}),
 		});
 	}
 
@@ -282,7 +289,6 @@ function getCreateWorkspaceItemInitialContent(input: CreateWorkspaceItemOperatio
 	| {
 			content?: string;
 			status: "ready";
-			warnings?: string[];
 	  }
 	| {
 			code: "invalid_initial_content";
@@ -293,12 +299,9 @@ function getCreateWorkspaceItemInitialContent(input: CreateWorkspaceItemOperatio
 	}
 
 	try {
-		const projection = parseMarkdownToTiptapDocumentProjection(input.initialContent);
-
 		return {
-			content: stringifyTiptapDocumentJson(projection.document),
+			content: stringifyTiptapDocumentJson(parseDocumentAiHtml(input.initialContent)),
 			status: "ready",
-			...(projection.warnings.length > 0 ? { warnings: projection.warnings } : {}),
 		};
 	} catch {
 		return {

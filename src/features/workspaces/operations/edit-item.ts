@@ -5,36 +5,41 @@ import {
 } from "#/features/workspaces/operations/workspace-operation-context";
 import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
 import {
-	type DocumentMarkdownEdit,
-	documentMarkdownEditFailureCodes,
-} from "#/features/workspaces/documents/document-markdown-edits";
+	type DocumentAiEdit,
+	documentAiEditFailureCodes,
+} from "#/features/workspaces/documents/document-ai-edits";
+import type { DocumentEditLineChanges } from "#/features/workspaces/documents/document-edit-receipt";
+import { resolveDocumentCitations } from "#/features/workspaces/operations/document-citations";
 
 export const editWorkspaceItemFailureCodes = [
 	"cannot_edit_root",
 	"path_not_absolute",
 	"path_not_found",
 	"unsupported_item_type",
-	...documentMarkdownEditFailureCodes,
-	"invalid_document_projection",
+	...documentAiEditFailureCodes,
+	"content_changed",
+	"operation_id_conflict",
 ] as const;
 
 type EditWorkspaceItemFailureCode = (typeof editWorkspaceItemFailureCodes)[number];
 
 export interface EditWorkspaceItemOperationInput {
-	edits: DocumentMarkdownEdit[];
+	edits: DocumentAiEdit[];
 	path: string;
 }
 
 interface EditWorkspaceItemFailure {
 	code: EditWorkspaceItemFailureCode;
+	detail?: string;
 	index: number;
 }
 
 export interface EditWorkspaceItemOperationResult {
 	applied: number;
 	failed: EditWorkspaceItemFailure[];
+	itemId?: string;
+	lineChanges?: DocumentEditLineChanges;
 	path: string;
-	warnings: string[];
 }
 
 export async function editWorkspaceItemOperation(
@@ -59,7 +64,6 @@ export async function editWorkspaceItemOperation(
 	if (resolution.status === "failed") {
 		return {
 			path: resolution.failure.path,
-			warnings: [],
 			...failedWorkspaceEditResult(resolution.failure.code, failureCount),
 		};
 	}
@@ -67,7 +71,6 @@ export async function editWorkspaceItemOperation(
 	if (resolution.item.type !== "document") {
 		return {
 			path: resolution.path,
-			warnings: [],
 			...failedWorkspaceEditResult("unsupported_item_type", edits.length),
 		};
 	}
@@ -77,15 +80,29 @@ export async function editWorkspaceItemOperation(
 		workspaceId: accessContext.workspaceId,
 	});
 
-	const result = await documentSession.applyMarkdownEdits({
-		edits,
+	const result = await documentSession.applyEdits({
+		edits: await Promise.all(
+			edits.map(async (edit) =>
+				"html" in edit
+					? {
+							...edit,
+							html: await resolveDocumentCitations({
+								context: accessContext,
+								html: edit.html,
+							}),
+						}
+					: edit,
+			),
+		),
+		operationId: accessContext.operationId,
 	});
 
 	return {
 		applied: result.applied,
 		failed: result.failures,
+		itemId: resolution.item.id,
+		...(result.lineChanges ? { lineChanges: result.lineChanges } : {}),
 		path: resolution.path,
-		warnings: result.warnings,
 	};
 }
 

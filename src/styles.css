@@ -504,6 +504,53 @@
 		color: var(--foreground);
 	}
 
+	/*
+	 * Review marks follow word-processor tracked changes rather than a code diff:
+	 * new text is underlined in the app's accent, removed text is struck through
+	 * and faded. Retune every mark from this one variable.
+	 */
+	.workspace-document-prose {
+		--workspace-document-ai-accent: var(--success);
+	}
+
+	.workspace-document-prose .workspace-document-ai-inserted {
+		/* The negative margin cancels the padding, so the tint gets breathing
+		 * room without nudging the surrounding text. */
+		margin-inline: -0.15em;
+		padding-block: 0.06em;
+		padding-inline: 0.15em;
+		border-radius: 0.25rem;
+		background: color-mix(in oklab, var(--workspace-document-ai-accent) 15%, transparent);
+		text-decoration: underline;
+		text-decoration-color: color-mix(
+			in oklab,
+			var(--workspace-document-ai-accent) 80%,
+			transparent
+		);
+		text-decoration-thickness: 2px;
+		text-underline-offset: 3px;
+		box-decoration-break: clone;
+		-webkit-box-decoration-break: clone;
+	}
+
+	.workspace-document-prose .workspace-document-ai-deleted {
+		color: var(--muted-foreground);
+		text-decoration: line-through;
+		text-decoration-color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+		opacity: 0.8;
+	}
+
+	/*
+	 * Only reached by blocks holding no text of their own — a horizontal rule, a
+	 * rendered formula. Anything containing text is marked inline instead, so
+	 * this never draws a box around a paragraph, a list, or a blank line.
+	 */
+	.workspace-document-prose .workspace-document-ai-changed-block {
+		padding: 0.35rem 0.5rem;
+		border-radius: 0.375rem;
+		background: color-mix(in oklab, var(--workspace-document-ai-accent) 12%, transparent);
+	}
+
 	.dark .workspace-document-prose {
 		--workspace-document-highlight: oklch(0.82 0.12 88 / 82%);
 		--workspace-document-highlight-foreground: var(--foreground);
@@ -515,7 +562,8 @@
 
 	.workspace-document-prose h1,
 	.workspace-document-prose h2,
-	.workspace-document-prose h3 {
+	.workspace-document-prose h3,
+	.workspace-document-prose h4 {
 		font-weight: 650;
 		line-height: 1.15;
 		text-wrap: balance;
@@ -534,6 +582,14 @@
 	.workspace-document-prose h3 {
 		margin-top: 1.45rem;
 		font-size: 1.2rem;
+	}
+
+	/* The size ladder has no room below h3, so this level is set apart by weight
+	   and spacing instead — the usual answer for a fourth heading. */
+	.workspace-document-prose h4 {
+		margin-top: 1.3rem;
+		font-size: 1rem;
+		letter-spacing: 0.01em;
 	}
 
 	.workspace-document-prose p {
@@ -611,6 +667,7 @@
 
 	.workspace-document-prose a {
 		color: var(--primary);
+		cursor: pointer;
 		text-decoration-line: underline;
 		text-decoration-thickness: 0.08em;
 		text-underline-offset: 0.18em;

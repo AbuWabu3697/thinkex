@@ -10,6 +10,7 @@ import { DocumentWordCount } from "#/features/workspaces/components/document-edi
 import { useDocumentEditorToolbar } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
 import { useWorkspacePaneRuntime } from "#/features/workspaces/components/WorkspacePaneRuntime";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
+import { DocumentEditReviewExtension } from "#/features/workspaces/documents/document-edit-review-extension";
 import {
 	getTiptapDocumentBaseExtensions,
 	tiptapDocumentYjsField,
@@ -18,6 +19,7 @@ import {
 	type DocumentCollaborationSession,
 	useDocumentCollaborationSession,
 } from "#/features/workspaces/documents/use-document-collaboration-session";
+import { useDocumentEditReviewOverlay } from "#/features/workspaces/documents/use-document-edit-review-overlay";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { DEFAULT_COLLABORATION_COLOR } from "#/lib/design-system-colors";
 import { getAuthSessionQueryOptions } from "#/lib/session-query";
@@ -98,7 +100,17 @@ function DocumentEditorInstance({
 		},
 	});
 
-	useDocumentEditorToolbar(viewInstanceId, capabilities.canMutateContent ? editor : null);
+	useDocumentEditorToolbar({
+		canEdit: capabilities.canMutateContent,
+		editor: capabilities.canMutateContent ? editor : null,
+		itemId: item.id,
+		slotId: viewInstanceId,
+	});
+	useDocumentEditReviewOverlay({
+		canEdit: capabilities.canMutateContent,
+		editor,
+		itemId: item.id,
+	});
 
 	return (
 		<section className="relative flex h-full min-h-0 flex-col bg-background">
@@ -123,6 +135,7 @@ function getDocumentEditorExtensions(collaborationSession: DocumentCollaboration
 
 	return [
 		...baseExtensions,
+		DocumentEditReviewExtension,
 		Collaboration.configure({
 			document: collaborationSession.ydoc,
 			field: tiptapDocumentYjsField,

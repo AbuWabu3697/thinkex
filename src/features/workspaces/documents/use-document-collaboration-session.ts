@@ -4,6 +4,7 @@ import { WebsocketProvider } from "y-partyserver/provider";
 import * as Y from "yjs";
 
 import { getDocumentSessionBaseUrl } from "#/features/workspaces/agent-routes";
+import { tiptapDocumentYjsField } from "#/features/workspaces/documents/tiptap-schema";
 import { getCollaborationUserColor } from "#/lib/design-system-colors";
 
 const localDocumentReadyKey = "server-synced";
@@ -203,7 +204,10 @@ function createActiveDocumentSession(input: {
 	void session.persistence.whenSynced
 		.then(() => session.persistence.get(localDocumentReadyKey))
 		.then((wasServerSynced) => {
-			if (wasServerSynced === localDocumentReadyValue) {
+			if (
+				wasServerSynced === localDocumentReadyValue &&
+				session.ydoc.getXmlFragment(tiptapDocumentYjsField).length > 0
+			) {
 				markReady();
 			}
 		})

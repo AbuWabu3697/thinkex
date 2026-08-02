@@ -76,8 +76,19 @@ export { setWorkspaceKernelUserHeaders };
 
 export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 	private lastExtractionHealingRequestAt = 0;
-	private readonly kernelSql: WorkspaceKernelSql = (strings, ...values) =>
-		this.sql(strings, ...values);
+	// A purge empties storage without evicting this instance, so kernel queries
+	// route through here rather than read a schema that no longer exists. The
+	// file store holds its own handle on `ctx.storage.sql` and is not covered:
+	// after a purge it fails on the missing table instead, which is the same
+	// outcome with a worse message on an object that is being deleted anyway.
+	private purged = false;
+	private readonly kernelSql: WorkspaceKernelSql = (strings, ...values) => {
+		if (this.purged) {
+			throw new Error("Workspace deleted.");
+		}
+
+		return this.sql(strings, ...values);
+	};
 	private readonly workspace = new ShellWorkspace({
 		sql: this.ctx.storage.sql,
 		r2: this.env.WORKSPACE_KERNEL_FILES,
@@ -138,8 +149,12 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 
 	constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
 		super(ctx, env);
-		initializeWorkspaceKernelStorage(this.kernelSql);
-		this.search.initialize();
+		// Constructor writes commit with whichever invocation constructed the
+		// instance, so a canceled one rolls the schema back under a live object.
+		void ctx.blockConcurrencyWhile(async () => {
+			initializeWorkspaceKernelStorage(this.kernelSql);
+			this.search.initialize();
+		});
 	}
 
 	async onStart() {
@@ -486,6 +501,7 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 				connection.close(1008, "Workspace deleted");
 			}
 			await this.ctx.storage.deleteAll();
+			this.purged = true;
 		} else {
 			const attempt = input.attempt ?? 1;
 			if (attempt < workspacePurgeMaximumAttempts) {

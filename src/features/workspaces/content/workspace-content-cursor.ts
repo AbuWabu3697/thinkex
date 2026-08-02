@@ -8,7 +8,7 @@ const workspaceContentCursorSchema = z.discriminatedUnion("kind", [
 		offset: z.number().int().nonnegative(),
 		path: z.string().min(1),
 		revision: z.string().min(1),
-		version: z.literal(2),
+		version: z.literal(3),
 	}),
 	z.object({
 		kind: z.literal("file"),

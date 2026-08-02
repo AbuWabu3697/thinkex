@@ -294,7 +294,7 @@ export function isVisibleToolPart(part: AiChatToolPart) {
 	return getAiToolPresentation(toolName).visibility === "visible";
 }
 
-function getToolPartName(part: AiChatToolPart) {
+export function getToolPartName(part: AiChatToolPart) {
 	return part.type === "dynamic-tool" ? part.toolName : part.type.split("-").slice(1).join("-");
 }
 

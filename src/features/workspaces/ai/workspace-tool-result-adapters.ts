@@ -11,14 +11,14 @@ import { workspaceSearchOutputSchema } from "#/features/workspaces/search/worksp
 import { createWorkspaceSearchModelOutput } from "#/features/workspaces/search/workspace-search-references";
 
 function defineWorkspaceToolResultAdapter<TSchema extends z.ZodTypeAny>(input: {
-	collectReferences: (output: z.output<TSchema>) => readonly WorkspaceReferenceRecord[];
+	collectReferences?: (output: z.output<TSchema>) => readonly WorkspaceReferenceRecord[];
 	outputSchema: TSchema;
 	projectOutput: (output: z.output<TSchema>) => unknown;
 }) {
 	return {
 		collectReferences: (output: unknown) => {
 			const parsed = input.outputSchema.safeParse(output);
-			return parsed.success ? input.collectReferences(parsed.data) : [];
+			return parsed.success ? (input.collectReferences?.(parsed.data) ?? []) : [];
 		},
 		// Also runs when history is replayed, on results shaped by older versions
 		// of this schema. Execution already validated them, so projection is
@@ -51,7 +51,6 @@ const workspaceCreateItemsResultAdapter = defineWorkspaceToolResultAdapter({
 				itemId: z.string(),
 				path: z.string(),
 				type: z.enum(["document", "folder"]),
-				warnings: z.array(z.string()).optional(),
 			}),
 		),
 		references: z.array(workspaceReferenceRecordSchema),
@@ -65,22 +64,31 @@ const workspaceCreateItemsResultAdapter = defineWorkspaceToolResultAdapter({
 
 		return {
 			failed: output.failed,
-			items: output.items.map(({ itemId, path, type, warnings }) => {
+			items: output.items.map(({ itemId, path, type }) => {
 				const reference = refsByItemId.get(itemId);
 
-				return {
-					path,
-					...(reference ? { reference } : {}),
-					type,
-					...(warnings ? { warnings } : {}),
-				};
+				return { path, ...(reference ? { reference } : {}), type };
 			}),
 		};
 	},
 });
 
+// The operation output also carries the durable item id used by the app's
+// review controls. Keep the model-facing receipt limited to actionable counts.
+const workspaceEditItemResultAdapter = defineWorkspaceToolResultAdapter({
+	outputSchema: z.object({
+		applied: z.number(),
+		failed: z.array(
+			z.object({ code: z.string(), detail: z.string().optional(), index: z.number() }),
+		),
+		path: z.string(),
+	}),
+	projectOutput: (output) => output,
+});
+
 const workspaceToolResultAdapters = {
 	workspace_create_items: workspaceCreateItemsResultAdapter,
+	workspace_edit_item: workspaceEditItemResultAdapter,
 	workspace_read_items: workspaceReadItemsResultAdapter,
 	workspace_search: workspaceSearchResultAdapter,
 } as const;

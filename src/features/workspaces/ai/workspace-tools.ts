@@ -18,6 +18,7 @@ type WorkspaceThreadToolConfig = {
 	definition: (typeof workspaceToolDefinitions)[number];
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 };
 
 function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
@@ -46,6 +47,7 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 					thread,
 					getWorkspaceToolScopes(definition.access),
 					context.invocationId,
+					input.resolveWorkspaceReferences,
 				),
 			);
 
@@ -62,6 +64,7 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 export function createAIThreadWorkspaceTools(input: {
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 }): ToolSet {
 	return Object.fromEntries(
 		workspaceToolDefinitions.map((definition) => [
@@ -70,6 +73,7 @@ export function createAIThreadWorkspaceTools(input: {
 				definition,
 				getThreadContext: input.getThreadContext,
 				onWorkspaceReferences: input.onWorkspaceReferences,
+				resolveWorkspaceReferences: input.resolveWorkspaceReferences,
 			}),
 		]),
 	) as ToolSet;
@@ -89,9 +93,11 @@ function createThreadWorkspaceAccessContext(
 	thread: AIThreadContext,
 	scopes: readonly WorkspaceAccessScope[],
 	operationId: string,
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>,
 ): WorkspaceAccessContext {
 	return createWorkspaceAccessContext({
 		operationId,
+		...(resolveWorkspaceReferences ? { resolveWorkspaceReferences } : {}),
 		scopes,
 		userId: thread.userId,
 		workspaceId: thread.workspaceId,

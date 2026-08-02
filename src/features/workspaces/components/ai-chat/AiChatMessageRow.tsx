@@ -9,6 +9,8 @@ import { Collapsible, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { Message, MessageContent, MessageFooter } from "#/components/ui/message";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "#/components/ui/tooltip";
 import { AiChatMessagePartView } from "#/features/workspaces/components/ai-chat/AiChatMessagePartView";
+import { AiChatDocumentEditActions } from "#/features/workspaces/components/ai-chat/AiChatDocumentEditActions";
+import { getAiChatDocumentEditGroups } from "#/features/workspaces/components/ai-chat/ai-chat-document-edit-actions";
 import {
 	getWorkspaceCitationLocations,
 	stripWorkspaceCitationTags,
@@ -57,6 +59,10 @@ export default function AiChatMessageRow({
 		? []
 		: displayableParts.filter((part) => !isAttachmentPart(part));
 	const copyableText = !isStreaming ? getCopyableMessageText(message) : "";
+	const documentEditGroups =
+		isAssistant && display?.kind === "content" && !isStreaming
+			? getAiChatDocumentEditGroups(display.parts)
+			: [];
 
 	return (
 		<Message align={isAssistant ? "start" : "end"}>
@@ -84,6 +90,11 @@ export default function AiChatMessageRow({
 							)}
 						</BubbleContent>
 					</Bubble>
+				) : null}
+				{/* Outside the bubble on purpose: the bubble is w-fit and clips its
+				    overflow, so a receipt inside it is only as wide as the reply. */}
+				{documentEditGroups.length > 0 ? (
+					<AiChatDocumentEditActions groups={documentEditGroups} />
 				) : null}
 				{isAssistant && display?.kind === "content" && display.parts.length > 0 && !isStreaming ? (
 					<MessageFooter

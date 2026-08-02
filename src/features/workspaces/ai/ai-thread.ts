@@ -172,6 +172,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				onWorkspaceReferences: (records) => {
 					this._recordWorkspaceReferences(records);
 				},
+				resolveWorkspaceReferences: (refs) => this._resolveWorkspaceReferences(refs),
 			});
 		}
 
@@ -515,6 +516,21 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 
 		private _recordWorkspaceReferences(records: readonly WorkspaceReferenceRecord[]) {
 			this.activeWorkspaceReferences.push(...records);
+		}
+
+		/**
+		 * Looks up the refs a read handed the assistant, so a tool can turn one
+		 * into the location it stands for. Reads from this turn are not in the
+		 * transcript yet, which is exactly when a document usually cites them.
+		 */
+		private async _resolveWorkspaceReferences(refs: readonly string[]) {
+			const wanted = new Set(refs);
+			const records = [
+				...collectWorkspaceReferenceRecords(await this.getMessages()),
+				...this.activeWorkspaceReferences,
+			];
+
+			return records.filter((record) => wanted.has(record.ref));
 		}
 
 		private async _reconcileWorkspaceCitations(message: ChatResponseResult["message"]) {

@@ -8,6 +8,11 @@ import {
 	type AIToolOutcome,
 } from "#/features/workspaces/ai/ai-tool-outcome";
 import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
+import { asRecord } from "#/features/workspaces/ai/ai-inspector-view-parsing";
+import {
+	getDocumentEditReceiptMetadata,
+	stripAIThreadToolUiMetadata,
+} from "#/features/workspaces/ai/ai-thread-tool-ui-metadata";
 
 const orchestrationCallStateSchema = z.enum([
 	"executing",
@@ -76,6 +81,15 @@ const rawOrchestrationOutputSchema = z
 	});
 
 const orchestrationCallSchema = z.object({
+	action: z
+		.object({
+			kind: z.literal("document-edit"),
+			itemId: z.string(),
+			lineChanges: z.object({ added: z.number(), removed: z.number() }).optional(),
+			path: z.string(),
+			receiptId: z.string(),
+		})
+		.optional(),
 	id: z.string(),
 	outcome: aiToolOutcomeSchema,
 	requiresApproval: z.boolean(),
@@ -130,7 +144,7 @@ export function normalizeAIThreadOrchestrationOutput(output: unknown): AIThreadO
 		return {
 			status: parsed.data.status,
 			executionId: parsed.data.executionId,
-			result: parsed.data.result,
+			result: stripAIThreadToolUiMetadata(parsed.data.result),
 			calls,
 			outcome: childOutcome,
 		};
@@ -180,9 +194,23 @@ export function getAIThreadOrchestrationTelemetryOutput(output: unknown) {
 	return {
 		status: parsed.data.status,
 		outcome: parsed.data.outcome,
-		calls: parsed.data.calls,
+		calls: withoutCallActions(parsed.data.calls),
 		...(parsed.data.status === "paused" ? { pendingCount: parsed.data.pending.length } : {}),
 	};
+}
+
+export function getAIThreadOrchestrationModelOutput(output: unknown) {
+	const parsed = aiThreadOrchestrationOutputSchema.safeParse(output);
+	if (!parsed.success) {
+		return output;
+	}
+
+	return { ...parsed.data, calls: withoutCallActions(parsed.data.calls) };
+}
+
+/** `action` drives the app's review controls; neither the model nor telemetry sees it. */
+function withoutCallActions(calls: z.output<typeof orchestrationCallSchema>[]) {
+	return calls.map(({ action: _action, ...call }) => call);
 }
 
 function invalidOrchestrationOutput(output: unknown): AIThreadOrchestrationOutput {
@@ -207,8 +235,10 @@ function getExecutionId(output: unknown) {
 
 function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 	const outcome = getOrchestrationCallOutcome(call.method, call.state, call.result);
+	const action = getDocumentEditAction(call);
 
 	return {
+		...(action ? { action } : {}),
 		id: `${call.seq}:${call.connector}:${call.method}`,
 		toolName: call.method,
 		state: call.state,
@@ -217,6 +247,37 @@ function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 		outcome,
 		summary: summarizeOrchestrationCall(outcome),
 	};
+}
+
+function getDocumentEditAction(call: z.output<typeof rawOrchestrationCallSchema>) {
+	if (call.method !== "workspace_edit_item" || call.state !== "applied") {
+		return undefined;
+	}
+
+	const args = asRecord(call.args);
+	const result = asRecord(call.result);
+	const path =
+		typeof result.path === "string"
+			? result.path
+			: typeof args.path === "string"
+				? args.path
+				: undefined;
+	const applied = typeof result.applied === "number" ? result.applied : 0;
+	const itemId = typeof result.itemId === "string" ? result.itemId : undefined;
+	const receiptId = getDocumentEditReceiptMetadata(call.result);
+
+	const lineChanges = asRecord(result.lineChanges);
+	return itemId && path && applied > 0 && receiptId
+		? {
+				itemId,
+				kind: "document-edit" as const,
+				...(typeof lineChanges.added === "number" && typeof lineChanges.removed === "number"
+					? { lineChanges: { added: lineChanges.added, removed: lineChanges.removed } }
+					: {}),
+				path,
+				receiptId,
+			}
+		: undefined;
 }
 
 /**

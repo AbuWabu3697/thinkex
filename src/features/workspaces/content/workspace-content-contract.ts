@@ -78,13 +78,13 @@ const workspaceReadRelationsSchema = z.array(
 const workspaceContentReadResultSchema = z.union([
 	z.object({
 		content: z.string(),
-		format: z.literal("markdown"),
+		format: z.literal("html"),
 		itemId: z.string().min(1),
 		location: z.object({
-			endLine: z.number().int().nonnegative(),
-			kind: z.literal("lines"),
-			startLine: z.number().int().nonnegative(),
-			totalLines: z.number().int().nonnegative(),
+			endBlock: z.number().int().positive(),
+			kind: z.literal("blocks"),
+			startBlock: z.number().int().positive(),
+			totalBlocks: z.number().int().positive(),
 		}),
 		nextCursor: z.string().optional(),
 		path: workspacePathSchema,

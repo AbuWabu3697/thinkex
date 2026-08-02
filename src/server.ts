@@ -9,14 +9,17 @@ import { posthogHost, posthogHostOrigin, posthogProjectToken } from "#/integrati
 import { getTelemetryRequestDetails } from "#/integrations/posthog/server-context";
 import { buildContentSecurityPolicy } from "#/lib/http/content-security-policy";
 
-export { CodemodeRuntime } from "@cloudflare/codemode";
-export { Sandbox } from "@cloudflare/sandbox";
-export { AIThread, UserAIStore } from "#/features/workspaces/ai/user-ai-agents";
-export { OfficePdfConverter } from "#/features/workspaces/conversion/office-pdf-converter";
-export { DocumentSession } from "#/features/workspaces/documents/document-session";
-export { WorkspaceFileExtractionWorkflow } from "#/features/workspaces/extraction/workspace-file-extraction-workflow";
-export { WorkspaceFileProcessor } from "#/features/workspaces/files/workspace-file-processor";
-export { WorkspaceKernel } from "#/features/workspaces/kernel/workspace-kernel";
+export {
+	AIThread,
+	CodemodeRuntime,
+	DocumentSession,
+	OfficePdfConverter,
+	Sandbox,
+	UserAIStore,
+	WorkspaceFileExtractionWorkflow,
+	WorkspaceFileProcessor,
+	WorkspaceKernel,
+} from "#/durable-objects";
 
 const isProduction = import.meta.env.PROD;
 

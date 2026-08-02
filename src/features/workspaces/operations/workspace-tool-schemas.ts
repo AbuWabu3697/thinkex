@@ -14,8 +14,11 @@ import {
 	workspaceItemTypeSchema,
 	workspaceRelationKindSchema,
 } from "#/features/workspaces/contracts";
-import { documentMarkdownEditSchema } from "#/features/workspaces/documents/document-markdown-edits";
 import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/workspace-location";
+import {
+	documentAiEditSchema,
+	documentAiHtmlSchema,
+} from "#/features/workspaces/documents/document-ai-edits";
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
 import {
 	workspaceSearchInputSchema,
@@ -29,8 +32,8 @@ export {
 	workspaceSearchOutputSchema,
 };
 
-export const workspaceDocumentMarkdownMathInstruction =
-	"For document Markdown math, use `$...$` for inline math and `$$...$$` on separate lines for block math. Escape literal currency dollar signs as `\\$`.";
+export const workspaceDocumentHtmlInstruction =
+	'Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>. For checkboxes, use <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Item</p></div></li></ul>. Documents cannot hold images: never use <img> or <figure>, and describe the visual in words instead. Cite workspace sources in documents exactly as in a chat reply, with <citation ref="wr_7Kp2Qa9x"></citation> placed after the claim it supports.';
 
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();
@@ -115,11 +118,11 @@ export const workspaceListItemsInputSchema = z.object({
 export const workspaceEditItemInputSchema = z.object({
 	path: z.string().min(1).describe("Absolute path of one actual ThinkEx workspace item to edit."),
 	edits: z
-		.array(documentMarkdownEditSchema)
+		.array(documentAiEditSchema)
 		.min(1)
 		.max(40)
 		.describe(
-			`Ordered text edits to apply to a document projection, at most 40. ${workspaceDocumentMarkdownMathInstruction}`,
+			'Ordered structural HTML edits, at most 40. For targeted operations, copy data-ref into the "ref" field; there is no "target" field. These refs are local to this document and are not workspace citation refs.',
 		),
 });
 
@@ -152,7 +155,7 @@ export const workspaceMoveItemsInputSchema = z.object({
 export const workspaceCreateItemsInputSchema = z.object({
 	items: z
 		.array(
-			z.discriminatedUnion("type", [
+			z.union([
 				z.object({
 					type: z.literal("folder"),
 					path: z.string().min(1).describe("Final absolute path for the folder to create."),
@@ -174,10 +177,9 @@ export const workspaceCreateItemsInputSchema = z.object({
 						.describe(
 							"Optional relationships from this new document to other workspace items, at most 20.",
 						),
-					initialContent: z
-						.string()
+					initialContent: documentAiHtmlSchema
 						.describe(
-							`Optional initial Markdown content for the document. ${workspaceDocumentMarkdownMathInstruction}`,
+							`Optional initial HTML content for the document. ${workspaceDocumentHtmlInstruction}`,
 						)
 						.optional(),
 				}),
@@ -262,7 +264,8 @@ export const workspaceCreateItemsInputExamples = createInputExamples<
 		{
 			type: "document",
 			path: "/Demo Folder/Demo Document",
-			initialContent: "# Demo Document\nThis document was created as part of a tool demo.",
+			initialContent:
+				"<h1>Demo Document</h1><p>This document was created as part of a tool demo.</p>",
 			relations: [
 				{
 					kind: "derived_from",
@@ -282,15 +285,27 @@ export const workspaceDeleteItemsInputExamples = createInputExamples<
 
 export const workspaceEditItemInputExamples = createInputExamples<
 	z.input<typeof workspaceEditItemInputSchema>
->({
-	path: "/Demo Folder/Demo Document",
-	edits: [
-		{
-			type: "overwrite",
-			content: "# Demo Document\nThis document was updated as part of the demo.",
-		},
-	],
-});
+>(
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				op: "replace",
+				ref: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				html: "<p>Updated paragraph.</p>",
+			},
+		],
+	},
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				op: "replace_all",
+				html: "<h1>Demo Document</h1><p>This document was updated as part of the demo.</p>",
+			},
+		],
+	},
+);
 
 export const workspaceLinkItemsInputExamples = createInputExamples<
 	z.input<typeof workspaceLinkItemsInputSchema>
@@ -318,14 +333,11 @@ export const workspaceListItemsOutputSchema = z.object({
 });
 
 export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema({
-	itemSchema: z.object({
+	itemSchema: workspacePathItemSchema.extend({
 		itemId: z.string().min(1),
-		path: workspacePathSchema,
+		// Creation makes these two and nothing else; the shared item type covers
+		// files and study items this tool cannot produce.
 		type: z.enum(["document", "folder"]),
-		warnings: z
-			.array(z.string())
-			.optional()
-			.describe("Content projection warnings for created documents."),
 	}),
 	failureSchema: createFailureSchema(createWorkspaceItemsFailureCodes),
 }).extend({
@@ -354,16 +366,20 @@ export const workspaceRenameItemOutputSchema = z.object({
 export const workspaceEditItemOutputSchema = z.object({
 	path: workspacePathSchema,
 	applied: z.number().int().min(0),
+	itemId: z.string().optional(),
+	lineChanges: z
+		.object({ added: z.number().int().min(0), removed: z.number().int().min(0) })
+		.optional(),
 	failed: z.array(
 		z.object({
 			code: z.enum(editWorkspaceItemFailureCodes),
+			detail: z
+				.string()
+				.optional()
+				.describe("Why this edit was refused, when the reason is known."),
 			index: workspaceIndexSchema,
 		}),
 	),
-	warnings: z
-		.array(z.string())
-		.describe("Content projection warnings after applying edits.")
-		.optional(),
 });
 
 export const workspaceLinkItemsOutputSchema = z.object({

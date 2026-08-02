@@ -11,6 +11,7 @@ import {
 	Heading1,
 	Heading2,
 	Heading3,
+	Heading4,
 	Highlighter,
 	Italic,
 	Link2,
@@ -27,7 +28,7 @@ import type { ReactNode } from "react";
 
 import type {
 	DocumentEditorUiState,
-	DocumentFontSize,
+	DocumentTextStyle,
 	DocumentInlineMark,
 	DocumentStructureBlock,
 	DocumentTextAlign,
@@ -42,38 +43,46 @@ export interface DocumentToolbarAction {
 	run: (editor: Editor) => void;
 }
 
-export const documentFontSizeActions: DocumentToolbarAction[] = [
+export const documentTextStyleActions: DocumentToolbarAction[] = [
 	{
-		id: "font-size-16",
+		id: "text-style-paragraph",
 		icon: <Pilcrow />,
-		label: "Paragraph",
-		active: (editorState) => isFontSize(editorState, "16"),
+		label: "Text",
+		active: (editorState) => isTextStyle(editorState, "paragraph"),
 		disabled: isCodeBlock,
 		run: (editor) => editor.chain().focus().setParagraph().run(),
 	},
 	{
-		id: "font-size-32",
+		id: "text-style-heading1",
 		icon: <Heading1 />,
 		label: "Heading 1",
-		active: (editorState) => isFontSize(editorState, "32"),
+		active: (editorState) => isTextStyle(editorState, "heading1"),
 		disabled: isCodeBlock,
 		run: (editor) => editor.chain().focus().setHeading({ level: 1 }).run(),
 	},
 	{
-		id: "font-size-24",
+		id: "text-style-heading2",
 		icon: <Heading2 />,
 		label: "Heading 2",
-		active: (editorState) => isFontSize(editorState, "24"),
+		active: (editorState) => isTextStyle(editorState, "heading2"),
 		disabled: isCodeBlock,
 		run: (editor) => editor.chain().focus().setHeading({ level: 2 }).run(),
 	},
 	{
-		id: "font-size-18",
+		id: "text-style-heading3",
 		icon: <Heading3 />,
 		label: "Heading 3",
-		active: (editorState) => isFontSize(editorState, "18"),
+		active: (editorState) => isTextStyle(editorState, "heading3"),
 		disabled: isCodeBlock,
 		run: (editor) => editor.chain().focus().setHeading({ level: 3 }).run(),
+	},
+	{
+		id: "text-style-heading4",
+		icon: <Heading4 />,
+		label: "Heading 4",
+		active: (editorState) => isTextStyle(editorState, "heading4"),
+		disabled: isCodeBlock,
+		run: (editor) => editor.chain().focus().setHeading({ level: 4 }).run(),
 	},
 ];
 
@@ -254,15 +263,17 @@ export function getStructureBlockIcon(type: DocumentStructureBlock) {
 	}
 }
 
-export function getFontSizeIcon(size: DocumentFontSize) {
-	switch (size) {
-		case "16":
+export function getTextStyleIcon(style: DocumentTextStyle) {
+	switch (style) {
+		case "paragraph":
 			return <Pilcrow />;
-		case "18":
+		case "heading4":
+			return <Heading4 />;
+		case "heading3":
 			return <Heading3 />;
-		case "24":
+		case "heading2":
 			return <Heading2 />;
-		case "32":
+		case "heading1":
 			return <Heading1 />;
 	}
 }
@@ -301,8 +312,8 @@ export function getInlineMarkIcon(mark: DocumentInlineMark) {
 	}
 }
 
-function isFontSize(editorState: DocumentEditorUiState, size: DocumentFontSize) {
-	return editorState.block.kind === "fontSize" && editorState.block.size === size;
+function isTextStyle(editorState: DocumentEditorUiState, style: DocumentTextStyle) {
+	return editorState.block.kind === "textStyle" && editorState.block.style === style;
 }
 
 function isStructureBlock(editorState: DocumentEditorUiState, type: DocumentStructureBlock) {

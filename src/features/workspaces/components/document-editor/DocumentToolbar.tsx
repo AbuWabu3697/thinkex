@@ -2,6 +2,9 @@ import type { Editor } from "@tiptap/react";
 import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button } from "#/components/ui/button";
+import { DocumentEditUndoButton } from "#/features/workspaces/components/document-editor/DocumentEditUndoButton";
+import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,10 +23,10 @@ import {
 import {
 	type DocumentToolbarAction,
 	documentBlockActions,
-	documentFontSizeActions,
+	documentTextStyleActions,
 	documentInlineActions,
 	documentTextAlignActions,
-	getFontSizeIcon,
+	getTextStyleIcon,
 	getInlineMarkIcon,
 	getStructureBlockIcon,
 	getTextAlignIcon,
@@ -33,9 +36,45 @@ import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
+import { workspaceToolbarTextButtonSizeClass } from "#/features/workspaces/components/workspace-toolbar-styles";
 
-export function DocumentToolbar({ editor }: { editor: Editor | null }) {
+export function DocumentToolbar({
+	canEdit,
+	editor,
+	itemId,
+}: {
+	canEdit: boolean;
+	editor: Editor | null;
+	itemId: string;
+}) {
 	const editorState = useDocumentEditorUiState(editor);
+	const { activeReview, hideReview } = useDocumentEditReview();
+
+	// Reviewing borrows the toolbar rather than floating over the page: the
+	// formatting controls are unusable mid-review anyway, so the space is free.
+	if (activeReview?.itemId === itemId) {
+		return (
+			<DocumentEditReviewControls
+				canUndo={canEdit}
+				itemId={itemId}
+				receiptIds={activeReview.receiptIds}
+				onDone={hideReview}
+			/>
+		);
+	}
+
+	// Read-only viewers get every formatting control disabled, which reads as a
+	// broken toolbar. Show only what still works.
+	if (!canEdit) {
+		return (
+			<WorkspaceResponsiveToolbar
+				mobileLabel="Document actions"
+				mobileContent={<DocumentExportMenuGroup />}
+			>
+				<DocumentMoreMenu />
+			</WorkspaceResponsiveToolbar>
+		);
+	}
 
 	return (
 		<WorkspaceResponsiveToolbar
@@ -66,6 +105,46 @@ export function DocumentToolbar({ editor }: { editor: Editor | null }) {
 	);
 }
 
+function DocumentEditReviewControls({
+	canUndo,
+	itemId,
+	onDone,
+	receiptIds,
+}: {
+	canUndo: boolean;
+	itemId: string;
+	onDone: () => void;
+	receiptIds: string[];
+}) {
+	const { workspaceId } = useDocumentEditReview();
+
+	// Wider than the toolbar's icon-button gap: these two carry a border and a
+	// fill, so flush spacing would read as one control.
+	return (
+		<div className="flex min-w-0 items-center gap-1.5">
+			<span className="min-w-0 truncate pr-0.5 pl-1 text-muted-foreground text-sm">
+				Reviewing changes:
+			</span>
+			{canUndo ? (
+				<DocumentEditUndoButton
+					className={workspaceToolbarTextButtonSizeClass}
+					itemId={itemId}
+					receiptIds={receiptIds}
+					workspaceId={workspaceId}
+				/>
+			) : null}
+			<Button
+				type="button"
+				size="sm"
+				className={workspaceToolbarTextButtonSizeClass}
+				onClick={onDone}
+			>
+				Done
+			</Button>
+		</div>
+	);
+}
+
 function DocumentMobileMenuContent({
 	editor,
 	editorState,
@@ -76,7 +155,7 @@ function DocumentMobileMenuContent({
 	return (
 		<>
 			<DocumentActionGroup
-				actions={documentFontSizeActions}
+				actions={documentTextStyleActions}
 				editor={editor}
 				editorState={editorState}
 				label="Text style"
@@ -163,13 +242,13 @@ function BlockTypeMenu({
 				{editorState.block.kind === "structure" ? (
 					getStructureBlockIcon(editorState.block.type)
 				) : (
-					<span className="truncate">{getFontSizeIcon(editorState.block.size)}</span>
+					<span className="truncate">{getTextStyleIcon(editorState.block.style)}</span>
 				)}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-44">
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>Text style</DropdownMenuLabel>
-					{documentFontSizeActions.map((action) => (
+					{documentTextStyleActions.map((action) => (
 						<DocumentMenuAction
 							key={action.id}
 							action={action}

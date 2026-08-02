@@ -54,10 +54,10 @@ describe("workspace read tool schemas", () => {
 				references: [],
 				results: [
 					{
-						content: "# Notes",
-						format: "markdown",
+						content: '<h1 data-ref="b_abcdefghijkl">Notes</h1>',
+						format: "html",
 						itemId: "notes",
-						location: { endLine: 1, kind: "lines", startLine: 1, totalLines: 1 },
+						location: { endBlock: 1, kind: "blocks", startBlock: 1, totalBlocks: 1 },
 						path: "/Notes",
 						status: "ready",
 						type: "document",
