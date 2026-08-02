@@ -23,7 +23,9 @@ const documentEditReceiptInputSchema = z.strictObject({
 export const getDocumentEditReceiptReviewFn = createServerFn({ method: "GET" })
 	.validator(documentEditReceiptInputSchema)
 	.handler(async ({ data }): Promise<DocumentEditReceiptReviewResult> => {
-		await authorizeDocumentEditReceipt(data.workspaceId, "read");
+		await withWorkspaceDb(({ db, userId }) =>
+			assertCanReadWorkspace(db, { userId, workspaceId: data.workspaceId }),
+		);
 		const session = await getDocumentEditSession(data);
 		const result = await session.getDocumentEditReceiptReview({
 			receiptIds: data.receiptIds,
@@ -40,20 +42,12 @@ export const getDocumentEditReceiptReviewFn = createServerFn({ method: "GET" })
 export const undoDocumentEditReceiptFn = createServerFn({ method: "POST" })
 	.validator(documentEditReceiptInputSchema)
 	.handler(async ({ data }): Promise<DocumentEditReceiptUndoResult> => {
-		await authorizeDocumentEditReceipt(data.workspaceId, "mutate");
+		await withWorkspaceDb(({ db, userId }) =>
+			assertCanMutateWorkspace(db, { userId, workspaceId: data.workspaceId }),
+		);
 		const session = await getDocumentEditSession(data);
 		return await session.undoDocumentEditReceipt({ receiptIds: data.receiptIds });
 	});
-
-async function authorizeDocumentEditReceipt(workspaceId: string, access: "mutate" | "read") {
-	await withWorkspaceDb(async ({ db, userId }) => {
-		if (access === "mutate") {
-			await assertCanMutateWorkspace(db, { userId, workspaceId });
-		} else {
-			await assertCanReadWorkspace(db, { userId, workspaceId });
-		}
-	});
-}
 
 async function getDocumentEditSession(input: {
 	itemId: string;

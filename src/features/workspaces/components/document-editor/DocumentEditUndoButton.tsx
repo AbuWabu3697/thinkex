@@ -1,5 +1,7 @@
+import { useMutation } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import {
 	AlertDialog,
@@ -12,7 +14,9 @@ import {
 	AlertDialogTitle,
 } from "#/components/ui/alert-dialog";
 import { Button } from "#/components/ui/button";
-import { useDocumentEditReceiptUndo } from "#/features/workspaces/documents/use-document-edit-receipt-undo";
+import type { DocumentEditReceiptUnavailableStatus } from "#/features/workspaces/documents/document-edit-receipt";
+import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
+import { undoDocumentEditReceiptFn } from "#/features/workspaces/documents/document-edit-review-functions";
 
 /**
  * Undo, with a confirmation step because it throws away work the reader may
@@ -30,7 +34,25 @@ export function DocumentEditUndoButton({
 	workspaceId: string;
 }) {
 	const [isConfirming, setIsConfirming] = useState(false);
-	const undoMutation = useDocumentEditReceiptUndo({ itemId, receiptIds, workspaceId });
+	const { hideReview } = useDocumentEditReview();
+	const undoMutation = useMutation({
+		mutationFn: () => undoDocumentEditReceiptFn({ data: { itemId, receiptIds, workspaceId } }),
+		onSuccess: (result) => {
+			// Every outcome ends the review: it either just undid the changes, or
+			// told us they no longer describe the document. Leaving the marks up
+			// after that would be showing a diff we have just been told is wrong.
+			hideReview();
+
+			if (result.status === "reverted") {
+				toast.success("Changes undone.");
+			} else {
+				toast.error(undoUnavailableMessages[result.status]);
+			}
+		},
+		onError: (error) => {
+			toast.error(error instanceof Error ? error.message : "Could not undo these changes.");
+		},
+	});
 
 	return (
 		<>
@@ -72,3 +94,11 @@ export function DocumentEditUndoButton({
 		</>
 	);
 }
+
+const undoUnavailableMessages: Record<DocumentEditReceiptUnavailableStatus, string> = {
+	content_changed: "This document changed after these edits, so they were not undone.",
+	not_found: "These changes are no longer available.",
+	not_latest: "Undo the newer changes first.",
+	reverted: "These changes were already undone.",
+	review_unavailable: "Undo is unavailable for this large document.",
+};

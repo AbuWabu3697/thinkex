@@ -40,13 +40,6 @@ export type DocumentEditReceiptReviewRpcResult =
 			status: DocumentEditReceiptUnavailableStatus;
 	  };
 
-/** Identifies one turn's edits to one document. */
-export interface DocumentEditReceiptTarget {
-	itemId: string;
-	receiptIds: string[];
-	workspaceId: string;
-}
-
 export interface DocumentEditReceiptUndoResult {
 	status: DocumentEditReceiptUnavailableStatus;
 }
