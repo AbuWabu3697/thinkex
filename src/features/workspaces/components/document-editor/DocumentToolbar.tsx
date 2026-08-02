@@ -139,6 +139,7 @@ function DocumentEditReviewControls({
 				className={workspaceToolbarTextButtonSizeClass}
 				onClick={onDone}
 			>
+				<Check aria-hidden="true" />
 				Done
 			</Button>
 		</div>

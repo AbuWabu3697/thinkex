@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -66,7 +66,9 @@ export function DocumentEditUndoButton({
 			>
 				{undoMutation.isPending ? (
 					<LoaderCircle className="animate-spin" aria-hidden="true" />
-				) : null}
+				) : (
+					<Undo2 aria-hidden="true" />
+				)}
 				Undo
 			</Button>
 			<AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
