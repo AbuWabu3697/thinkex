@@ -76,8 +76,11 @@ export { setWorkspaceKernelUserHeaders };
 
 export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 	private lastExtractionHealingRequestAt = 0;
-	// A purge empties storage without evicting this instance, so every query
-	// routes through here to stop reading a schema that no longer exists.
+	// A purge empties storage without evicting this instance, so kernel queries
+	// route through here rather than read a schema that no longer exists. The
+	// file store holds its own handle on `ctx.storage.sql` and is not covered:
+	// after a purge it fails on the missing table instead, which is the same
+	// outcome with a worse message on an object that is being deleted anyway.
 	private purged = false;
 	private readonly kernelSql: WorkspaceKernelSql = (strings, ...values) => {
 		if (this.purged) {
