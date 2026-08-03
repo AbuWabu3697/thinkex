@@ -80,9 +80,11 @@ function PricingPlanCard({ plan }: { plan: (typeof pricingPlans)[number] }) {
 				</div>
 				<div className="shrink-0 text-right">
 					<div className="text-xl font-medium tracking-tight">{plan.price}</div>
-					{"priceSuffix" in plan ? (
-						<div className="text-xs text-muted-foreground">{plan.priceSuffix}</div>
-					) : null}
+					{/* Always render the suffix row so every card's header is the
+					    same height and feature lists line up across columns. */}
+					<div className="text-xs text-muted-foreground">
+						{"priceSuffix" in plan ? plan.priceSuffix : "\u00A0"}
+					</div>
 				</div>
 			</div>
 			<ul className="mt-6 grid gap-3 text-sm text-muted-foreground">
