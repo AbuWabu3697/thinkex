@@ -4,6 +4,7 @@ import type { Mark, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { StepMap } from "@tiptap/pm/transform";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import katex from "katex";
 
 import type { TiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
 import {
@@ -184,19 +185,55 @@ function addChangedAtomDecorations(
 	});
 }
 
-function createDeletedContentWidget(beforeDocument: ProseMirrorNode, from: number, to: number) {
+export function createDeletedContentWidget(
+	beforeDocument: ProseMirrorNode,
+	from: number,
+	to: number,
+) {
 	const deletedText = beforeDocument.textBetween(from, to, " ").trim();
 	const element = document.createElement("span");
-	const visibleText = deletedText || "Removed block";
 
 	element.className = "workspace-document-ai-deleted";
 	element.contentEditable = "false";
+
+	if (!deletedText && renderDeletedMath(beforeDocument, from, to, element)) {
+		return element;
+	}
+
+	const visibleText = deletedText || "Removed block";
 	element.textContent =
 		visibleText.length > maximumDeletedTextLength
 			? `${visibleText.slice(0, maximumDeletedTextLength)}…`
 			: visibleText;
 
 	return element;
+}
+
+function renderDeletedMath(
+	beforeDocument: ProseMirrorNode,
+	from: number,
+	to: number,
+	element: HTMLElement,
+) {
+	let mathNode: ProseMirrorNode | undefined;
+
+	beforeDocument.nodesBetween(from, to, (node) => {
+		if (node.type.name === "inlineMath" || node.type.name === "blockMath") {
+			mathNode = node;
+			return false;
+		}
+	});
+
+	if (!mathNode) {
+		return false;
+	}
+
+	const latex = typeof mathNode.attrs.latex === "string" ? mathNode.attrs.latex : "";
+	katex.render(latex, element, {
+		displayMode: mathNode.type.name === "blockMath",
+		throwOnError: false,
+	});
+	return true;
 }
 
 function encodeMark(mark: Mark) {
