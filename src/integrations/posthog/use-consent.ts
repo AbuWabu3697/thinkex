@@ -14,16 +14,23 @@ const subscribeToRegion = () => () => {};
 const getServerConsentRequired = () => true;
 
 function useStoredConsentState() {
-	const serialized = useSyncExternalStore(subscribeToConsent, getStoredConsentValue, () => null);
+	const serialized = useSyncExternalStore<string | null | undefined>(
+		subscribeToConsent,
+		getStoredConsentValue,
+		() => undefined,
+	);
 	const consent = useMemo(
-		() => parseConsentValue(decodeConsentCookieValue(serialized)),
+		() =>
+			serialized === undefined
+				? undefined
+				: parseConsentValue(decodeConsentCookieValue(serialized)),
 		[serialized],
 	);
 	return { consent, serialized };
 }
 
-/** Current consent decision, or null when the user hasn't chosen yet. Reactive. */
-export function useConsent(): ConsentRecord | null {
+/** Current consent decision, null when unchosen, or undefined while hydrating. Reactive. */
+export function useConsent(): ConsentRecord | null | undefined {
 	return useStoredConsentState().consent;
 }
 
@@ -35,5 +42,5 @@ export function useEffectiveConsent(): ConsentRecord | null {
 		isConsentRequired,
 		getServerConsentRequired,
 	);
-	return resolveEffectiveConsent(consent, consentRequired, serialized !== null);
+	return resolveEffectiveConsent(consent ?? null, consentRequired, serialized !== null);
 }
