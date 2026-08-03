@@ -29,7 +29,7 @@ export function PlanBillingSection() {
 	// as a confident "Free, nothing included" — the one wrong answer a paying
 	// customer must never be shown. Held in the loading state instead: skeletons
 	// say "unknown", and the plan row stays absent rather than lying.
-	const { balances, isPending, isPro } = useBillingState();
+	const { balances, isPending, isPro } = useBillingState({ exact: true });
 
 	const resetsOn = formatResetDate(
 		METERS.map((meter) => balances?.[meter.featureId]?.next_reset_at).find(
