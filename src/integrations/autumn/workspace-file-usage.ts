@@ -63,7 +63,7 @@ export type WorkspaceFileUploadAccess =
 export async function checkWorkspaceFileUploadAccess(
 	input: CheckWorkspaceFileUploadAccessInput,
 ): Promise<WorkspaceFileUploadAccess> {
-	const autumn = getAutumnClient(input.env);
+	const autumn = await getAutumnClient(input.env);
 
 	if (!autumn) {
 		return { allowed: true };

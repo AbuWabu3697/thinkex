@@ -28,7 +28,7 @@ export interface CheckWorkspaceAiMessageAccessInput {
 export async function checkWorkspaceAiMessageAccess(
 	input: CheckWorkspaceAiMessageAccessInput,
 ): Promise<WorkspaceAiMessageAccess> {
-	const autumn = getAutumnClient(input.env);
+	const autumn = await getAutumnClient(input.env);
 
 	// No key configured means no plans to enforce — never gate on infrastructure.
 	if (!autumn) {

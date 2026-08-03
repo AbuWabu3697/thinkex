@@ -1,4 +1,3 @@
-import { Autumn, ResponseValidationError } from "autumn-js";
 import { eq } from "drizzle-orm";
 
 import { user } from "#/db/schema";
@@ -26,13 +25,23 @@ const DEFAULT_AUTUMN_CUSTOMER_FIELDS = {
 	},
 } as const satisfies AutumnCustomerFields;
 
-/** Null when no key resolves, which callers treat as "skip tracking". */
-export function getAutumnClient(env: Cloudflare.Env) {
+/**
+ * Imported on demand, never at module scope. The SDK builds well over a thousand
+ * Zod schemas while it evaluates, and a static import puts all of that in the
+ * Worker's startup path — enough on its own to fail Cloudflare's startup CPU
+ * limit and reject the deploy. Behind a dynamic import the cost moves to the
+ * first request that actually bills something.
+ *
+ * Null when no key resolves, which callers treat as "skip tracking".
+ */
+export async function getAutumnClient(env: Cloudflare.Env) {
 	const secretKey = resolveAutumnSecretKey(env);
 
 	if (!secretKey) {
 		return null;
 	}
+
+	const { Autumn } = await import("autumn-js");
 
 	return new Autumn({
 		secretKey,
@@ -108,7 +117,7 @@ export interface TrackAutumnUsageInput {
  * every metered feature — only the feature id and properties differ.
  */
 export async function trackAutumnUsage(input: TrackAutumnUsageInput) {
-	const autumn = getAutumnClient(input.env);
+	const autumn = await getAutumnClient(input.env);
 
 	if (!autumn) {
 		return;
@@ -130,6 +139,10 @@ export async function trackAutumnUsage(input: TrackAutumnUsageInput) {
 				async: true,
 			});
 		} catch (error) {
+			// Free by now: getAutumnClient already evaluated the module, so this
+			// resolves from cache rather than paying the import a second time.
+			const { ResponseValidationError } = await import("autumn-js");
+
 			if (!(error instanceof ResponseValidationError)) {
 				throw error;
 			}
