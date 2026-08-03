@@ -4,6 +4,7 @@ import posthog from "posthog-js";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
+import { ConsentManager } from "#/components/ConsentManager";
 import {
 	isPostHogDevEnvironment,
 	isPostHogEnabled,
@@ -11,6 +12,8 @@ import {
 	posthogHost,
 	posthogProjectToken,
 } from "#/integrations/posthog/config";
+import { getStoredConsent } from "#/integrations/posthog/consent";
+import { applyConsentToPostHog } from "#/integrations/posthog/consent-posthog";
 import type {
 	PostHogClientEventName,
 	PostHogEventPropertiesByName,
@@ -43,6 +46,15 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 		ui_host: posthogUiHost,
 		defaults: "2026-05-30",
 		debug: false,
+		// Start opted out: nothing is captured (and no PostHog cookies are set)
+		// until the user consents via the banner. See consent-posthog.ts.
+		opt_out_capturing_by_default: true,
+		// Privacy-first replay: mask every input and all rendered text so user
+		// content (prompts, documents, chat) never leaves the browser in a replay.
+		session_recording: {
+			maskAllInputs: true,
+			maskTextSelector: "*",
+		},
 		...(isPostHogSessionReplayEnabled ? {} : { disable_session_recording: true }),
 		...(tracingHeaders.length > 0 ? { tracing_headers: tracingHeaders } : {}),
 		loaded: (client) => {
@@ -54,6 +66,9 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 			if (!isPostHogSessionReplayEnabled) {
 				client.stopSessionRecording();
 			}
+
+			// Honor a returning visitor's stored choice as soon as the client is ready.
+			applyConsentToPostHog(getStoredConsent());
 		},
 	});
 }
@@ -132,6 +147,7 @@ export default function PostHogProvider({ children }: { children: ReactNode }) {
 		<PostHogReactProvider client={posthog}>
 			<PostHogAuthSync />
 			{children}
+			<ConsentManager />
 		</PostHogReactProvider>
 	);
 }
