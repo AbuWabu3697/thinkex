@@ -7,8 +7,9 @@ import {
 	WORKSPACE_AI_MESSAGE_FEATURE_IDS,
 	type WorkspaceAiMessageAccess,
 } from "#/integrations/autumn/workspace-ai-access";
-import { getAutumnSecretKey, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { trackAutumnUsage } from "#/integrations/autumn/client.server";
 import { checkAutumnBalance } from "#/integrations/autumn/rest";
+import { resolveAutumnSecretKey } from "#/integrations/autumn/secret-key";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 
@@ -29,7 +30,7 @@ export interface CheckWorkspaceAiMessageAccessInput {
 export async function checkWorkspaceAiMessageAccess(
 	input: CheckWorkspaceAiMessageAccessInput,
 ): Promise<WorkspaceAiMessageAccess> {
-	const secretKey = getAutumnSecretKey(input.env);
+	const secretKey = resolveAutumnSecretKey(input.env);
 
 	// No key configured means no plans to enforce — never gate on infrastructure.
 	if (!secretKey) {

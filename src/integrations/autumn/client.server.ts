@@ -23,11 +23,6 @@ const DEFAULT_AUTUMN_CUSTOMER_FIELDS = {
 	},
 } as const satisfies AutumnCustomerFields;
 
-/** Null when no key resolves, which callers treat as "skip billing". */
-export function getAutumnSecretKey(env: Cloudflare.Env) {
-	return resolveAutumnSecretKey(env) ?? null;
-}
-
 export async function getAutumnCustomerFields(userId: string): Promise<AutumnCustomerFields> {
 	let dbContext: Awaited<ReturnType<typeof createDbContext>> | undefined;
 
@@ -97,7 +92,7 @@ export interface TrackAutumnUsageInput {
  * every metered feature — only the feature id and properties differ.
  */
 export async function trackAutumnUsage(input: TrackAutumnUsageInput) {
-	const secretKey = getAutumnSecretKey(input.env);
+	const secretKey = resolveAutumnSecretKey(input.env);
 
 	if (!secretKey) {
 		return;

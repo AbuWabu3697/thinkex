@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -14,7 +16,7 @@ import { Progress } from "#/components/ui/progress";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import { openBillingPortalFn, startProCheckoutFn } from "#/features/account/billing-functions";
-import { useBillingState } from "#/features/account/use-billing-state";
+import { BILLING_STATE_QUERY_KEY, useBillingState } from "#/features/account/use-billing-state";
 
 // Feature IDs are the contract with autumn.config.ts. Labels are ours.
 const METERS = [
@@ -40,6 +42,7 @@ export function PlanBillingSection() {
 	// click — and a second click starts a second checkout. Only one of the two
 	// renders at a time, so one flag covers both.
 	const [isLeaving, setIsLeaving] = useState(false);
+	const queryClient = useQueryClient();
 
 	// The server hands back a URL instead of redirecting, so the navigation
 	// happens here once Stripe has answered.
@@ -53,9 +56,16 @@ export function PlanBillingSection() {
 				window.location.href = url;
 				return;
 			}
+
+			// No URL means Autumn applied the change without a checkout — a card was
+			// already on file. The plan really did change, so refetch rather than
+			// leave the panel insisting they are still on Free.
+			await queryClient.invalidateQueries({ queryKey: BILLING_STATE_QUERY_KEY });
+		} catch {
+			// Without this the click is simply swallowed, which on a payment button
+			// is indistinguishable from the product being broken.
+			toast.error("Couldn't open billing. Please try again.");
 		} finally {
-			// Reached only when no redirect happened; on success the page is already
-			// on its way out and this never matters.
 			setIsLeaving(false);
 		}
 	};

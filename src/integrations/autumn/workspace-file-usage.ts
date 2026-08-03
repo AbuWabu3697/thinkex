@@ -1,5 +1,6 @@
-import { getAutumnSecretKey, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { trackAutumnUsage } from "#/integrations/autumn/client.server";
 import { checkAutumnBalance } from "#/integrations/autumn/rest";
+import { resolveAutumnSecretKey } from "#/integrations/autumn/secret-key";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 
@@ -64,7 +65,7 @@ export type WorkspaceFileUploadAccess =
 export async function checkWorkspaceFileUploadAccess(
 	input: CheckWorkspaceFileUploadAccessInput,
 ): Promise<WorkspaceFileUploadAccess> {
-	const secretKey = getAutumnSecretKey(input.env);
+	const secretKey = resolveAutumnSecretKey(input.env);
 
 	if (!secretKey) {
 		return { allowed: true };

@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { env } from "cloudflare:workers";
 
-import { getAutumnCustomerFields, getAutumnSecretKey } from "#/integrations/autumn/client.server";
+import { getAutumnCustomerFields } from "#/integrations/autumn/client.server";
 import {
 	attachAutumnPlan,
 	getOrCreateAutumnCustomer,
 	openAutumnCustomerPortal,
 	type AutumnBalance,
 } from "#/integrations/autumn/rest";
+import { resolveAutumnSecretKey } from "#/integrations/autumn/secret-key";
 import { getAppOrigin } from "#/lib/app-origin";
 import { withAuth } from "#/lib/auth.server";
 
@@ -41,7 +42,7 @@ async function getSignedInUserId() {
 export const getWorkspaceBillingStateFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkspaceBillingState | null> => {
 		const userId = await getSignedInUserId();
-		const secretKey = getAutumnSecretKey(env);
+		const secretKey = resolveAutumnSecretKey(env);
 
 		if (!userId || !secretKey) {
 			return null;
@@ -88,7 +89,7 @@ export const getWorkspaceBillingStateFn = createServerFn({ method: "GET" }).hand
 export const startProCheckoutFn = createServerFn({ method: "POST" }).handler(
 	async (): Promise<{ url: string | null }> => {
 		const userId = await getSignedInUserId();
-		const secretKey = getAutumnSecretKey(env);
+		const secretKey = resolveAutumnSecretKey(env);
 
 		if (!userId || !secretKey) {
 			return { url: null };
@@ -111,7 +112,7 @@ export const startProCheckoutFn = createServerFn({ method: "POST" }).handler(
 export const openBillingPortalFn = createServerFn({ method: "POST" }).handler(
 	async (): Promise<{ url: string | null }> => {
 		const userId = await getSignedInUserId();
-		const secretKey = getAutumnSecretKey(env);
+		const secretKey = resolveAutumnSecretKey(env);
 
 		if (!userId || !secretKey) {
 			return { url: null };

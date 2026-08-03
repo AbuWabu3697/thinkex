@@ -13,18 +13,14 @@
 const AUTUMN_API_BASE_URL = "https://api.useautumn.com/v1";
 
 export interface AutumnBalance {
-	feature_id: string;
 	granted: number;
-	remaining: number;
-	usage: number;
-	unlimited: boolean;
 	next_reset_at: number | null;
+	remaining: number;
 }
 
 export interface AutumnSubscription {
 	plan_id: string;
 	status: string;
-	add_on: boolean;
 }
 
 export interface AutumnCustomer {
@@ -36,16 +32,6 @@ export interface AutumnCustomer {
 export interface AutumnCheckResult {
 	allowed: boolean;
 	balance: AutumnBalance | null;
-}
-
-export class AutumnRequestError extends Error {
-	readonly status: number;
-
-	constructor(path: string, status: number, body: string) {
-		super(`Autumn ${path} failed with ${status}: ${body.slice(0, 200)}`);
-		this.name = "AutumnRequestError";
-		this.status = status;
-	}
 }
 
 async function autumnRequest<TResult>(input: {
@@ -62,11 +48,15 @@ async function autumnRequest<TResult>(input: {
 		body: JSON.stringify(input.body),
 	});
 
+	const body = await response.text();
+
 	if (!response.ok) {
-		throw new AutumnRequestError(input.path, response.status, await response.text());
+		throw new Error(`Autumn ${input.path} failed with ${response.status}: ${body.slice(0, 200)}`);
 	}
 
-	return (await response.json()) as TResult;
+	// Parsed from text because an accepted async event answers 202 with no body,
+	// and response.json() throws on empty input.
+	return (body ? JSON.parse(body) : undefined) as TResult;
 }
 
 export function checkAutumnBalance(input: {
@@ -82,8 +72,9 @@ export function checkAutumnBalance(input: {
 }
 
 /**
- * `value` defaults to one because every meter here counts events, not units — a
- * message is a message whatever model answered it.
+ * `value: 1` because every meter here counts events, not units — a message is a
+ * message whatever model answered it. `async` because nothing reads the updated
+ * balance back, so there is no reason to make the caller wait for it.
  */
 export function trackAutumnBalance(input: {
 	customerId: string;
@@ -93,6 +84,7 @@ export function trackAutumnBalance(input: {
 }) {
 	return autumnRequest<unknown>({
 		body: {
+			async: true,
 			customer_id: input.customerId,
 			feature_id: input.featureId,
 			properties: input.properties,

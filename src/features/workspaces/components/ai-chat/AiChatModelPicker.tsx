@@ -12,7 +12,7 @@ import {
 	type WorkspaceAiChatModelId,
 	type WorkspaceAiChatModelLevel,
 } from "#/features/workspaces/ai/models";
-import { useIsProPlan } from "#/features/account/use-pro-plan";
+import { useBillingState } from "#/features/account/use-billing-state";
 import { useWorkspaceAiTierBalances } from "#/features/workspaces/ai/use-workspace-ai-allowance";
 import { ProviderLogo } from "#/features/workspaces/components/ai-chat/ProviderLogo";
 import { WorkspaceToolbarTextButton } from "#/features/workspaces/components/WorkspaceToolbar";
@@ -153,7 +153,7 @@ function ModelDetails({
 	model: WorkspaceAiChatModel;
 	premiumSpent: boolean;
 }) {
-	const isPro = useIsProPlan();
+	const { isPro } = useBillingState();
 
 	return (
 		<div className="flex min-w-0 flex-col gap-3 p-4">

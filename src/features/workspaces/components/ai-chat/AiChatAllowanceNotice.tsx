@@ -4,7 +4,7 @@ import {
 	getWorkspaceAiChatModelById,
 	type WorkspaceAiChatModelId,
 } from "#/features/workspaces/ai/models";
-import { useIsProPlan } from "#/features/account/use-pro-plan";
+import { useBillingState } from "#/features/account/use-billing-state";
 import { useWorkspaceAiAllowance } from "#/features/workspaces/ai/use-workspace-ai-allowance";
 
 interface AiChatAllowanceNoticeProps {
@@ -26,7 +26,7 @@ export function AiChatAllowanceNotice({ modelId }: AiChatAllowanceNoticeProps) {
 	const resetsOn = formatResetDate(allowance.resetsAt);
 	// Subscribers get the fact without the pitch; there is nothing left to sell
 	// them, so an upgrade line would only advertise that we forgot they pay.
-	const isPro = useIsProPlan();
+	const { isPro } = useBillingState();
 	const upgrade = isPro ? null : (
 		<>
 			{" "}
