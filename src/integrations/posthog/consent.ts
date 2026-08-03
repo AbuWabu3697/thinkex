@@ -5,6 +5,8 @@
  * this — only PostHog analytics and session replay.
  */
 
+import { CONSENT_REQUIRED_COOKIE } from "#/integrations/posthog/consent-region";
+
 export const CONSENT_STORAGE_KEY = "thinkex_consent";
 
 /** Same value as the storage key; mirrored here so the Worker can read the choice. */
@@ -71,9 +73,51 @@ export function getStoredConsent(): ConsentRecord | null {
 	return parseConsentValue(window.localStorage.getItem(CONSENT_STORAGE_KEY));
 }
 
-/** True only when the user has actively consented to analytics. */
+/**
+ * Whether this visitor needs to opt in before analytics run, read from the
+ * region cookie the Worker stamped. Defaults to required (opt-in) unless the
+ * cookie explicitly says otherwise — the privacy-safe fallback.
+ */
+export function isConsentRequired(): boolean {
+	if (typeof document === "undefined") {
+		return true;
+	}
+
+	return readClientCookie(CONSENT_REQUIRED_COOKIE) !== "0";
+}
+
+/**
+ * The decision to apply when nothing is stored yet: nothing (opt-in required) in
+ * the EEA/UK, analytics-on (opt-out) elsewhere. An explicit stored choice always
+ * wins over the regional default.
+ */
+export function getEffectiveConsent(): ConsentRecord | null {
+	const stored = getStoredConsent();
+	if (stored) {
+		return stored;
+	}
+
+	if (isConsentRequired()) {
+		return null;
+	}
+
+	return { analytics: true, sessionReplay: true, version: CONSENT_VERSION };
+}
+
+/** True when analytics may run — an explicit opt-in, or the opt-out regional default. */
 export function hasAnalyticsConsent(): boolean {
-	return getStoredConsent()?.analytics === true;
+	return getEffectiveConsent()?.analytics === true;
+}
+
+function readClientCookie(name: string): string | null {
+	for (const part of document.cookie.split(";")) {
+		const separator = part.indexOf("=");
+		if (separator !== -1 && part.slice(0, separator).trim() === name) {
+			return part.slice(separator + 1).trim();
+		}
+	}
+
+	return null;
 }
 
 /** Persists a decision and notifies listeners (this tab and others). */

@@ -26,7 +26,7 @@ const cookieDocument = {
 		},
 		{
 			title: "Analytics and diagnostics",
-			body: "Where configured, ThinkEx uses PostHog and related browser storage to understand product usage, collect feedback, diagnose errors, measure AI/tool activity, and support session replay. These are optional and off until you consent: on your first visit a cookie banner lets you accept, reject, or choose exactly what's measured, and nothing analytics-related runs (and no analytics storage is set) until you opt in. Session replay masks all inputs and text so your content is not recorded. Local development disables or limits some analytics behavior unless explicitly enabled.",
+			body: "Where configured, ThinkEx uses PostHog and related browser storage to understand product usage, collect feedback, diagnose errors, measure AI/tool activity, and support session replay. These are optional and always under your control. In the EEA, UK, and Switzerland nothing analytics-related runs (and no analytics storage is set) until you opt in via the cookie banner. Elsewhere, analytics are enabled by default with a notice and you can opt out at any time from the banner or the footer's Cookie Preferences link. Session replay masks all inputs and text so your content is not recorded. Local development disables or limits some analytics behavior unless explicitly enabled.",
 		},
 		{
 			title: "Email, auth, and provider interactions",

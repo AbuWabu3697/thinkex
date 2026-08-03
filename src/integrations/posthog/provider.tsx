@@ -12,7 +12,7 @@ import {
 	posthogHost,
 	posthogProjectToken,
 } from "#/integrations/posthog/config";
-import { getStoredConsent } from "#/integrations/posthog/consent";
+import { getEffectiveConsent } from "#/integrations/posthog/consent";
 import { applyConsentToPostHog } from "#/integrations/posthog/consent-posthog";
 import type {
 	PostHogClientEventName,
@@ -67,8 +67,9 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 				client.stopSessionRecording();
 			}
 
-			// Honor a returning visitor's stored choice as soon as the client is ready.
-			applyConsentToPostHog(getStoredConsent());
+			// Apply the effective choice (stored decision, or the regional default)
+			// as soon as the client is ready.
+			applyConsentToPostHog(getEffectiveConsent());
 		},
 	});
 }
