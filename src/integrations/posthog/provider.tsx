@@ -14,6 +14,7 @@ import {
 } from "#/integrations/posthog/config";
 import { getEffectiveConsent } from "#/integrations/posthog/consent";
 import { applyConsentToPostHog } from "#/integrations/posthog/consent-posthog";
+import { useEffectiveConsent } from "#/integrations/posthog/use-consent";
 import type {
 	PostHogClientEventName,
 	PostHogEventPropertiesByName,
@@ -46,11 +47,11 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 		ui_host: posthogUiHost,
 		defaults: "2026-05-30",
 		debug: false,
-		// Start opted out: nothing is captured (and no PostHog cookies are set)
-		// until the user consents via the banner. See consent-posthog.ts.
+		// Start opted out until the stored choice or regional default is applied.
 		opt_out_capturing_by_default: true,
-		// Privacy-first replay: mask every input and all rendered text so user
-		// content (prompts, documents, chat) never leaves the browser in a replay.
+		// Do not persist PostHog identity/session state while capturing is off.
+		opt_out_persistence_by_default: true,
+		// Privacy-first replay: mask every input and all rendered text.
 		session_recording: {
 			maskAllInputs: true,
 			maskTextSelector: "*",
@@ -117,6 +118,7 @@ export function resetPostHogClientIdentity() {
 
 function PostHogAuthSync() {
 	const { data: session, isPending } = useQuery(getAuthSessionQueryOptions());
+	const consent = useEffectiveConsent();
 	const lastDistinctIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -124,7 +126,7 @@ function PostHogAuthSync() {
 			return;
 		}
 
-		if (session?.user) {
+		if (consent?.analytics && session?.user) {
 			identifyPostHogUser(session);
 			lastDistinctIdRef.current = session.user.id;
 			return;
@@ -134,7 +136,18 @@ function PostHogAuthSync() {
 			resetPostHogClientIdentity();
 			lastDistinctIdRef.current = null;
 		}
-	}, [isPending, session]);
+	}, [consent, isPending, session]);
+
+	return null;
+}
+
+/** Keeps PostHog aligned with startup, same-tab, and cross-tab consent changes. */
+function PostHogConsentSync() {
+	const consent = useEffectiveConsent();
+
+	useEffect(() => {
+		applyConsentToPostHog(consent);
+	}, [consent]);
 
 	return null;
 }
@@ -146,6 +159,7 @@ export default function PostHogProvider({ children }: { children: ReactNode }) {
 
 	return (
 		<PostHogReactProvider client={posthog}>
+			<PostHogConsentSync />
 			<PostHogAuthSync />
 			{children}
 			<ConsentManager />

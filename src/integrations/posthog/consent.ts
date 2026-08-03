@@ -1,15 +1,15 @@
 /**
- * Consent state for non-essential analytics. Persisted in localStorage (client
- * reads) and mirrored to a cookie so the server can gate its own collection on
- * the same choice. Strictly-necessary auth/session cookies are never gated by
- * this — only PostHog analytics and session replay.
+ * Consent state for non-essential analytics. The cookie is the canonical value
+ * for both browser and server reads. localStorage only notifies other open tabs
+ * when that cookie changes. Strictly-necessary auth/session cookies are never
+ * gated by this — only PostHog analytics and session replay.
  */
 
 import { CONSENT_REQUIRED_COOKIE } from "#/integrations/posthog/consent-region";
 
-export const CONSENT_STORAGE_KEY = "thinkex_consent";
+const CONSENT_STORAGE_KEY = "thinkex_consent";
 
-/** Same value as the storage key; mirrored here so the Worker can read the choice. */
+/** Same name as the cross-tab notification key. */
 export const CONSENT_COOKIE_NAME = CONSENT_STORAGE_KEY;
 
 /** One year — a settled preference, not a session value. */
@@ -33,8 +33,13 @@ export interface ConsentRecord extends ConsentCategories {
 export const ACCEPT_ALL: ConsentCategories = { analytics: true, sessionReplay: true };
 export const REJECT_ALL: ConsentCategories = { analytics: false, sessionReplay: false };
 
+const DEFAULT_OPT_OUT_REGION_CONSENT: ConsentRecord = {
+	...ACCEPT_ALL,
+	version: CONSENT_VERSION,
+};
+
 /**
- * Parses a stored/serialized consent value (from localStorage or a cookie).
+ * Parses a stored/serialized consent value.
  * Pure and SSR-safe so the server can reuse it. Returns null on any mismatch,
  * which re-prompts the user rather than assuming a stale/garbled choice.
  */
@@ -64,13 +69,21 @@ export function parseConsentValue(raw: string | null | undefined): ConsentRecord
 	}
 }
 
-/** Returns the stored decision, or null when the user hasn't chosen yet. */
-export function getStoredConsent(): ConsentRecord | null {
-	if (typeof window === "undefined") {
+/**
+ * Returns the encoded cookie value used as the external-store snapshot. Strings
+ * have stable identity, which is required by useSyncExternalStore.
+ */
+export function getStoredConsentValue(): string | null {
+	if (typeof document === "undefined") {
 		return null;
 	}
 
-	return parseConsentValue(window.localStorage.getItem(CONSENT_STORAGE_KEY));
+	return readCookieValue(document.cookie, CONSENT_COOKIE_NAME);
+}
+
+/** Returns the stored decision, or null when the user hasn't chosen yet. */
+export function getStoredConsent(): ConsentRecord | null {
+	return parseConsentValue(decodeConsentCookieValue(getStoredConsentValue()));
 }
 
 /**
@@ -83,7 +96,7 @@ export function isConsentRequired(): boolean {
 		return true;
 	}
 
-	return readClientCookie(CONSENT_REQUIRED_COOKIE) !== "0";
+	return readCookieValue(document.cookie, CONSENT_REQUIRED_COOKIE) !== "0";
 }
 
 /**
@@ -91,17 +104,26 @@ export function isConsentRequired(): boolean {
  * the EEA/UK, analytics-on (opt-out) elsewhere. An explicit stored choice always
  * wins over the regional default.
  */
-export function getEffectiveConsent(): ConsentRecord | null {
-	const stored = getStoredConsent();
+export function resolveEffectiveConsent(
+	stored: ConsentRecord | null,
+	consentRequired: boolean,
+	hasStoredValue = stored !== null,
+): ConsentRecord | null {
 	if (stored) {
 		return stored;
 	}
 
-	if (isConsentRequired()) {
+	if (hasStoredValue || consentRequired) {
 		return null;
 	}
 
-	return { analytics: true, sessionReplay: true, version: CONSENT_VERSION };
+	return DEFAULT_OPT_OUT_REGION_CONSENT;
+}
+
+export function getEffectiveConsent(): ConsentRecord | null {
+	const serialized = getStoredConsentValue();
+	const stored = parseConsentValue(decodeConsentCookieValue(serialized));
+	return resolveEffectiveConsent(stored, isConsentRequired(), serialized !== null);
 }
 
 /** True when analytics may run — an explicit opt-in, or the opt-out regional default. */
@@ -109,8 +131,15 @@ export function hasAnalyticsConsent(): boolean {
 	return getEffectiveConsent()?.analytics === true;
 }
 
-function readClientCookie(name: string): string | null {
-	for (const part of document.cookie.split(";")) {
+export function readCookieValue(
+	cookieHeader: string | null | undefined,
+	name: string,
+): string | null {
+	if (!cookieHeader) {
+		return null;
+	}
+
+	for (const part of cookieHeader.split(";")) {
 		const separator = part.indexOf("=");
 		if (separator !== -1 && part.slice(0, separator).trim() === name) {
 			return part.slice(separator + 1).trim();
@@ -120,30 +149,40 @@ function readClientCookie(name: string): string | null {
 	return null;
 }
 
+/** Decodes a cookie value without letting malformed user input escape the boundary. */
+export function decodeConsentCookieValue(raw: string | null | undefined): string | null {
+	if (!raw) {
+		return null;
+	}
+
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return null;
+	}
+}
+
 /** Persists a decision and notifies listeners (this tab and others). */
-export function setStoredConsent(categories: ConsentCategories): ConsentRecord {
+export function setStoredConsent(categories: ConsentCategories): void {
 	const record: ConsentRecord = {
 		analytics: categories.analytics,
 		sessionReplay: categories.analytics && categories.sessionReplay,
 		version: CONSENT_VERSION,
 	};
 
-	if (typeof window !== "undefined") {
+	if (typeof window !== "undefined" && typeof document !== "undefined") {
 		const serialized = JSON.stringify(record);
+		// The cookie is the source of truth because both the browser and Worker can
+		// read it. localStorage is only a native cross-tab notification channel.
+		const secure = window.location.protocol === "https:" ? "; Secure" : "";
+		document.cookie = `${CONSENT_COOKIE_NAME}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${CONSENT_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
 		try {
 			window.localStorage.setItem(CONSENT_STORAGE_KEY, serialized);
 		} catch {
-			// Ignore storage failures (private mode, quota) — consent just won't persist.
+			// The cookie still persists; only live cross-tab notification is unavailable.
 		}
-		// Mirror to a cookie so the Worker gates server-side collection on the same
-		// choice. Not HttpOnly (the client writes it); Secure only over https so it
-		// still works on http://localhost during development.
-		const secure = window.location.protocol === "https:" ? "; Secure" : "";
-		document.cookie = `${CONSENT_COOKIE_NAME}=${encodeURIComponent(serialized)}; Path=/; Max-Age=${CONSENT_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
 		window.dispatchEvent(new CustomEvent(CONSENT_CHANGE_EVENT, { detail: record }));
 	}
-
-	return record;
 }
 
 /** Subscribe to consent changes from this tab or another. Returns an unsubscribe fn. */

@@ -26,7 +26,7 @@ const cookieDocument = {
 		},
 		{
 			title: "Analytics and diagnostics",
-			body: "Where configured, ThinkEx uses PostHog and related browser storage to understand product usage, collect feedback, diagnose errors, measure AI/tool activity, and support session replay. These are optional and always under your control. In the EEA, UK, and Switzerland nothing analytics-related runs (and no analytics storage is set) until you opt in via the cookie banner. Elsewhere, analytics are enabled by default with a notice and you can opt out at any time from the banner or the footer's Cookie Preferences link. Session replay masks all inputs and text so your content is not recorded. Local development disables or limits some analytics behavior unless explicitly enabled.",
+			body: "Where configured, ThinkEx uses PostHog and related browser storage to understand product usage, collect feedback, diagnose errors, measure AI/tool activity, and support session replay. For signed-in users, analytics may be associated with their account ID, name, and email. These features are optional and always under your control. In the EEA, UK, and Switzerland analytics collection remains off until you opt in via the cookie banner. Elsewhere, analytics are enabled by default with a notice and you can opt out at any time. Session replay is configured to mask all inputs and rendered text. Local development disables or limits some analytics behavior unless explicitly enabled.",
 		},
 		{
 			title: "Email, auth, and provider interactions",
@@ -35,7 +35,7 @@ const cookieDocument = {
 		{
 			title: "Managing cookies",
 			items: [
-				'You can change your analytics and session-replay choices at any time from the "Cookie Preferences" link in the site footer.',
+				'You can change your analytics and session-replay choices at any time from the "Cookie Preferences" link in the site footer or the Privacy tab in account settings.',
 				"You can also delete or block cookies and local storage through your browser settings.",
 				"Blocking required cookies can break authentication, account security, and workspace access.",
 				"Blocking analytics or third-party storage may reduce measurement, feedback, and diagnostic features but should not prevent normal workspace use unless your browser blocks required app storage too.",

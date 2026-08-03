@@ -19,7 +19,6 @@ import {
 	setStoredConsent,
 	subscribeToConsentOpen,
 } from "#/integrations/posthog/consent";
-import { applyConsentToPostHog } from "#/integrations/posthog/consent-posthog";
 import { useConsent } from "#/integrations/posthog/use-consent";
 
 /**
@@ -35,24 +34,18 @@ export function ConsentManager() {
 	useEffect(() => {
 		return subscribeToConsentOpen(() => {
 			const current = getStoredConsent();
-			setDraft(
-				current
-					? { analytics: current.analytics, sessionReplay: current.sessionReplay }
-					: ACCEPT_ALL,
-			);
+			setDraft(current ?? ACCEPT_ALL);
 			setManagerOpen(true);
 		});
 	}, []);
 
 	function decide(categories: ConsentCategories) {
-		applyConsentToPostHog(setStoredConsent(categories));
+		setStoredConsent(categories);
 		setManagerOpen(false);
 	}
 
 	function openManager() {
-		setDraft(
-			consent ? { analytics: consent.analytics, sessionReplay: consent.sessionReplay } : ACCEPT_ALL,
-		);
+		setDraft(consent ?? ACCEPT_ALL);
 		setManagerOpen(true);
 	}
 
@@ -91,7 +84,7 @@ export function ConsentManager() {
 						/>
 						<ConsentRow
 							title="Product analytics"
-							description="Anonymous usage and error diagnostics so we can fix bugs and improve ThinkEx."
+							description="Usage and error diagnostics so we can fix bugs and improve ThinkEx."
 							checked={draft.analytics}
 							onCheckedChange={(analytics) =>
 								setDraft((prev) => ({
@@ -103,7 +96,7 @@ export function ConsentManager() {
 						/>
 						<ConsentRow
 							title="Session replay"
-							description="Records anonymized session playback (inputs and text masked) to debug issues. Requires analytics."
+							description="Records session playback with inputs and text masked to debug issues. Requires analytics."
 							checked={draft.sessionReplay}
 							disabled={!draft.analytics}
 							onCheckedChange={(sessionReplay) => setDraft((prev) => ({ ...prev, sessionReplay }))}
@@ -111,7 +104,7 @@ export function ConsentManager() {
 					</div>
 
 					<DialogFooter layout="split">
-						<Button variant="ghost" onClick={() => decide(REJECT_ALL)}>
+						<Button variant="outline" onClick={() => decide(REJECT_ALL)}>
 							Reject all
 						</Button>
 						<Button onClick={() => decide(draft)}>Save preferences</Button>
