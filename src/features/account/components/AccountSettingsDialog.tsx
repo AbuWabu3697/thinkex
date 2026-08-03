@@ -12,11 +12,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 import { AccountSection } from "#/features/account/components/AccountSection";
 import { PlanBillingSection } from "#/features/account/components/PlanBillingSection";
+import { PrivacySection } from "#/features/account/components/PrivacySection";
 import { signOutCurrentUser } from "#/lib/auth-sign-out";
 import { getErrorMessage } from "#/lib/error-message";
 import { getAuthSessionQueryOptions } from "#/lib/session-query";
 
-export const ACCOUNT_SETTINGS_TABS = ["account", "plan"] as const;
+export const ACCOUNT_SETTINGS_TABS = ["account", "plan", "privacy"] as const;
 
 export type AccountSettingsTab = (typeof ACCOUNT_SETTINGS_TABS)[number];
 
@@ -85,6 +86,9 @@ export function AccountSettingsDialog({
 							<TabsTrigger value="plan" className={TAB_TRIGGER}>
 								Plan &amp; usage
 							</TabsTrigger>
+							<TabsTrigger value="privacy" className={TAB_TRIGGER}>
+								Privacy
+							</TabsTrigger>
 						</TabsList>
 					</div>
 
@@ -108,6 +112,9 @@ export function AccountSettingsDialog({
 						</TabsContent>
 						<TabsContent value="plan">
 							<PlanBillingSection />
+						</TabsContent>
+						<TabsContent value="privacy">
+							<PrivacySection />
 						</TabsContent>
 					</div>
 				</Tabs>
