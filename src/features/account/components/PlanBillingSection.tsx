@@ -1,5 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Badge } from "#/components/ui/badge";
@@ -37,21 +36,16 @@ export function PlanBillingSection() {
 			(value): value is number => typeof value === "number",
 		),
 	);
+	const queryClient = useQueryClient();
 	// Both actions round-trip to Autumn and Stripe before the browser goes
 	// anywhere, which is long enough that an unchanged button reads as a dead
-	// click — and a second click starts a second checkout. Only one of the two
-	// renders at a time, so one flag covers both.
-	const [isLeaving, setIsLeaving] = useState(false);
-	const queryClient = useQueryClient();
-
-	// The server hands back a URL instead of redirecting, so the navigation
-	// happens here once Stripe has answered.
-	const startBillingAction = async (run: () => Promise<{ url: string | null }>) => {
-		setIsLeaving(true);
-
-		try {
-			const { url } = await run();
-
+	// click — and a second click starts a second checkout. One mutation covers
+	// both, since only one of the buttons renders at a time.
+	const billingAction = useMutation({
+		mutationFn: (run: () => Promise<{ url: string | null }>) => run(),
+		onSuccess: async ({ url }) => {
+			// The server hands back a URL rather than redirecting, so the navigation
+			// happens here once Stripe has answered.
 			if (url) {
 				window.location.href = url;
 				return;
@@ -61,14 +55,11 @@ export function PlanBillingSection() {
 			// already on file. The plan really did change, so refetch rather than
 			// leave the panel insisting they are still on Free.
 			await queryClient.invalidateQueries({ queryKey: BILLING_STATE_QUERY_KEY });
-		} catch {
-			// Without this the click is simply swallowed, which on a payment button
-			// is indistinguishable from the product being broken.
-			toast.error("Couldn't open billing. Please try again.");
-		} finally {
-			setIsLeaving(false);
-		}
-	};
+		},
+		// Without this the click is simply swallowed, which on a payment button is
+		// indistinguishable from the product being broken.
+		onError: () => toast.error("Couldn't open billing. Please try again."),
+	});
 
 	return (
 		// No heading — the active tab already says "Plan & usage".
@@ -89,23 +80,23 @@ export function PlanBillingSection() {
 								<Button
 									variant="outline"
 									size="sm"
-									disabled={isLeaving}
+									disabled={billingAction.isPending}
 									onClick={() => {
-										void startBillingAction(() => openBillingPortalFn());
+										billingAction.mutate(() => openBillingPortalFn());
 									}}
 								>
-									{isLeaving ? <Spinner /> : null}
+									{billingAction.isPending ? <Spinner /> : null}
 									Manage billing
 								</Button>
 							) : (
 								<Button
 									size="sm"
-									disabled={isLeaving}
+									disabled={billingAction.isPending}
 									onClick={() => {
-										void startBillingAction(() => startProCheckoutFn());
+										billingAction.mutate(() => startProCheckoutFn());
 									}}
 								>
-									{isLeaving ? <Spinner /> : null}
+									{billingAction.isPending ? <Spinner /> : null}
 									Upgrade to Pro
 								</Button>
 							)}
