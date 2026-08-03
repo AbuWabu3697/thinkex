@@ -112,6 +112,9 @@ export function recordWorkspaceFileExtractionOutcome(input: WorkspaceFileExtract
 	capturePostHogServerEvent({
 		distinctId: input.params.actorUserId ?? input.instanceId,
 		event: "workspace_file_extraction_completed",
+		// Legitimate interest: operational pipeline telemetry (runs in a Workflow,
+		// no request scope). No email/name/content.
+		consentExempt: true,
 		processPerson: input.params.actorUserId !== null,
 		properties: fields,
 		requestContext,

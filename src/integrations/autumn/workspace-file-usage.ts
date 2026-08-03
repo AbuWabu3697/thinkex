@@ -85,6 +85,8 @@ export async function checkWorkspaceFileUploadAccess(
 		capturePostHogServerEvent({
 			distinctId: input.userId,
 			event: "usage_limit_reached",
+			// Contractual necessity: plan-limit enforcement telemetry, not consented analytics.
+			consentExempt: true,
 			properties: { feature_id: WORKSPACE_FILE_UPLOAD_FEATURE_ID, surface: "file_upload" },
 		});
 

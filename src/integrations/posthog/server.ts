@@ -1,6 +1,7 @@
 import { PostHog } from "posthog-node";
 
 import { isPostHogEnabled, posthogHost, posthogProjectToken } from "#/integrations/posthog/config";
+import { hasServerAnalyticsConsent } from "#/integrations/posthog/consent.server";
 import type {
 	PostHogEventPropertiesByName,
 	PostHogServerEventName,
@@ -37,6 +38,15 @@ interface PostHogServerEvent<TEvent extends PostHogServerEventName> {
 	 * otherwise register a brand new person per run and inflate user counts.
 	 */
 	processPerson?: boolean;
+	/**
+	 * Skip the analytics-consent gate for telemetry that rests on a lawful basis
+	 * other than consent — operational reliability (legitimate interest) or
+	 * billing/usage enforcement (contractual necessity). These carry only
+	 * pseudonymous ids and operational metrics — no email, name, or content — and
+	 * often run outside request scope where the consent cookie isn't readable.
+	 * The lawful basis is stated per call site.
+	 */
+	consentExempt?: boolean;
 	properties: PostHogEventPropertiesByName[TEvent];
 	requestContext?: TelemetryRequestContext;
 	request?: TelemetryRequestDetails;
@@ -61,6 +71,13 @@ export function capturePostHogServerEvent<TEvent extends PostHogServerEventName>
 	input: PostHogServerEvent<TEvent>,
 ) {
 	if (!isPostHogServerTrackingEnabled() || !posthogServerClient) {
+		return;
+	}
+
+	// Product analytics require consent; operational/billing telemetry (flagged
+	// consentExempt) and exception capture are exempt as they carry no
+	// email/name/content and rely on a different lawful basis.
+	if (!input.consentExempt && !hasServerAnalyticsConsent(input.request?.headers)) {
 		return;
 	}
 

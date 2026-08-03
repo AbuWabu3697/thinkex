@@ -70,6 +70,9 @@ export async function checkWorkspaceAiMessageAccess(
 			capturePostHogServerEvent({
 				distinctId: input.userId,
 				event: "usage_limit_reached",
+				// Contractual necessity: plan-limit enforcement telemetry; also runs in the
+				// DO where the consent cookie isn't readable.
+				consentExempt: true,
 				properties: {
 					feature_id: WORKSPACE_AI_MESSAGE_FEATURE_IDS[chosenTier],
 					surface: "ai_message",

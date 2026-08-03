@@ -27,6 +27,13 @@ export class AIThreadTelemetryRecorder {
 	private readonly inspector: AIThreadInspectorRecorder;
 	private readonly posthog: AIThreadPostHogRecorder;
 	private readonly tcc: AIThreadTccRecorder;
+	/**
+	 * Whether the user consented to analytics, sent per turn in the chat body.
+	 * Gates the third-party sinks (PostHog, TCC) only — the local inspector, which
+	 * powers the in-app debug view and never leaves the Worker, always records.
+	 * Defaults false so a turn with no consent signal shares nothing.
+	 */
+	private analyticsConsent = false;
 
 	constructor(input: {
 		env: Cloudflare.Env;
@@ -39,6 +46,10 @@ export class AIThreadTelemetryRecorder {
 		this.tcc = new AIThreadTccRecorder({ schedule: input.schedule });
 	}
 
+	setAnalyticsConsent(consented: boolean) {
+		this.analyticsConsent = consented;
+	}
+
 	async recordTurnStarted(input: {
 		ctx: TurnContext;
 		modelId: WorkspaceAiChatModelId;
@@ -47,6 +58,9 @@ export class AIThreadTelemetryRecorder {
 		tools: unknown;
 	}) {
 		await this.inspector.recordTurnStarted(input);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordTurnStarted(input);
 		this.tcc.recordTurnStarted({
 			...input,
@@ -56,24 +70,36 @@ export class AIThreadTelemetryRecorder {
 
 	recordStepStarted(ctx: PrepareStepContext) {
 		this.inspector.recordStepStarted(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordStepStarted(ctx);
 		this.tcc.recordStepStarted(ctx);
 	}
 
 	recordToolStarted(ctx: ToolCallContext) {
 		this.inspector.recordToolStarted(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordToolStarted(ctx);
 		this.tcc.recordToolStarted(ctx);
 	}
 
 	recordTurnFinished(result: ChatResponseResult) {
 		this.inspector.recordTurnFinished(result);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordTurnFinished(result);
 		this.tcc.recordTurnFinished(result);
 	}
 
 	recordTurnError(error: unknown, ctx?: ChatErrorContext) {
 		this.inspector.recordTurnError(error);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordTurnError(error, {
 			errorClassification: ctx?.classification,
 			errorStage: ctx?.stage,
@@ -91,18 +117,27 @@ export class AIThreadTelemetryRecorder {
 	recordToolFinished(ctx: ToolCallResultContext) {
 		const outcome = getAIToolOutcome(ctx);
 		this.inspector.recordToolFinished(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordToolFinished(ctx, outcome);
 		this.tcc.recordToolFinished(ctx, outcome);
 	}
 
 	recordStepFinished(ctx: StepContext) {
 		this.inspector.recordStepFinished(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordStepFinished(ctx);
 		this.tcc.recordStepFinished(ctx);
 	}
 
 	recordChunk(ctx: ChunkContext) {
 		this.inspector.recordChunk(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordChunk(ctx);
 	}
 
@@ -115,6 +150,9 @@ export class AIThreadTelemetryRecorder {
 		thread: Pick<AIThreadContext, "id" | "workspaceId" | "userId">;
 		usage?: unknown;
 	}) {
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordAuxiliaryGeneration({
 			...input,
 			traceContext: this.posthog.getActiveTraceContext(),
@@ -133,6 +171,9 @@ export class AIThreadTelemetryRecorder {
 		prompt?: string;
 		thread: Pick<AIThreadContext, "id" | "workspaceId" | "userId">;
 	}) {
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordAuxiliaryError({
 			...input,
 			traceContext: this.posthog.getActiveTraceContext(),

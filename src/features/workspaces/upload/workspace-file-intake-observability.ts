@@ -71,6 +71,9 @@ export async function observeWorkspaceFileIntake(input: {
 		capturePostHogServerEvent({
 			distinctId: observation.userId ?? input.requestId,
 			event: "workspace_file_intake_completed",
+			// Legitimate interest: operational intake-outcome telemetry, not product
+			// analytics. No email/name/content.
+			consentExempt: true,
 			processPerson: Boolean(observation.userId),
 			properties: fields,
 			requestContext,
