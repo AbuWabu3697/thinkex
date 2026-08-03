@@ -1,4 +1,3 @@
-import { useCustomer } from "autumn-js/react";
 import { useState } from "react";
 
 import { Badge } from "#/components/ui/badge";
@@ -14,7 +13,8 @@ import {
 import { Progress } from "#/components/ui/progress";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
-import { PRO_PLAN_ID, useIsProPlan } from "#/features/account/use-pro-plan";
+import { openBillingPortalFn, startProCheckoutFn } from "#/features/account/billing-functions";
+import { useBillingState } from "#/features/account/use-billing-state";
 
 // Feature IDs are the contract with autumn.config.ts. Labels are ours.
 const METERS = [
@@ -24,34 +24,38 @@ const METERS = [
 ] as const;
 
 export function PlanBillingSection() {
-	const { data: customer, error, isLoading, attach, openCustomerPortal } = useCustomer();
-	// An error leaves `customer` undefined with loading finished, which would read
+	// An error leaves the state undefined with loading finished, which would read
 	// as a confident "Free, nothing included" — the one wrong answer a paying
 	// customer must never be shown. Held in the loading state instead: skeletons
 	// say "unknown", and the plan row stays absent rather than lying.
-	const isPending = isLoading || Boolean(error);
+	const { balances, isPending, isPro } = useBillingState();
 
 	const resetsOn = formatResetDate(
-		METERS.map((meter) => customer?.balances?.[meter.featureId]?.nextResetAt).find(
+		METERS.map((meter) => balances?.[meter.featureId]?.next_reset_at).find(
 			(value): value is number => typeof value === "number",
 		),
 	);
-
-	const isPro = useIsProPlan();
 	// Both actions round-trip to Autumn and Stripe before the browser goes
 	// anywhere, which is long enough that an unchanged button reads as a dead
 	// click — and a second click starts a second checkout. Only one of the two
 	// renders at a time, so one flag covers both.
 	const [isLeaving, setIsLeaving] = useState(false);
 
-	const startBillingAction = async (run: () => Promise<unknown>) => {
+	// The server hands back a URL instead of redirecting, so the navigation
+	// happens here once Stripe has answered.
+	const startBillingAction = async (run: () => Promise<{ url: string | null }>) => {
 		setIsLeaving(true);
 
 		try {
-			await run();
+			const { url } = await run();
+
+			if (url) {
+				window.location.href = url;
+				return;
+			}
 		} finally {
-			// Reached only when the redirect never happened; on success the page is
-			// already gone and this never runs.
+			// Reached only when no redirect happened; on success the page is already
+			// on its way out and this never matters.
 			setIsLeaving(false);
 		}
 	};
@@ -77,7 +81,7 @@ export function PlanBillingSection() {
 									size="sm"
 									disabled={isLeaving}
 									onClick={() => {
-										void startBillingAction(() => openCustomerPortal());
+										void startBillingAction(() => openBillingPortalFn());
 									}}
 								>
 									{isLeaving ? <Spinner /> : null}
@@ -88,7 +92,7 @@ export function PlanBillingSection() {
 									size="sm"
 									disabled={isLeaving}
 									onClick={() => {
-										void startBillingAction(() => attach({ planId: PRO_PLAN_ID }));
+										void startBillingAction(() => startProCheckoutFn());
 									}}
 								>
 									{isLeaving ? <Spinner /> : null}
@@ -131,7 +135,7 @@ export function PlanBillingSection() {
 				) : (
 					<UsageMeter
 						key={meter.featureId}
-						balance={customer?.balances?.[meter.featureId]}
+						balance={balances?.[meter.featureId]}
 						label={meter.label}
 					/>
 				),

@@ -1,0 +1,128 @@
+import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
+import { env } from "cloudflare:workers";
+
+import { getAutumnCustomerFields, getAutumnSecretKey } from "#/integrations/autumn/client.server";
+import {
+	attachAutumnPlan,
+	getOrCreateAutumnCustomer,
+	openAutumnCustomerPortal,
+	type AutumnBalance,
+} from "#/integrations/autumn/rest";
+import { getAppOrigin } from "#/lib/app-origin";
+import { withAuth } from "#/lib/auth.server";
+
+/**
+ * What the plan UI needs, and nothing else. Autumn's customer response carries
+ * invoices, entities, referrals and rewards we never render, and it is the
+ * secret key that fetches it — so the shape is narrowed here rather than passed
+ * through to the browser wholesale.
+ */
+export interface WorkspaceBillingState {
+	balances: Record<string, Pick<AutumnBalance, "granted" | "next_reset_at" | "remaining">>;
+	isPro: boolean;
+}
+
+const PRO_PLAN_ID = "pro";
+
+async function getSignedInUserId() {
+	return await withAuth(async (auth) => {
+		const session = await auth.api.getSession({ headers: getRequestHeaders() });
+
+		return session?.user.id ?? null;
+	});
+}
+
+/**
+ * getOrCreate rather than get: a customer only exists in Autumn once something
+ * bills them, so a user who has never sent a message would otherwise 404 here
+ * and see an empty panel instead of their free allowances.
+ */
+export const getWorkspaceBillingStateFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<WorkspaceBillingState | null> => {
+		const userId = await getSignedInUserId();
+		const secretKey = getAutumnSecretKey(env);
+
+		if (!userId || !secretKey) {
+			return null;
+		}
+
+		const customerFields = await getAutumnCustomerFields(userId);
+		const customer = await getOrCreateAutumnCustomer({
+			customerId: userId,
+			secretKey,
+			...customerFields,
+		});
+
+		return {
+			balances: Object.fromEntries(
+				Object.entries(customer.balances).flatMap(([featureId, balance]) =>
+					balance
+						? [
+								[
+									featureId,
+									{
+										granted: balance.granted,
+										next_reset_at: balance.next_reset_at,
+										remaining: balance.remaining,
+									},
+								],
+							]
+						: [],
+				),
+			),
+			// Scheduled plans sit in the same array as active ones and the status
+			// enum is open, so only an explicitly active Pro counts.
+			isPro: customer.subscriptions.some(
+				(subscription) => subscription.plan_id === PRO_PLAN_ID && subscription.status === "active",
+			),
+		};
+	},
+);
+
+/**
+ * Returns a URL for the browser to follow rather than redirecting here: the
+ * caller is a button inside a dialog, and a server redirect would tear the whole
+ * page down before Stripe answered.
+ */
+export const startProCheckoutFn = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ url: string | null }> => {
+		const userId = await getSignedInUserId();
+		const secretKey = getAutumnSecretKey(env);
+
+		if (!userId || !secretKey) {
+			return { url: null };
+		}
+
+		const result = await attachAutumnPlan({
+			customerId: userId,
+			planId: PRO_PLAN_ID,
+			secretKey,
+			// Back to the panel they upgraded from, with the new plan already
+			// rendered — landing on a bare home screen after paying reads as though
+			// the payment went nowhere.
+			successUrl: `${getAppOrigin()}/home?settings=plan`,
+		});
+
+		return { url: result.payment_url };
+	},
+);
+
+export const openBillingPortalFn = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ url: string | null }> => {
+		const userId = await getSignedInUserId();
+		const secretKey = getAutumnSecretKey(env);
+
+		if (!userId || !secretKey) {
+			return { url: null };
+		}
+
+		const result = await openAutumnCustomerPortal({
+			customerId: userId,
+			returnUrl: `${getAppOrigin()}/home?settings=plan`,
+			secretKey,
+		});
+
+		return { url: result.url };
+	},
+);

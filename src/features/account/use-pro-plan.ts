@@ -1,4 +1,4 @@
-import { useCustomer } from "autumn-js/react";
+import { useBillingState } from "#/features/account/use-billing-state";
 
 export const PRO_PLAN_ID = "pro";
 
@@ -9,15 +9,7 @@ export const PRO_PLAN_ID = "pro";
  * someone who already pays reads as the product not knowing who they are.
  *
  * False while loading, so an upgrade CTA can never flash at a subscriber.
- * `subscriptions` also carries scheduled plans, and the status enum is open, so
- * only an explicitly active Pro counts.
  */
 export function useIsProPlan() {
-	const { data: customer } = useCustomer();
-
-	return Boolean(
-		customer?.subscriptions?.some(
-			(subscription) => subscription.planId === PRO_PLAN_ID && subscription.status === "active",
-		),
-	);
+	return useBillingState().isPro;
 }

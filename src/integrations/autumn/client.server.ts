@@ -2,11 +2,9 @@ import { eq } from "drizzle-orm";
 
 import { user } from "#/db/schema";
 import { createDbContext } from "#/db/server";
+import { getOrCreateAutumnCustomer, trackAutumnBalance } from "#/integrations/autumn/rest";
 import { resolveAutumnSecretKey } from "#/integrations/autumn/secret-key";
-import {
-	logOperationalEvent,
-	recordOperationalFailure,
-} from "#/integrations/observability/operational-events";
+import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 
 export interface AutumnCustomerFields {
 	email?: string;
@@ -25,27 +23,9 @@ const DEFAULT_AUTUMN_CUSTOMER_FIELDS = {
 	},
 } as const satisfies AutumnCustomerFields;
 
-/**
- * Imported on demand, never at module scope. The SDK builds well over a thousand
- * Zod schemas while it evaluates, and a static import puts all of that in the
- * Worker's startup path — enough on its own to fail Cloudflare's startup CPU
- * limit and reject the deploy. Behind a dynamic import the cost moves to the
- * first request that actually bills something.
- *
- * Null when no key resolves, which callers treat as "skip tracking".
- */
-export async function getAutumnClient(env: Cloudflare.Env) {
-	const secretKey = resolveAutumnSecretKey(env);
-
-	if (!secretKey) {
-		return null;
-	}
-
-	const { Autumn } = await import("autumn-js");
-
-	return new Autumn({
-		secretKey,
-	});
+/** Null when no key resolves, which callers treat as "skip billing". */
+export function getAutumnSecretKey(env: Cloudflare.Env) {
+	return resolveAutumnSecretKey(env) ?? null;
 }
 
 export async function getAutumnCustomerFields(userId: string): Promise<AutumnCustomerFields> {
@@ -117,9 +97,9 @@ export interface TrackAutumnUsageInput {
  * every metered feature — only the feature id and properties differ.
  */
 export async function trackAutumnUsage(input: TrackAutumnUsageInput) {
-	const autumn = await getAutumnClient(input.env);
+	const secretKey = getAutumnSecretKey(input.env);
 
-	if (!autumn) {
+	if (!secretKey) {
 		return;
 	}
 
@@ -128,33 +108,14 @@ export async function trackAutumnUsage(input: TrackAutumnUsageInput) {
 	try {
 		const customerFields = await getAutumnCustomerFields(input.userId);
 
-		await autumn.customers.getOrCreate({ customerId: input.userId, ...customerFields });
+		await getOrCreateAutumnCustomer({ customerId: input.userId, secretKey, ...customerFields });
 
-		try {
-			await autumn.track({
-				customerId: input.userId,
-				featureId: input.featureId,
-				value: 1,
-				properties: input.properties,
-				async: true,
-			});
-		} catch (error) {
-			// Free by now: getAutumnClient already evaluated the module, so this
-			// resolves from cache rather than paying the import a second time.
-			const { ResponseValidationError } = await import("autumn-js");
-
-			if (!(error instanceof ResponseValidationError)) {
-				throw error;
-			}
-
-			// Autumn can accept an async usage event but return a slim response that
-			// fails the SDK's success schema. Keep that visible without escalating it.
-			logOperationalEvent({
-				event: input.event,
-				fields: { ...fields, error_type: error.name, operation_stage: "track_response" },
-				outcome: "partial",
-			});
-		}
+		await trackAutumnBalance({
+			customerId: input.userId,
+			featureId: input.featureId,
+			properties: input.properties,
+			secretKey,
+		});
 	} catch (error) {
 		recordOperationalFailure({ distinctId: input.userId, error, event: input.event, fields });
 	}

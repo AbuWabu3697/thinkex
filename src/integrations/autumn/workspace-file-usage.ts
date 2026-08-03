@@ -1,4 +1,5 @@
-import { getAutumnClient, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { getAutumnSecretKey, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { checkAutumnBalance } from "#/integrations/autumn/rest";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 
@@ -63,16 +64,17 @@ export type WorkspaceFileUploadAccess =
 export async function checkWorkspaceFileUploadAccess(
 	input: CheckWorkspaceFileUploadAccessInput,
 ): Promise<WorkspaceFileUploadAccess> {
-	const autumn = await getAutumnClient(input.env);
+	const secretKey = getAutumnSecretKey(input.env);
 
-	if (!autumn) {
+	if (!secretKey) {
 		return { allowed: true };
 	}
 
 	try {
-		const result = await autumn.check({
+		const result = await checkAutumnBalance({
 			customerId: input.userId,
 			featureId: WORKSPACE_FILE_UPLOAD_FEATURE_ID,
+			secretKey,
 		});
 
 		if (result.allowed) {
@@ -85,7 +87,7 @@ export async function checkWorkspaceFileUploadAccess(
 			properties: { feature_id: WORKSPACE_FILE_UPLOAD_FEATURE_ID, surface: "file_upload" },
 		});
 
-		return { allowed: false, resetsAt: result.balance?.nextResetAt ?? null };
+		return { allowed: false, resetsAt: result.balance?.next_reset_at ?? null };
 	} catch (error) {
 		// Autumn being unreachable must not block uploads. Fail open, stay visible.
 		recordOperationalFailure({

@@ -13,7 +13,6 @@ import {
 } from "#/features/workspaces/durable-object-lifecycle";
 import * as schema from "#/db/schema";
 import { createDbContext } from "#/db/server";
-import { resolveAutumnSecretKey } from "#/integrations/autumn/secret-key";
 import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 import { getAuthBaseURL, getTrustedAppOrigins } from "#/lib/app-origin";
 
@@ -180,14 +179,7 @@ async function transferAnonymousUserData(
 	]);
 }
 
-async function createAuth(database: Db, env: AuthRuntimeEnv) {
-	const autumnSecretKey = resolveAutumnSecretKey(env);
-	// Imported on demand: the plugin evaluates the Autumn SDK's Zod schemas, and
-	// as a static import that lands in the Worker's startup budget, which
-	// Cloudflare caps hard enough to reject the deploy outright.
-	const autumnPlugins = autumnSecretKey
-		? [(await import("autumn-js/better-auth")).autumn({ secretKey: autumnSecretKey })]
-		: [];
+function createAuth(database: Db, env: AuthRuntimeEnv) {
 	const baseURL = getAuthBaseURL();
 	const appOrigin =
 		typeof baseURL === "string" ? baseURL : (baseURL.fallback ?? "http://localhost:3000");
@@ -238,9 +230,6 @@ async function createAuth(database: Db, env: AuthRuntimeEnv) {
 						}),
 					]
 				: []),
-			// Mounted only when a key resolves, matching how usage tracking degrades:
-			// a deployment without one loses billing endpoints rather than failing auth.
-			...autumnPlugins,
 			jwt({ disableSettingJwtHeader: true }),
 			oauthProvider({
 				allowDynamicClientRegistration: true,
@@ -294,11 +283,9 @@ async function createAuth(database: Db, env: AuthRuntimeEnv) {
 	});
 }
 
-export async function withAuth<T>(
-	run: (auth: Awaited<ReturnType<typeof createAuth>>) => Promise<T>,
-) {
+export async function withAuth<T>(run: (auth: ReturnType<typeof createAuth>) => Promise<T>) {
 	const dbContext = await createDbContext();
-	const auth = await createAuth(dbContext.db, getAuthRuntimeEnv());
+	const auth = createAuth(dbContext.db, getAuthRuntimeEnv());
 
 	try {
 		return await run(auth);

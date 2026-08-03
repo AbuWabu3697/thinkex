@@ -7,7 +7,8 @@ import {
 	WORKSPACE_AI_MESSAGE_FEATURE_IDS,
 	type WorkspaceAiMessageAccess,
 } from "#/integrations/autumn/workspace-ai-access";
-import { getAutumnClient, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { getAutumnSecretKey, trackAutumnUsage } from "#/integrations/autumn/client.server";
+import { checkAutumnBalance } from "#/integrations/autumn/rest";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { capturePostHogServerEvent } from "#/integrations/posthog/server";
 
@@ -28,10 +29,10 @@ export interface CheckWorkspaceAiMessageAccessInput {
 export async function checkWorkspaceAiMessageAccess(
 	input: CheckWorkspaceAiMessageAccessInput,
 ): Promise<WorkspaceAiMessageAccess> {
-	const autumn = await getAutumnClient(input.env);
+	const secretKey = getAutumnSecretKey(input.env);
 
 	// No key configured means no plans to enforce — never gate on infrastructure.
-	if (!autumn) {
+	if (!secretKey) {
 		return { allowed: true, modelId: input.modelId };
 	}
 
@@ -39,9 +40,10 @@ export async function checkWorkspaceAiMessageAccess(
 	const otherTier = chosenTier === "premium" ? "standard" : "premium";
 
 	try {
-		const chosen = await autumn.check({
+		const chosen = await checkAutumnBalance({
 			customerId: input.userId,
 			featureId: WORKSPACE_AI_MESSAGE_FEATURE_IDS[chosenTier],
+			secretKey,
 		});
 
 		if (chosen.allowed) {
@@ -50,16 +52,17 @@ export async function checkWorkspaceAiMessageAccess(
 
 		// Only reached once a tier is empty, so the second call costs nothing in the
 		// common case.
-		const fallback = await autumn.check({
+		const fallback = await checkAutumnBalance({
 			customerId: input.userId,
 			featureId: WORKSPACE_AI_MESSAGE_FEATURE_IDS[otherTier],
+			secretKey,
 		});
 
 		const access = resolveWorkspaceAiMessageAccess({
 			chosenModelId: input.modelId,
 			chosenTierAllowed: false,
 			fallbackTierAllowed: fallback.allowed,
-			resetsAt: chosen.balance?.nextResetAt ?? null,
+			resetsAt: chosen.balance?.next_reset_at ?? null,
 		});
 
 		if (!access.allowed) {

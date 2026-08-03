@@ -1,10 +1,9 @@
-import { useCustomer } from "autumn-js/react";
-
 import {
 	getWorkspaceAiChatModelById,
 	type WorkspaceAiChatModelBillingTier,
 	type WorkspaceAiChatModelId,
 } from "#/features/workspaces/ai/models";
+import { useBillingState } from "#/features/account/use-billing-state";
 import {
 	resolveWorkspaceAiMessageAccess,
 	WORKSPACE_AI_MESSAGE_FEATURE_IDS,
@@ -33,19 +32,21 @@ const UNKNOWN: WorkspaceAiTierBalance = { hasBalance: true, remaining: null, res
  * connection and then unblocks.
  */
 export function useWorkspaceAiTierBalances(): WorkspaceAiTierBalances {
-	const { check, isLoading } = useCustomer();
+	const { balances, isPending } = useBillingState();
 
-	if (isLoading) {
+	if (isPending || !balances) {
 		return { premium: UNKNOWN, standard: UNKNOWN };
 	}
 
 	const read = (tier: WorkspaceAiChatModelBillingTier): WorkspaceAiTierBalance => {
-		const result = check({ featureId: WORKSPACE_AI_MESSAGE_FEATURE_IDS[tier] });
+		const balance = balances[WORKSPACE_AI_MESSAGE_FEATURE_IDS[tier]];
 
+		// A feature the plan does not grant at all reads as no balance, which is
+		// the same answer the server gate gives.
 		return {
-			hasBalance: result.allowed,
-			remaining: result.balance?.remaining ?? null,
-			resetsAt: result.balance?.nextResetAt ?? null,
+			hasBalance: (balance?.remaining ?? 0) > 0,
+			remaining: balance?.remaining ?? null,
+			resetsAt: balance?.next_reset_at ?? null,
 		};
 	};
 
