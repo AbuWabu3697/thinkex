@@ -1,4 +1,5 @@
 import { useCustomer } from "autumn-js/react";
+import { useState } from "react";
 
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -12,6 +13,7 @@ import {
 } from "#/components/ui/item";
 import { Progress } from "#/components/ui/progress";
 import { Skeleton } from "#/components/ui/skeleton";
+import { Spinner } from "#/components/ui/spinner";
 import { PRO_PLAN_ID, useIsProPlan } from "#/features/account/use-pro-plan";
 
 // Feature IDs are the contract with autumn.config.ts. Labels are ours.
@@ -36,6 +38,23 @@ export function PlanBillingSection() {
 	);
 
 	const isPro = useIsProPlan();
+	// Both actions round-trip to Autumn and Stripe before the browser goes
+	// anywhere, which is long enough that an unchanged button reads as a dead
+	// click — and a second click starts a second checkout. Only one of the two
+	// renders at a time, so one flag covers both.
+	const [isLeaving, setIsLeaving] = useState(false);
+
+	const startBillingAction = async (run: () => Promise<unknown>) => {
+		setIsLeaving(true);
+
+		try {
+			await run();
+		} finally {
+			// Reached only when the redirect never happened; on success the page is
+			// already gone and this never runs.
+			setIsLeaving(false);
+		}
+	};
 
 	return (
 		// No heading — the active tab already says "Plan & usage".
@@ -56,19 +75,23 @@ export function PlanBillingSection() {
 								<Button
 									variant="outline"
 									size="sm"
+									disabled={isLeaving}
 									onClick={() => {
-										void openCustomerPortal();
+										void startBillingAction(() => openCustomerPortal());
 									}}
 								>
+									{isLeaving ? <Spinner /> : null}
 									Manage billing
 								</Button>
 							) : (
 								<Button
 									size="sm"
+									disabled={isLeaving}
 									onClick={() => {
-										void attach({ planId: PRO_PLAN_ID });
+										void startBillingAction(() => attach({ planId: PRO_PLAN_ID }));
 									}}
 								>
+									{isLeaving ? <Spinner /> : null}
 									Upgrade to Pro
 								</Button>
 							)}
