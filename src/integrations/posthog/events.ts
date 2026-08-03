@@ -79,6 +79,8 @@ export interface PostHogEventPropertiesByName {
 	workspace_file_extraction_completed: {
 		actor_user_id: string | null;
 		asset_kind: string;
+		/** LlamaParse credits actually billed, which provider_mode alone cannot tell you. */
+		credits_used: number | null;
 		duration_ms: number;
 		enhancement_duration_ms: number;
 		enhancement_error_message: string | null;
@@ -99,6 +101,16 @@ export interface PostHogEventPropertiesByName {
 		route_reason: string | null;
 		workflow_id: string;
 		workspace_id: string;
+	};
+	/**
+	 * Emitted only when someone is actually stopped, not when they fall back to
+	 * the other tier. Separate from the thrown error so a billing wall is
+	 * countable without string-matching a failure message — this is the number
+	 * that says whether a top-up is worth building, and for whom.
+	 */
+	usage_limit_reached: {
+		feature_id: string;
+		surface: "ai_message" | "file_upload";
 	};
 	workspace_file_intake_completed: {
 		asset_kind: string | null;

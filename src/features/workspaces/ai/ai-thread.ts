@@ -227,9 +227,16 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				void this.keepAliveWhile(() => this._maybeGenerateThreadTitle());
 			}
 
-			const modelId = resolveWorkspaceAiChatModelId(ctx.body?.modelId);
+			let modelId = resolveWorkspaceAiChatModelId(ctx.body?.modelId);
 
-			if (!ctx.continuation) {
+			if (ctx.continuation) {
+				// A continuation resumes a turn that was already gated on its first
+				// step, and possibly downgraded there. The body still carries whatever
+				// the user picked, so re-reading it would put the rejected model back
+				// for every tool round-trip after the first — running on a tier with no
+				// balance and billing it as the model the gate actually allowed.
+				modelId = this.activeUsageContext?.modelId ?? modelId;
+			} else {
 				const access = await checkWorkspaceAiMessageAccess({
 					env: this.env,
 					modelId,
@@ -237,8 +244,21 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				});
 
 				if (!access.allowed) {
-					throw new Error("Usage limit reached");
+					// Carries the reset date because this is the stale-client backstop:
+					// the composer warns before sending, so anyone who reaches here got
+					// no warning and an unexplained failure would be the whole story.
+					// ISO date rather than a locale format — this is formatted on the
+					// server, which has no idea where the reader is.
+					throw new Error(
+						access.resetsAt
+							? `Usage limit reached. Resets ${new Date(access.resetsAt).toISOString().slice(0, 10)}.`
+							: "Usage limit reached.",
+					);
 				}
+
+				// May differ from what was selected: an empty tier falls through to the
+				// other one rather than failing the turn.
+				modelId = access.modelId;
 
 				this.activeUsageContext = {
 					modelId,
