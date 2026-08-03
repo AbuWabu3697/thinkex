@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	deriveAiChatPresentation,
+	getAssistantRowDisplay,
 	getDisplayableParts,
+	getToolActivityForPart,
 	type AiChatToolGroupPart,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
-import type { AiChatMessage } from "#/features/workspaces/components/ai-chat/types";
+import type { AiChatMessage, AiChatToolPart } from "#/features/workspaces/components/ai-chat/types";
 
 describe("Code Mode tool groups", () => {
 	it("renders the durable call log as the canonical child activity trail", () => {
@@ -165,6 +168,34 @@ describe("Code Mode tool groups", () => {
 
 		expect(group.children).toEqual([]);
 		expect(parts[1]).toMatchObject({ toolCallId: "direct-tool-1" });
+	});
+});
+
+describe("interrupted tool receipts", () => {
+	it("marks unfinished tools in the latest failed assistant turn as interrupted", () => {
+		const part = {
+			type: "dynamic-tool",
+			toolName: "workspace_edit_item",
+			toolCallId: "edit-1",
+			state: "input-available",
+			input: { path: "/Practice Final Exam 1" },
+		} as AiChatToolPart;
+		const message = createMessage([part]);
+		const presentation = deriveAiChatPresentation([message], "error", {
+			isRecovering: false,
+			isServerStreaming: false,
+			isStreaming: false,
+			isToolContinuation: false,
+		});
+
+		expect(getAssistantRowDisplay(message, presentation)).toMatchObject({
+			kind: "content",
+			interruptUnfinishedTools: true,
+		});
+		expect(getToolActivityForPart(part, { interrupted: true })).toMatchObject({
+			status: "interrupted",
+			summary: "Interrupted while editing “Practice Final Exam 1” — status unknown",
+		});
 	});
 });
 

@@ -1,5 +1,5 @@
-export type AiChatToolReceiptStatus = "completed" | "failed" | "running";
-type AiChatFinishedToolReceiptStatus = Exclude<AiChatToolReceiptStatus, "running">;
+export type AiChatToolReceiptStatus = "completed" | "failed" | "interrupted" | "running";
+type AiChatFinishedToolReceiptStatus = Exclude<AiChatToolReceiptStatus, "interrupted" | "running">;
 
 /**
  * A receipt segment is one visual chunk of the summary that either has fixed
@@ -471,7 +471,7 @@ function summarizeRunningResearchDeepen(input: Record<string, unknown>): AiChatT
  * by their callers before this is consulted.
  */
 function activityTitleReceipt(
-	status: Exclude<AiChatToolReceiptStatus, "failed">,
+	status: "completed" | "running",
 	toolInput: unknown,
 ): AiChatToolReceipt | undefined {
 	const title = getString(asRecord(toolInput).title)?.trim();

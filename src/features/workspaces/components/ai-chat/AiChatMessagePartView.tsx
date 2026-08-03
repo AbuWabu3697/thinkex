@@ -22,11 +22,13 @@ import type {
 } from "#/features/workspaces/locations/workspace-location";
 
 export function AiChatMessagePartView({
+	interruptUnfinishedTools = false,
 	isStreaming = false,
 	part,
 	preserveWhitespace = false,
 	workspaceCitationLocations,
 }: {
+	interruptUnfinishedTools?: boolean;
 	isStreaming?: boolean;
 	part: AiChatMessagePart | AiChatToolGroupPart;
 	preserveWhitespace?: boolean;
@@ -45,11 +47,17 @@ export function AiChatMessagePartView({
 	}
 
 	if (isAiChatToolGroupPart(part)) {
-		return <AiChatToolActivityRow nestedChildren={part.children} part={part.part} />;
+		return (
+			<AiChatToolActivityRow
+				interrupted={interruptUnfinishedTools}
+				nestedChildren={part.children}
+				part={part.part}
+			/>
+		);
 	}
 
 	if (isToolUIPart(part)) {
-		return <AiChatToolActivityRow part={part} />;
+		return <AiChatToolActivityRow interrupted={interruptUnfinishedTools} part={part} />;
 	}
 
 	if (part.type === "file") {

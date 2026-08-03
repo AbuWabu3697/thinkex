@@ -218,6 +218,7 @@ function AssistantMessageBody({
 		return display.parts.map((part, index) => (
 			<AiChatMessagePartView
 				key={getMessagePartKey(message.id, part, index)}
+				interruptUnfinishedTools={display.interruptUnfinishedTools}
 				isStreaming={isStreaming}
 				part={part}
 				workspaceCitationLocations={workspaceCitationLocations}

@@ -30,14 +30,16 @@ const DETAIL_SOURCE_LIMIT = 8;
 const EMPTY_TOOL_CHILDREN: AiChatToolChildActivity[] = [];
 
 export function AiChatToolActivityRow({
+	interrupted = false,
 	nestedChildren = EMPTY_TOOL_CHILDREN,
 	part,
 }: {
+	interrupted?: boolean;
 	nestedChildren?: AiChatToolChildActivity[];
 	part: AiChatToolPart;
 }) {
 	const shouldReduceMotion = useReducedMotion();
-	const activity = getToolActivityForPart(part);
+	const activity = getToolActivityForPart(part, { interrupted });
 
 	if (!activity) {
 		return null;
@@ -109,7 +111,11 @@ function ToolActivityMotion({
 }
 
 function getInlineActivityContent(activity: AiChatToolActivity) {
-	if (activity.toolName !== "compute" || activity.status === "running") {
+	if (
+		activity.toolName !== "compute" ||
+		activity.status === "running" ||
+		activity.status === "interrupted"
+	) {
 		return null;
 	}
 
@@ -117,7 +123,11 @@ function getInlineActivityContent(activity: AiChatToolActivity) {
 }
 
 function getActivityDetails(activity: AiChatToolActivity) {
-	if (activity.toolName !== "compute" || activity.status === "running") {
+	if (
+		activity.toolName !== "compute" ||
+		activity.status === "running" ||
+		activity.status === "interrupted"
+	) {
 		return null;
 	}
 

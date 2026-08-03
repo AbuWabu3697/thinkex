@@ -1,6 +1,9 @@
 import type { ToolLogEntry } from "@cloudflare/codemode";
 
-import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
+import {
+	type AIThreadBrowserActivityStatus,
+	summarizeAIThreadBrowserActivity,
+} from "#/features/workspaces/ai/ai-thread-browser-activity";
 import {
 	getAiToolPresentation,
 	type AiToolPresentation,
@@ -145,9 +148,7 @@ function toBrowserActivity(calls: readonly ToolLogEntry[]): AiChatToolChildActiv
 	};
 }
 
-function getBrowserActivityStatus(
-	calls: readonly ToolLogEntry[],
-): AiChatToolChildActivity["status"] {
+function getBrowserActivityStatus(calls: readonly ToolLogEntry[]): AIThreadBrowserActivityStatus {
 	if (calls.some((call) => call.state === "error" || call.state === "reverted")) {
 		return "failed";
 	}
@@ -185,7 +186,9 @@ function isCallState(value: unknown): value is ToolLogEntry["state"] {
 }
 
 function isReceiptStatus(value: unknown): value is AiChatToolReceiptStatus {
-	return value === "completed" || value === "failed" || value === "running";
+	return (
+		value === "completed" || value === "failed" || value === "interrupted" || value === "running"
+	);
 }
 
 function isDocumentEditAction(

@@ -42,14 +42,14 @@ export function isAiChatToolGroupPart(part: AiChatRenderablePart): part is AiCha
 }
 
 export type AssistantRowDisplay =
-	| { kind: "content"; parts: AiChatRenderablePart[] }
+	| { interruptUnfinishedTools: boolean; kind: "content"; parts: AiChatRenderablePart[] }
 	| { kind: "empty-terminal"; canRegenerate: boolean }
 	| { kind: "hidden" };
 
 export interface AiChatToolActivity {
 	detail: AiChatToolPart;
 	presentation: AiToolPresentation;
-	status: "completed" | "failed" | "running";
+	status: "completed" | "failed" | "interrupted" | "running";
 	summary: string;
 	segments?: AiChatToolReceiptSegment[];
 	toolName: string;
@@ -129,7 +129,11 @@ export function getAssistantRowDisplay(
 	}
 
 	if (displayableParts.length > 0) {
-		return { kind: "content", parts: displayableParts };
+		return {
+			kind: "content",
+			parts: displayableParts,
+			interruptUnfinishedTools: presentation.status === "error" && isLastAssistant,
+		};
 	}
 
 	if (message.parts.some((part) => isToolUIPart(part))) {
@@ -270,14 +274,17 @@ export function isDisplayableMessagePart(part: AiChatMessagePart): boolean {
 	return false;
 }
 
-export function getToolActivityForPart(part: AiChatToolPart): AiChatToolActivity | null {
+export function getToolActivityForPart(
+	part: AiChatToolPart,
+	{ interrupted = false }: { interrupted?: boolean } = {},
+): AiChatToolActivity | null {
 	if (!isVisibleToolPart(part)) {
 		return null;
 	}
 
 	const toolName = getToolPartName(part);
 	const presentation = getAiToolPresentation(toolName);
-	const receipt = getToolActivityReceipt(part, toolName);
+	const receipt = getToolActivityReceipt(part, toolName, interrupted);
 
 	return {
 		detail: part,
@@ -301,6 +308,7 @@ export function getToolPartName(part: AiChatToolPart) {
 function getToolActivityReceipt(
 	part: AiChatToolPart,
 	toolName: string,
+	interrupted: boolean,
 ): {
 	status: AiChatToolActivity["status"];
 	summary: string;
@@ -327,6 +335,13 @@ function getToolActivityReceipt(
 				toolInput: part.input,
 				toolName,
 			});
+			if (interrupted) {
+				const interruptedSummary = lowercaseFirstCharacter(running.summary);
+				return {
+					status: "interrupted",
+					summary: `Interrupted while ${interruptedSummary} — status unknown`,
+				};
+			}
 			return {
 				status: "running",
 				summary: running.summary,
@@ -334,4 +349,8 @@ function getToolActivityReceipt(
 			};
 		}
 	}
+}
+
+function lowercaseFirstCharacter(value: string) {
+	return value.length === 0 ? value : `${value[0]?.toLocaleLowerCase()}${value.slice(1)}`;
 }
