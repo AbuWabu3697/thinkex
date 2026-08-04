@@ -9,10 +9,10 @@
  * remove its own sandbox.
  *
  * Two things are composed around the authored HTML:
- *  - a theme layer: the resolved design tokens (read from the host when this
- *    document is built) are injected as CSS variables so widgets look native.
- *    Later theme changes arrive over a small host-to-frame message channel, so
- *    live widget state survives them.
+ *  - a theme layer: resolved host tokens and a compact semantic UI foundation
+ *    make ordinary controls look native while authored styles remain free to
+ *    override them. Later theme changes arrive over a small host-to-frame
+ *    message channel, so live widget state survives them.
  *  - an error harness: window `error` / `unhandledrejection` are forwarded to
  *    the host via postMessage so a crashed widget surfaces an "Ask AI to fix"
  *    affordance instead of a silent blank frame.
@@ -83,6 +83,12 @@ export const WIDGET_SANDBOX_TOKENS = [
 	"--success",
 	"--warning",
 	"--info",
+	"--chart-1",
+	"--chart-2",
+	"--chart-3",
+	"--chart-4",
+	"--chart-5",
+	"--chart-6",
 	"--radius",
 	"--font-sans",
 	"--font-mono",
@@ -172,8 +178,32 @@ ${katexTags}
 :root{${tokenDeclarations}color-scheme:${theme};}
 html,body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-sans,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif);}
 html{padding:0;}
-body{padding:clamp(10px,2.5%,16px);}
+body{padding:clamp(10px,2.5%,16px);font-size:14px;line-height:1.5;}
 *,*::before,*::after{box-sizing:border-box;}
+:where(h1,h2,h3,p){margin:0;}
+:where(h1,h2,h3){line-height:1.25;letter-spacing:-0.01em;}
+h1{font-size:1.25rem;}
+h2{font-size:1.125rem;}
+h3{font-size:1rem;}
+:where(button,input,select,textarea){font:inherit;color:inherit;}
+button{min-height:36px;padding:0 12px;border:1px solid var(--border);border-radius:min(var(--radius),10px);background:var(--secondary);color:var(--secondary-foreground);font-weight:500;cursor:pointer;transition:background-color 150ms ease,border-color 150ms ease,box-shadow 150ms ease,transform 150ms ease;}
+button:hover{background:color-mix(in oklch,var(--secondary) 82%,var(--foreground));}
+button:active{transform:translateY(1px);}
+button[data-variant="primary"]{border-color:transparent;background:var(--primary);color:var(--primary-foreground);}
+button[data-variant="primary"]:hover{background:color-mix(in oklch,var(--primary) 82%,var(--background));}
+button:disabled{cursor:not-allowed;opacity:.5;transform:none;}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),select,textarea){min-height:36px;max-width:100%;padding:7px 10px;border:1px solid var(--input);border-radius:min(var(--radius),10px);background:transparent;box-shadow:0 1px 2px color-mix(in oklch,var(--foreground) 7%,transparent);}
+textarea{resize:vertical;}
+:where(input[type="checkbox"],input[type="radio"],input[type="range"]){accent-color:var(--primary);}
+:where(button,input,select,textarea):focus-visible{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 35%,transparent);}
+[role="tablist"]{display:flex;flex-wrap:wrap;gap:4px;width:fit-content;padding:3px;border-radius:calc(var(--radius) + 2px);background:var(--muted);}
+[role="tab"]{min-height:30px;padding:0 10px;border-color:transparent;background:transparent;color:var(--muted-foreground);}
+[role="tab"][aria-selected="true"]{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px color-mix(in oklch,var(--foreground) 10%,transparent);}
+.tx-stack{display:flex;min-width:0;flex-direction:column;gap:12px;}
+.tx-row{display:flex;min-width:0;flex-wrap:wrap;align-items:center;gap:8px;}
+.tx-panel{min-width:0;padding:12px;border:1px solid var(--border);border-radius:calc(var(--radius) + 2px);background:var(--card);color:var(--card-foreground);}
+.tx-muted{color:var(--muted-foreground);}
+.tx-visual{position:relative;min-width:0;overflow:hidden;}
 </style>
 </head>
 <body>

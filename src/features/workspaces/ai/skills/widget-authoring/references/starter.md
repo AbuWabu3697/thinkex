@@ -1,47 +1,33 @@
 # Widget starter
 
-Use this as the structural baseline for a new widget. Adapt the controls and behavior to the request. Keep the content root unframed because ThinkEx supplies the outer title, border, and gutter.
+Use this as the starting structure for a new widget. ThinkEx supplies the outer title, border, background, gutter, type, form controls, and these helpers:
+
+- `.tx-stack`: vertical layout with standard spacing
+- `.tx-row`: wrapping control or action row
+- `.tx-panel`: bordered internal region
+- `.tx-muted`: supporting text
+- `.tx-visual`: clipped positioning region for a chart, diagram, or simulation
+
+Buttons are neutral by default. Put `data-variant="primary"` on the single main action when the widget has one. Elements with `role="tablist"` and `role="tab"` receive a compact tab treatment. Authored styles load after this foundation and may override it when the requested experience needs a distinctive visual language.
+
+Adapt this skeleton rather than recreating its structural CSS. Replace or remove every commented region; never leave an empty region or placeholder in the finished source.
 
 ```html
 <style>
-	.tx-root {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		color: var(--foreground);
-		font: inherit;
-	}
-	.tx-controls {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		align-items: center;
-	}
-	.tx-button {
-		padding: 8px 14px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		background: var(--primary);
-		color: var(--primary-foreground);
-		cursor: pointer;
-		font: inherit;
-	}
-	.tx-muted {
-		color: var(--muted-foreground);
-	}
+	/* Add only styles specific to the requested experience. */
 </style>
-<div class="tx-root">
-	<div id="output" aria-live="polite">Ready.</div>
-	<div class="tx-controls">
-		<button class="tx-button" id="action" type="button">Run</button>
+<div class="tx-stack">
+	<div class="tx-row">
+		<!-- Controls for the primary interaction. -->
 	</div>
+	<div class="tx-panel tx-visual">
+		<!-- The dominant diagram, simulation, result, chart, game, or activity. -->
+	</div>
+	<p class="tx-muted"><!-- Optional short guidance. --></p>
 </div>
 <script>
-	const output = document.getElementById("output");
-	document.getElementById("action").addEventListener("click", () => {
-		output.textContent = "Done.";
-	});
+	/* Read elements, define state, render from state, and wire every control. */
 </script>
 ```
 
-Before writing the block, replace placeholder behavior and labels, wire every visible control, and HTML-escape the complete fragment inside the widget element.
+Keep the root unframed. Before writing the block, remove unused regions, wire every visible control, and HTML-escape the complete fragment inside the widget element.

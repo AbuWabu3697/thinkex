@@ -19,10 +19,17 @@ Follow this contract:
 
 1. Supply fragment content only: HTML plus inline `<style>` and `<script>` elements. Omit `<!doctype>`, `<html>`, `<head>`, and `<body>` because the runtime supplies the document shell.
 2. Write vanilla JavaScript inline. The opaque-origin frame cannot read ThinkEx cookies, storage, parent DOM, or workspace data. Its policy blocks connection APIs and external subresources. A script can still navigate its own frame, so keep all behavior local and never navigate.
-3. Theme with the injected variables: `--background`, `--foreground`, `--card`, `--card-foreground`, `--primary`, `--primary-foreground`, `--secondary`, `--secondary-foreground`, `--muted`, `--muted-foreground`, `--accent`, `--border`, `--input`, `--ring`, `--radius`, `--font-sans`, and `--font-mono`. The root also has `data-theme="light|dark"` and the `.dark` class.
-4. Fit the host chrome. Start with the content itself because the block already provides its title, border, and gutter. Reserve panels and borders for distinct internal regions.
+3. Use a **native shell and expressive core**. Let the runtime style structural UI such as type, controls, focus, spacing, and panels. Give the diagram, simulation, chart, game, or other central experience the custom SVG, canvas, color, and motion it needs.
+4. Fit the host chrome. The block already provides its title, border, background, and gutter, so never repeat the widget title or wrap the entire source in another card. Reserve panels and borders for distinct internal regions.
 5. Let normal content determine height and fill the available width. Give only elements without natural height, such as a canvas or chart area, an explicit pixel height. The host clamps the frame between 120px and 720px and scrolls taller content.
 6. Let failures throw. The runtime catches errors and offers the user an Ask AI to fix action.
+
+Compose the experience before coding it:
+
+1. Choose one primary interaction or visual and make it dominant. Group its controls together and keep supporting explanation secondary.
+2. Prefer the runtime's standard controls and `.tx-stack`, `.tx-row`, `.tx-panel`, `.tx-muted`, and `.tx-visual` helpers over rebuilding structural styles. Mark at most one main button with `data-variant="primary"`.
+3. Theme structural UI with the semantic background, foreground, card, primary, secondary, muted, accent, border, input, ring, radius, and font variables. Use `--success`, `--warning`, `--info`, and `--destructive` for status, and `--chart-1` through `--chart-6` for data and expressive visuals. The root also has `data-theme="light|dark"` and the `.dark` class. Hard-code a color only when its literal identity carries meaning.
+4. Keep interface text compact, make layouts wrap on narrow widths, label controls, and ensure every visible control works. Use motion to explain state changes rather than as decoration.
 
 Read these bundled references only when they apply:
 
@@ -38,4 +45,4 @@ Use the document tool's HTML math markup. The runtime renders matching math elem
 3. For a focused change, use `replace_text` with a `find` string copied exactly from the block read. Include enough surrounding text to make the match unique.
 4. For a ground-up rebuild, read `references/starter.md`, then use `replace` on the widget's current `editRef`. Never use `overwrite`, which replaces the entire document.
 
-Complete the operation only when the source follows the contract, every visible control works, runtime failures remain reportable, and an edit changes only the intended widget using the latest block read's exact `editRef`.
+Complete the operation only when the source follows the contract, the main interaction or visual is immediately clear, the widget has no duplicate host chrome or unintended overflow, every visible control works, both themes remain readable, runtime failures remain reportable, and an edit changes only the intended widget using the latest block read's exact `editRef`.
