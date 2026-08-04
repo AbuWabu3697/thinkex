@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { useMemo } from "react";
+import { type SetStateAction, useMemo } from "react";
 import { create } from "zustand";
 import type { FileAttachmentData } from "#/features/workspaces/components/ai-chat/ai-chat-attachments";
 import {
@@ -30,6 +30,7 @@ type WorkspaceAiComposerDraftFileError = {
 interface WorkspaceAiComposerDraftState {
 	filesByThreadId: Record<string, WorkspaceAiComposerDraftFile[] | undefined>;
 	quotesByWorkspaceId: Record<string, WorkspaceSelectedQuote[] | undefined>;
+	textByThreadId: Record<string, string | undefined>;
 	addFiles: (
 		workspaceId: string,
 		threadId: string,
@@ -42,6 +43,7 @@ interface WorkspaceAiComposerDraftState {
 	clearQuotes: (workspaceId: string) => void;
 	removeFile: (threadId: string, fileId: string) => void;
 	removeQuote: (workspaceId: string, quoteId: string) => void;
+	setText: (threadId: string, value: SetStateAction<string>) => void;
 }
 
 const EMPTY_DRAFT_FILES: WorkspaceAiComposerDraftFile[] = [];
@@ -165,6 +167,23 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 					},
 				};
 			}),
+		setText: (threadId, value) =>
+			set((state) => {
+				const current = state.textByThreadId[threadId] ?? "";
+				const next = typeof value === "function" ? value(current) : value;
+
+				if (next === current) {
+					return state;
+				}
+
+				return {
+					textByThreadId: {
+						...state.textByThreadId,
+						[threadId]: next || undefined,
+					},
+				};
+			}),
+		textByThreadId: {},
 	}),
 );
 
@@ -188,12 +207,24 @@ export function useWorkspaceAiComposerDraftQuotes(workspaceId: string) {
 	);
 }
 
+export function useWorkspaceAiComposerDraftText(threadId: string) {
+	return useWorkspaceAiComposerDraftStore(
+		useMemo(
+			() => (state: WorkspaceAiComposerDraftState) => state.textByThreadId[threadId] ?? "",
+			[threadId],
+		),
+	);
+}
+
 function clearDraftArtifacts(
 	state: WorkspaceAiComposerDraftState,
 	workspaceId: string,
 	threadId: string,
 ) {
-	return clearQuotesForWorkspace(clearFilesForThread(state, threadId), workspaceId);
+	return clearQuotesForWorkspace(
+		clearTextForThread(clearFilesForThread(state, threadId), threadId),
+		workspaceId,
+	);
 }
 
 function clearFilesForThread(state: WorkspaceAiComposerDraftState, threadId: string) {
@@ -222,6 +253,20 @@ function clearQuotesForWorkspace(state: WorkspaceAiComposerDraftState, workspace
 		quotesByWorkspaceId: {
 			...state.quotesByWorkspaceId,
 			[workspaceId]: undefined,
+		},
+	};
+}
+
+function clearTextForThread(state: WorkspaceAiComposerDraftState, threadId: string) {
+	if (!state.textByThreadId[threadId]) {
+		return state;
+	}
+
+	return {
+		...state,
+		textByThreadId: {
+			...state.textByThreadId,
+			[threadId]: undefined,
 		},
 	};
 }

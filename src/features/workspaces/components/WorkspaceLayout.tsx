@@ -307,11 +307,9 @@ export function WorkspaceShell({
 		<WorkspaceMutationAccessProvider membershipRole={workspace.membershipRole}>
 			<WorkspaceLocationProvider itemsById={itemsById} navigate={navigateToWorkspaceLocation}>
 				<DocumentEditReviewProvider workspaceId={workspace.id}>
-					{hasHeavyViewerRuntimeItems ? (
-						<WorkspacePdfEngineProvider>{workspaceInteractionContent}</WorkspacePdfEngineProvider>
-					) : (
-						workspaceInteractionContent
-					)}
+					<WorkspacePdfEngineProvider active={hasHeavyViewerRuntimeItems}>
+						{workspaceInteractionContent}
+					</WorkspacePdfEngineProvider>
 				</DocumentEditReviewProvider>
 			</WorkspaceLocationProvider>
 		</WorkspaceMutationAccessProvider>

@@ -1,5 +1,5 @@
 import { Bug, Mic, Paperclip } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, type SetStateAction, Suspense, useRef, useState } from "react";
 
 import {
 	type AttachmentsContext,
@@ -40,6 +40,7 @@ import { workspaceUploadAccept } from "#/features/workspaces/upload/workspace-up
 import {
 	useWorkspaceAiComposerDraftFiles,
 	useWorkspaceAiComposerDraftStore,
+	useWorkspaceAiComposerDraftText,
 } from "#/features/workspaces/state/workspace-ai-composer-draft-store";
 import { cn } from "#/lib/utils";
 
@@ -99,9 +100,11 @@ export default function AiChatPromptInput({
 	onStop,
 	status = "ready",
 }: AiChatPromptInputProps) {
-	const [input, setInput] = useState("");
 	const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const input = useWorkspaceAiComposerDraftText(activeThreadId);
+	const setDraftText = useWorkspaceAiComposerDraftStore((state) => state.setText);
+	const setInput = (value: SetStateAction<string>) => setDraftText(activeThreadId, value);
 	const dictation = useAiChatDictation({ input, setInput });
 	const draftFiles = useWorkspaceAiComposerDraftFiles(activeThreadId);
 	const attachmentsReady =
