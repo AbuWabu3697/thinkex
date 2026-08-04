@@ -15,7 +15,10 @@ import type {
 	AiChatStatus,
 } from "#/features/workspaces/components/ai-chat/types";
 import { useWorkspaceAiBrowserSession } from "#/features/workspaces/components/ai-chat/useWorkspaceAiBrowserSession";
-import { hasAnalyticsConsent } from "#/integrations/posthog/consent";
+import {
+	hasAnalyticsConsent,
+	hasExplicitSessionReplayConsent,
+} from "#/integrations/posthog/consent";
 
 interface UseWorkspaceAiChatOptions {
 	modelId: AiChatModelId;
@@ -35,9 +38,9 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 		body: () => ({
 			modelId,
 			timeZone: getClientTimeZone(),
-			// Gates server-side AI analytics (PostHog + TCC) on the user's choice; the
-			// DO can't read the browser consent cookie, so it rides in the turn body.
+			// The DO can't read the browser consent cookie, so both choices ride in the turn body.
 			analyticsConsent: hasAnalyticsConsent(),
+			sessionReplayConsent: hasExplicitSessionReplayConsent(),
 		}),
 		throttle: AI_CHAT_RENDER_THROTTLE_MS,
 	});

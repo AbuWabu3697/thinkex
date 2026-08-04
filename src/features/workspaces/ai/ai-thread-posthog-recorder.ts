@@ -58,6 +58,7 @@ function parseGatewayModel(gatewayModel: string) {
 
 interface PostHogTurnState {
 	availableTools: unknown[] | null;
+	captureContent: boolean;
 	distinctId: string;
 	sessionId: string;
 	traceId: string;
@@ -140,18 +141,22 @@ export class AIThreadPostHogRecorder {
 		};
 	}
 
-	recordTurnStarted(input: {
-		ctx: TurnContext;
-		modelId: WorkspaceAiChatModelId;
-		thread: AIThreadContext;
-		tools?: unknown;
-	}) {
+	recordTurnStarted(
+		input: {
+			ctx: TurnContext;
+			modelId: WorkspaceAiChatModelId;
+			thread: AIThreadContext;
+			tools?: unknown;
+		},
+		captureContent: boolean,
+	) {
 		const traceId = crypto.randomUUID();
 		const turnRootSpanId = crypto.randomUUID();
 		const gatewayModel = getWorkspaceAiChatModel(input.modelId);
 
 		const turn: PostHogTurnState = {
 			availableTools: buildAiTelemetryToolDefinitions(input.tools),
+			captureContent,
 			distinctId: input.thread.userId,
 			sessionId: input.thread.id,
 			traceId,
@@ -218,10 +223,11 @@ export class AIThreadPostHogRecorder {
 			spanId: activeToolSpan.spanId,
 			spanName: ctx.toolName,
 			parentId: turn.currentGenerationSpanId ?? turn.turnRootSpanId,
-			inputState: ctx.input,
-			outputState: ctx.success
-				? getAIThreadToolTelemetryOutput(ctx.toolName, ctx.output)
-				: undefined,
+			inputState: turn.captureContent ? ctx.input : undefined,
+			outputState:
+				turn.captureContent && ctx.success
+					? getAIThreadToolTelemetryOutput(ctx.toolName, ctx.output)
+					: undefined,
 			latencySeconds: ctx.durationMs / 1000,
 			isError: outcome.status !== "success",
 			error: ctx.success ? undefined : ctx.error,
@@ -288,6 +294,7 @@ export class AIThreadPostHogRecorder {
 			timeToFirstToken,
 			stopReason: ctx.finishReason,
 			tools: turn.availableTools,
+			privacyMode: !turn.captureContent,
 			properties: {
 				...turnTelemetryProperties(turn),
 				model_id: turn.modelId,
@@ -437,6 +444,7 @@ export class AIThreadPostHogRecorder {
 	}
 
 	recordAuxiliaryGeneration(input: {
+		captureContent: boolean;
 		feature: "compaction" | "thread-title";
 		gatewayModel: string;
 		prompt: string;
@@ -467,6 +475,7 @@ export class AIThreadPostHogRecorder {
 			output: buildAiTelemetryOutputFromText(input.text),
 			usage: extractAiTelemetryTokenUsage(input.usage),
 			latency: input.latencySeconds,
+			privacyMode: !input.captureContent,
 			properties: {
 				thread_id: input.thread.id,
 				workspace_id: workspaceId,
@@ -477,6 +486,7 @@ export class AIThreadPostHogRecorder {
 	}
 
 	recordAuxiliaryError(input: {
+		captureContent: boolean;
 		error: unknown;
 		feature: "chat-recovery" | "compaction" | "thread-title" | "session-prompt-refresh";
 		gatewayModel?: string;
@@ -509,6 +519,7 @@ export class AIThreadPostHogRecorder {
 				output: [],
 				latency: input.latencySeconds,
 				error: input.error,
+				privacyMode: !input.captureContent,
 				properties: {
 					thread_id: input.thread.id,
 					workspace_id: workspaceId,

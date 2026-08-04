@@ -4,7 +4,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ACCEPT_ALL, REJECT_ALL, setStoredConsent } from "#/integrations/posthog/consent";
+import {
+	ACCEPT_ALL,
+	hasExplicitSessionReplayConsent,
+	REJECT_ALL,
+	setStoredConsent,
+} from "#/integrations/posthog/consent";
 import { useConsent, useEffectiveConsent } from "#/integrations/posthog/use-consent";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -17,13 +22,19 @@ function deleteCookie(name: string) {
 }
 
 function setConsentCookie(analytics: boolean, sessionReplay: boolean) {
-	const serialized = JSON.stringify({ analytics, sessionReplay, version: 1 });
+	const serialized = JSON.stringify({ analytics, sessionReplay, version: 2 });
 	document.cookie = `${CONSENT_COOKIE_NAME}=${encodeURIComponent(serialized)}; Path=/`;
 }
 
 function EffectiveConsentProbe() {
 	const consent = useEffectiveConsent();
-	return <output>{consent?.analytics ? "analytics-on" : "analytics-off"}</output>;
+	return (
+		<output>
+			{consent?.analytics ? "analytics-on" : "analytics-off"},
+			{consent?.sessionReplay ? "replay-on" : "replay-off"},
+			{hasExplicitSessionReplayConsent() ? "content-on" : "content-off"}
+		</output>
+	);
 }
 
 describe("browser consent state", () => {
@@ -65,25 +76,25 @@ describe("browser consent state", () => {
 
 		await act(async () => root.render(<EffectiveConsentProbe />));
 
-		expect(container.textContent).toBe("analytics-on");
+		expect(container.textContent).toBe("analytics-on,replay-on,content-off");
 	});
 
 	it("reacts to a consent cookie changed by another tab", async () => {
 		setStoredConsent(ACCEPT_ALL);
 
 		await act(async () => root.render(<EffectiveConsentProbe />));
-		expect(container.textContent).toBe("analytics-on");
+		expect(container.textContent).toBe("analytics-on,replay-on,content-on");
 
 		setConsentCookie(REJECT_ALL.analytics, REJECT_ALL.sessionReplay);
 		await act(async () => {
 			window.dispatchEvent(
 				new StorageEvent("storage", {
 					key: CONSENT_COOKIE_NAME,
-					newValue: JSON.stringify({ ...REJECT_ALL, version: 1 }),
+					newValue: JSON.stringify({ ...REJECT_ALL, version: 2 }),
 				}),
 			);
 		});
 
-		expect(container.textContent).toBe("analytics-off");
+		expect(container.textContent).toBe("analytics-off,replay-off,content-off");
 	});
 });

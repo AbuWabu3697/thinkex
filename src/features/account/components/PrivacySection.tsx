@@ -55,8 +55,8 @@ export function PrivacySection() {
 						<ItemContent>
 							<ItemTitle>Session replay</ItemTitle>
 							<ItemDescription>
-								Session playback with all inputs and text masked, used to debug issues. Requires
-								analytics.
+								May include visible page and AI chat content. Form inputs and sensitive areas stay
+								hidden. Requires analytics.
 							</ItemDescription>
 						</ItemContent>
 						<Switch

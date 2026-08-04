@@ -211,9 +211,11 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		}
 
 		async beforeTurn(ctx: TurnContext): Promise<TurnConfig | undefined> {
-			// Consent travels in the chat body (the DO can't see the browser's cookie).
-			// Set it before anything records so PostHog/TCC stay silent without consent.
-			this.telemetry.setAnalyticsConsent(ctx.body?.analyticsConsent === true);
+			// Consent travels in the chat body because the DO can't see the browser cookie.
+			this.telemetry.setConsent({
+				analytics: ctx.body?.analyticsConsent === true,
+				sessionReplay: ctx.body?.sessionReplayConsent === true,
+			});
 
 			const directory = await this.parentAgent(getUserAIStore());
 			const thread = await directory.getThreadContext(this.name);

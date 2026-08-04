@@ -99,8 +99,8 @@ export function capturePostHogAiGeneration(
 		schedule,
 		task: captureAiGeneration(client, {
 			...captureOptions,
-			// Keep AI prompt/output content out of analytics; capture metadata only.
-			privacyMode: true,
+			// Metadata-only unless the caller has an explicit content-sharing choice.
+			privacyMode: options.privacyMode ?? true,
 			captureImmediate: true,
 			properties,
 		}),

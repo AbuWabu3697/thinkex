@@ -3,6 +3,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import {
 	decodeConsentCookieValue,
 	getStoredConsentValue,
+	hasGlobalPrivacyControl,
 	isConsentRequired,
 	parseConsentValue,
 	resolveEffectiveConsent,
@@ -42,5 +43,10 @@ export function useEffectiveConsent(): ConsentRecord | null {
 		isConsentRequired,
 		getServerConsentRequired,
 	);
-	return resolveEffectiveConsent(consent ?? null, consentRequired, serialized !== null);
+	return resolveEffectiveConsent(
+		consent ?? null,
+		consentRequired,
+		serialized !== null,
+		hasGlobalPrivacyControl(),
+	);
 }

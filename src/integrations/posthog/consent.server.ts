@@ -34,6 +34,10 @@ export function hasServerAnalyticsConsent(headers?: Headers): boolean {
 		return decoded ? parseConsentValue(decoded)?.analytics === true : false;
 	}
 
+	if (resolved.get("sec-gpc") === "1") {
+		return false;
+	}
+
 	// No explicit choice: allowed only outside the opt-in-required region.
 	return !isConsentRequiredCountry(resolved.get("cf-ipcountry"));
 }

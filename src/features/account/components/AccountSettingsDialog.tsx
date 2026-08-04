@@ -54,7 +54,7 @@ export function AccountSettingsDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="gap-0 p-0 sm:max-w-2xl">
+			<DialogContent className="ph-no-capture gap-0 p-0 sm:max-w-2xl">
 				<DialogHeader className="border-b border-border px-5 py-5">
 					<DialogTitle>Settings</DialogTitle>
 					<DialogDescription className="sr-only">

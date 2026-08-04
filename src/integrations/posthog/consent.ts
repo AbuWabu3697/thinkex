@@ -16,7 +16,7 @@ export const CONSENT_COOKIE_NAME = CONSENT_STORAGE_KEY;
 const CONSENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 /** Bump when the categories or their meaning change; older records are re-prompted. */
-const CONSENT_VERSION = 1;
+const CONSENT_VERSION = 2;
 
 const CONSENT_CHANGE_EVENT = "thinkex:consent-change";
 const CONSENT_OPEN_EVENT = "thinkex:consent-open";
@@ -34,7 +34,8 @@ export const ACCEPT_ALL: ConsentCategories = { analytics: true, sessionReplay: t
 export const REJECT_ALL: ConsentCategories = { analytics: false, sessionReplay: false };
 
 const DEFAULT_OPT_OUT_REGION_CONSENT: ConsentRecord = {
-	...ACCEPT_ALL,
+	analytics: true,
+	sessionReplay: true,
 	version: CONSENT_VERSION,
 };
 
@@ -99,21 +100,29 @@ export function isConsentRequired(): boolean {
 	return readCookieValue(document.cookie, CONSENT_REQUIRED_COOKIE) !== "0";
 }
 
+/** Browser-level request to opt out of data sharing/tracking defaults. */
+export function hasGlobalPrivacyControl(): boolean {
+	return (
+		typeof navigator !== "undefined" &&
+		(navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true
+	);
+}
+
 /**
- * The decision to apply when nothing is stored yet: nothing (opt-in required) in
- * the EEA/UK, analytics-on (opt-out) elsewhere. An explicit stored choice always
- * wins over the regional default.
+ * The decision to apply when nothing is stored yet: nothing in opt-in regions or
+ * under GPC, analytics and visual replay on elsewhere. A stored choice always wins.
  */
 export function resolveEffectiveConsent(
 	stored: ConsentRecord | null,
 	consentRequired: boolean,
 	hasStoredValue = stored !== null,
+	globalPrivacyControl = false,
 ): ConsentRecord | null {
 	if (stored) {
 		return stored;
 	}
 
-	if (hasStoredValue || consentRequired) {
+	if (hasStoredValue || consentRequired || globalPrivacyControl) {
 		return null;
 	}
 
@@ -123,12 +132,22 @@ export function resolveEffectiveConsent(
 export function getEffectiveConsent(): ConsentRecord | null {
 	const serialized = getStoredConsentValue();
 	const stored = parseConsentValue(decodeConsentCookieValue(serialized));
-	return resolveEffectiveConsent(stored, isConsentRequired(), serialized !== null);
+	return resolveEffectiveConsent(
+		stored,
+		isConsentRequired(),
+		serialized !== null,
+		hasGlobalPrivacyControl(),
+	);
 }
 
 /** True when analytics may run — an explicit opt-in, or the opt-out regional default. */
 export function hasAnalyticsConsent(): boolean {
 	return getEffectiveConsent()?.analytics === true;
+}
+
+/** AI content export requires an explicit stored replay choice, never a regional default. */
+export function hasExplicitSessionReplayConsent(): boolean {
+	return getStoredConsent()?.sessionReplay === true;
 }
 
 export function readCookieValue(

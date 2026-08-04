@@ -10,7 +10,7 @@ interface AuthPageLayoutProps {
 
 export default function AuthPageLayout({ children, footer }: AuthPageLayoutProps) {
 	return (
-		<div className="relative min-h-svh bg-background text-foreground">
+		<div className="ph-no-capture relative min-h-svh bg-background text-foreground">
 			<main
 				className={cn(
 					"flex min-h-svh items-center justify-center px-6 py-12 sm:px-10",

@@ -96,7 +96,7 @@ export function ConsentManager() {
 						/>
 						<ConsentRow
 							title="Session replay"
-							description="Records session playback with inputs and text masked to debug issues. Requires analytics."
+							description="May include visible page and AI chat content. Form inputs and sensitive areas stay hidden. Requires analytics."
 							checked={draft.sessionReplay}
 							disabled={!draft.analytics}
 							onCheckedChange={(sessionReplay) => setDraft((prev) => ({ ...prev, sessionReplay }))}
@@ -131,8 +131,8 @@ function ConsentBanner({
 			className="fixed bottom-4 left-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 animate-in fade-in-0 slide-in-from-bottom-4"
 		>
 			<p className="text-sm text-muted-foreground">
-				We use cookies for analytics and session replay to improve ThinkEx. Sign-in cookies are
-				always required.{" "}
+				We use analytics and session replay to improve ThinkEx. You can change this anytime. Sign-in
+				cookies are always required.{" "}
 				<Link to="/cookies" className="underline underline-offset-4 hover:text-foreground">
 					Cookie Policy
 				</Link>

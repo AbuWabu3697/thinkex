@@ -51,10 +51,9 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 		opt_out_capturing_by_default: true,
 		// Do not persist PostHog identity/session state while capturing is off.
 		opt_out_persistence_by_default: true,
-		// Privacy-first replay: mask every input and all rendered text.
+		// Keep form inputs and explicitly sensitive surfaces out of replay.
 		session_recording: {
 			maskAllInputs: true,
-			maskTextSelector: "*",
 		},
 		...(isPostHogSessionReplayEnabled ? {} : { disable_session_recording: true }),
 		...(tracingHeaders.length > 0 ? { tracing_headers: tracingHeaders } : {}),
