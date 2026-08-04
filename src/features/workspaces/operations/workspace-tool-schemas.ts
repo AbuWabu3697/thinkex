@@ -34,8 +34,21 @@ export {
 	workspaceSearchOutputSchema,
 };
 
-export const workspaceDocumentHtmlInstruction =
-	'Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. For math, use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div> — this is the only math that renders, so never write $...$, $$...$$, or \\(...\\) in the HTML, and never put dollar signs around the data-latex value. Put every subscript and superscript (exponents like 10^8, indices like x_1) inside math, not <sub> or <sup> tags, which are unsupported and reject the whole write. Chemistry renders with \\ce{...} (e.g. \\ce{CH4 + 2 O2 -> CO2 + 2 H2O}) and quantities with units render with \\pu{...} (e.g. \\pu{9.81 m/s^2}), both inside data-latex. Write literal money as plain text ($30, never \\$30) — this is HTML, not Markdown, so a backslash before a dollar sign shows on screen. For checkboxes, use <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Item</p></div></li></ul>. Documents cannot hold images: never use <img> or <figure>, and describe the visual in words instead. Cite workspace sources in documents exactly as in a chat reply, with <citation ref="wr_7Kp2Qa9x"></citation> placed after the claim it supports.';
+/**
+ * Math, chemistry, and money for the HTML surfaces. Documents and widgets are
+ * both HTML, so they share one rule and the model tracks "Markdown or HTML?"
+ * rather than three per-surface dialects — chat keeps the `$…$` Markdown form.
+ */
+const workspaceHtmlMathInstruction =
+	'This is HTML, so math is markup rather than delimiters: use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>, and keep dollar signs out of the data-latex value. Put every subscript and superscript (exponents like 10^8, indices like x_1) inside math rather than <sub>/<sup> tags. Chemistry renders with \\ce{...} (e.g. \\ce{CH4 + 2 O2 -> CO2 + 2 H2O}) and quantities with units render with \\pu{...} (e.g. \\pu{9.81 m/s^2}), both inside data-latex. Write literal money as plain text ($30, never \\$30) — a backslash before a dollar sign shows on screen in HTML.';
+
+/**
+ * Keep discovery and serialization beside the document tool. The activated
+ * skill owns the authoring contract so the two prompts cannot drift apart.
+ */
+const workspaceWidgetHtmlInstruction = `A widget is one interactive block inside a document. Use one when the user explicitly asks for a widget, asks for interaction or live computation, or wants a document visual that ordinary blocks cannot express. Keep ordinary content in ordinary blocks. Before authoring or editing widget source, activate the "widget-authoring" skill and follow its HTML, sandbox, layout, and editing contract. Serialize the result as <div data-type="widget" title="Short title">…HTML-escaped fragment…</div>.`;
+
+export const workspaceDocumentHtmlInstruction = `Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. ${workspaceHtmlMathInstruction} For checkboxes, use <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Item</p></div></li></ul>. Documents cannot hold images: never use <img> or <figure>, and describe the visual in words instead. Cite workspace sources in documents exactly as in a chat reply, with <citation ref="wr_7Kp2Qa9x"></citation> placed after the claim it supports. ${workspaceWidgetHtmlInstruction}`;
 
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();
@@ -124,7 +137,7 @@ export const workspaceEditItemInputSchema = z.object({
 		.min(1)
 		.max(40)
 		.describe(
-			'Ordered structural HTML edits, at most 40. For targeted operations, copy data-ref into the "ref" field; there is no "target" field. These refs are local to this document and are not workspace citation refs.',
+			"Ordered edits, at most 40. Target a block with the exact editRef from a document or block read. A block read returns the exact content that replace_text matches. Use overwrite only to discard the entire document and write a new one.",
 		),
 });
 
@@ -226,6 +239,15 @@ export const workspaceReadItemsInputExamples = createInputExamples<
 			},
 		],
 	},
+	{
+		requests: [
+			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				mode: "block",
+				path: "/Demo Folder/Demo Document",
+			},
+		],
+	},
 );
 
 export const workspaceSearchInputExamples = createInputExamples<
@@ -292,8 +314,8 @@ export const workspaceEditItemInputExamples = createInputExamples<
 		path: "/Demo Folder/Demo Document",
 		edits: [
 			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
 				op: "replace",
-				ref: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
 				html: "<p>Updated paragraph.</p>",
 			},
 		],
@@ -302,8 +324,19 @@ export const workspaceEditItemInputExamples = createInputExamples<
 		path: "/Demo Folder/Demo Document",
 		edits: [
 			{
-				op: "replace_all",
+				op: "overwrite",
 				html: "<h1>Demo Document</h1><p>This document was updated as part of the demo.</p>",
+			},
+		],
+	},
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				op: "replace_text",
+				find: "gravity = 9.8",
+				replace: "gravity = 3.7",
 			},
 		],
 	},

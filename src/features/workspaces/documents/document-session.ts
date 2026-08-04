@@ -14,7 +14,15 @@ import {
 	type DocumentAiEditFailureCode,
 	type DocumentAiEditResultStatus,
 } from "#/features/workspaces/documents/document-ai-edits";
-import { ensureProseMirrorDocumentAiRefs } from "#/features/workspaces/documents/document-ai-html";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+
+import {
+	createDocumentAiBlockSnapshot,
+	type DocumentAiBlockSnapshot,
+	ensureProseMirrorDocumentBlockIds,
+	parseDocumentAiEditRef,
+	readTiptapNodeBlockId,
+} from "#/features/workspaces/documents/document-ai-html";
 import {
 	type DocumentHtmlChunkReadInput,
 	type DocumentHtmlChunkReadResult,
@@ -343,6 +351,38 @@ export class DocumentSession extends YServer {
 		return chunk ? { ...chunk, revision, status: "ready" } : { status: "invalid_offset" };
 	}
 
+	/**
+	 * One block in full, addressed by an editRef from an earlier read.
+	 *
+	 * Document reads elide a widget's source to keep prose in the chunk, so this
+	 * is how the assistant fetches it before editing — and it works for any block
+	 * that is easier to read alone than to page to.
+	 */
+	async readBlock(input: {
+		editRef: string;
+	}): Promise<(DocumentAiBlockSnapshot & { status: "ready" }) | { status: "edit_ref_not_found" }> {
+		this.assertActive();
+		const { document } = await this.getReferencedDocumentSnapshot();
+		const blockId = parseDocumentAiEditRef(input.editRef);
+		if (!blockId) {
+			return { status: "edit_ref_not_found" };
+		}
+
+		let found: ProseMirrorNode | null = null;
+		document.forEach((node) => {
+			if (!found && readTiptapNodeBlockId(node) === blockId) {
+				found = node;
+			}
+		});
+
+		return found
+			? {
+					...(await createDocumentAiBlockSnapshot(found)),
+					status: "ready",
+				}
+			: { status: "edit_ref_not_found" };
+	}
+
 	async purgeForDeletion(): Promise<void> {
 		// Deliberately does not hydrate the document: this only wipes durable
 		// storage, and onLoad could otherwise reseed from the deleted item.
@@ -453,7 +493,7 @@ export class DocumentSession extends YServer {
 	}
 
 	private async getReferencedDocumentSnapshot() {
-		const refs = ensureProseMirrorDocumentAiRefs(this.getCurrentProseMirrorDocument());
+		const refs = ensureProseMirrorDocumentBlockIds(this.getCurrentProseMirrorDocument());
 		if (refs.changed) {
 			this.reconcileCurrentDocument(coerceTiptapDocumentJson(refs.document.toJSON()));
 			await this.persistYDoc();

@@ -1,7 +1,6 @@
 import { getWorkspaceItemTypeMeta } from "#/features/workspaces/defaults";
-import { joinWorkspacePathSegment } from "#/features/workspaces/kernel/workspace-kernel-paths";
 import type { WorkspaceTab } from "#/features/workspaces/model/tab-types";
-import { getWorkspaceBreadcrumbItems } from "#/features/workspaces/model/tree";
+import { getWorkspaceItemPath } from "#/features/workspaces/model/tree";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { getWorkspaceAiContextItemViewState } from "#/features/workspaces/model/workspace-item-view-state";
 import type { WorkspacePane } from "#/features/workspaces/state/workspace-ui-store";
@@ -22,7 +21,7 @@ export function getWorkspaceAiContextItemReference(input: {
 
 	return {
 		name: item.name,
-		path: getWorkspaceAiContextItemPath(item, context.itemsById),
+		path: getWorkspaceItemPath(item, context.itemsById),
 		type: getWorkspaceItemTypeMeta(item.type),
 		state: {
 			activeVisible: isVisible,
@@ -75,17 +74,4 @@ export function getOpenTabItemIds(tabs: WorkspaceTab[]) {
 	}
 
 	return itemTabTitles;
-}
-
-function getWorkspaceAiContextItemPath(
-	item: WorkspaceItem,
-	itemsById: ReadonlyMap<string, WorkspaceItem>,
-) {
-	const breadcrumbItems = getWorkspaceBreadcrumbItems(item, itemsById);
-	const relativePath = breadcrumbItems.reduce(
-		(path, entry) => joinWorkspacePathSegment(path, entry.name),
-		"",
-	);
-
-	return `/${relativePath}`;
 }

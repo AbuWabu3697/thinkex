@@ -29,6 +29,7 @@ type WorkspaceAiComposerDraftFileError = {
 
 interface WorkspaceAiComposerDraftState {
 	filesByThreadId: Record<string, WorkspaceAiComposerDraftFile[] | undefined>;
+	focusRequestByThreadId: Record<string, number | undefined>;
 	quotesByWorkspaceId: Record<string, WorkspaceSelectedQuote[] | undefined>;
 	textByThreadId: Record<string, string | undefined>;
 	addFiles: (
@@ -40,10 +41,12 @@ interface WorkspaceAiComposerDraftState {
 	addQuote: (workspaceId: string, quote: WorkspaceSelectedQuote) => void;
 	clearDraftArtifacts: (workspaceId: string, threadId: string) => void;
 	clearFiles: (threadId: string) => void;
+	clearFocusRequest: (threadId: string, request: number) => void;
 	clearQuotes: (workspaceId: string) => void;
 	removeFile: (threadId: string, fileId: string) => void;
 	removeQuote: (workspaceId: string, quoteId: string) => void;
 	setText: (threadId: string, value: SetStateAction<string>) => void;
+	stageText: (threadId: string, text: string) => void;
 }
 
 const EMPTY_DRAFT_FILES: WorkspaceAiComposerDraftFile[] = [];
@@ -129,6 +132,19 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 		clearDraftArtifacts: (workspaceId, threadId) =>
 			set((state) => clearDraftArtifacts(state, workspaceId, threadId)),
 		clearFiles: (threadId) => set((state) => clearFilesForThread(state, threadId)),
+		clearFocusRequest: (threadId, request) =>
+			set((state) => {
+				if (state.focusRequestByThreadId[threadId] !== request) {
+					return state;
+				}
+
+				return {
+					focusRequestByThreadId: {
+						...state.focusRequestByThreadId,
+						[threadId]: undefined,
+					},
+				};
+			}),
 		clearQuotes: (workspaceId) =>
 			set((state) => {
 				const current = state.quotesByWorkspaceId[workspaceId] ?? EMPTY_DRAFT_QUOTES;
@@ -144,6 +160,7 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 				};
 			}),
 		filesByThreadId: {},
+		focusRequestByThreadId: {},
 		quotesByWorkspaceId: {},
 		removeFile: (threadId, fileId) => {
 			const file = get().filesByThreadId[threadId]?.find((item) => item.id === fileId);
@@ -183,6 +200,27 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 					},
 				};
 			}),
+		stageText: (threadId, text) =>
+			set((state) => {
+				const stagedText = text.trim();
+				if (!stagedText) {
+					return state;
+				}
+
+				const current = state.textByThreadId[threadId] ?? "";
+				const next = current.trim() ? `${current.trimEnd()}\n\n${stagedText}` : stagedText;
+
+				return {
+					focusRequestByThreadId: {
+						...state.focusRequestByThreadId,
+						[threadId]: (state.focusRequestByThreadId[threadId] ?? 0) + 1,
+					},
+					textByThreadId: {
+						...state.textByThreadId,
+						[threadId]: next,
+					},
+				};
+			}),
 		textByThreadId: {},
 	}),
 );
@@ -211,6 +249,15 @@ export function useWorkspaceAiComposerDraftText(threadId: string) {
 	return useWorkspaceAiComposerDraftStore(
 		useMemo(
 			() => (state: WorkspaceAiComposerDraftState) => state.textByThreadId[threadId] ?? "",
+			[threadId],
+		),
+	);
+}
+
+export function useWorkspaceAiComposerFocusRequest(threadId: string) {
+	return useWorkspaceAiComposerDraftStore(
+		useMemo(
+			() => (state: WorkspaceAiComposerDraftState) => state.focusRequestByThreadId[threadId] ?? 0,
 			[threadId],
 		),
 	);

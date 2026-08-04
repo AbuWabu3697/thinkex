@@ -5,6 +5,7 @@ import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
 
 const workspacePathSchema = z.string().min(1);
+const workspaceEditRefSchema = z.string().trim().min(1).max(64);
 
 const readWorkspaceItemsFailureCodes = [
 	"content_changed",
@@ -19,6 +20,7 @@ const readWorkspaceItemsFailureCodes = [
 	"path_not_absolute",
 	"path_not_found",
 	"projection_failed",
+	"edit_ref_not_found",
 	"unsupported_item_type",
 ] as const;
 
@@ -49,6 +51,13 @@ const workspaceContentReadRequestSchema = z.union([
 		...workspaceContentReadRequestBase,
 		cursor: z.string().min(1).max(4_096).describe("Opaque cursor returned by a previous read."),
 		mode: z.literal("continue"),
+	}),
+	z.strictObject({
+		...workspaceContentReadRequestBase,
+		editRef: workspaceEditRefSchema.describe(
+			"editRef of one block from an earlier document read. The result returns the block in full with its current editRef.",
+		),
+		mode: z.literal("block"),
 	}),
 ]);
 
@@ -133,6 +142,16 @@ const workspaceContentReadResultSchema = z.union([
 			.describe("Suggested wait before reading this path again."),
 		status: z.literal("pending"),
 		type: z.literal("file"),
+	}),
+	z.object({
+		content: z.string(),
+		editRef: workspaceEditRefSchema,
+		format: z.literal("html"),
+		itemId: z.string().min(1),
+		path: workspacePathSchema,
+		relations: workspaceReadRelationsSchema.optional(),
+		status: z.literal("ready"),
+		type: z.literal("block"),
 	}),
 	z.object({
 		code: z.enum(readWorkspaceItemsFailureCodes),

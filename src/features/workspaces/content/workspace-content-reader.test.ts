@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceItemSummary } from "#/features/workspaces/contracts";
 import type { WorkspaceContentReadRequest } from "#/features/workspaces/content/workspace-content-contract";
 import {
-	ensureTiptapDocumentAiRefs,
+	createDocumentAiBlockSnapshot,
+	ensureTiptapDocumentBlockIds,
 	parseDocumentAiHtml,
+	parseDocumentAiEditRef,
+	readTiptapNodeBlockId,
 } from "#/features/workspaces/documents/document-ai-html";
 import { readDocumentHtmlChunk } from "#/features/workspaces/documents/document-html-chunk";
 import { getTiptapDocumentSchema } from "#/features/workspaces/documents/tiptap-schema";
@@ -50,6 +53,7 @@ describe("WorkspaceContentReader", () => {
 		if (
 			!first ||
 			first.status !== "ready" ||
+			first.type !== "document" ||
 			first.location.kind !== "blocks" ||
 			!first.nextCursor
 		) {
@@ -63,7 +67,12 @@ describe("WorkspaceContentReader", () => {
 			status: "ready",
 			type: "document",
 		});
-		if (!second || second.status !== "ready" || second.location.kind !== "blocks") {
+		if (
+			!second ||
+			second.status !== "ready" ||
+			second.type !== "document" ||
+			second.location.kind !== "blocks"
+		) {
 			throw new Error("Expected a continued document chunk.");
 		}
 		expect(second.location.startBlock).toBeGreaterThan(first.location.startBlock);
@@ -80,7 +89,7 @@ describe("WorkspaceContentReader", () => {
 			kernel: createKernel(),
 		});
 		const [first] = await read([{ mode: "start", path: "/Notes" }]);
-		if (!first || first.status !== "ready" || !first.nextCursor) {
+		if (!first || first.status !== "ready" || first.type !== "document" || !first.nextCursor) {
 			throw new Error("Expected a continuation cursor.");
 		}
 
@@ -103,7 +112,7 @@ describe("WorkspaceContentReader", () => {
 		for (;;) {
 			const [result] = await read([request]);
 			expect(result).toMatchObject({ status: "ready", type: "document" });
-			if (!result || result.status !== "ready") {
+			if (!result || result.status !== "ready" || result.type !== "document") {
 				throw new Error("Expected a document chunk.");
 			}
 			contents.push(result.content);
@@ -114,9 +123,9 @@ describe("WorkspaceContentReader", () => {
 		}
 		expect(contents).toHaveLength(3);
 		expect(contents[0]).toMatch(
-			/^<h1 data-ref="b_[A-Za-z0-9_-]{12}\.r_[A-Za-z0-9_-]{10}">Heading<\/h1>$/,
+			/^<h1 data-edit-ref="b_[A-Za-z0-9_-]{12}\.r_[A-Za-z0-9_-]{10}">Heading<\/h1>$/,
 		);
-		expect(contents[1]).toContain("<pre data-ref=");
+		expect(contents[1]).toContain("<pre data-edit-ref=");
 		expect(contents[1]).toContain("</pre>");
 		expect(contents[2]).toContain(">Tail</p>");
 	});
@@ -185,6 +194,67 @@ describe("WorkspaceContentReader", () => {
 		);
 	});
 
+	it("returns one block in full, including a widget's elided source", async () => {
+		const source = "<div>Interactive</div>";
+		// One session across both reads: a fresh one would mint new refs.
+		const session = createDocumentSession({
+			html: `<p>Before</p><div data-type="widget" title="Sine">${source.replaceAll("<", "&lt;")}</div>`,
+			revision: "revision-1",
+		});
+		const read = createReader({
+			bucket: {} as R2Bucket,
+			getDocumentSession: () => session,
+			kernel: createKernel(),
+		});
+
+		const [chunk] = await read([{ mode: "start", path: "/Notes" }]);
+		if (!chunk || chunk.status !== "ready" || chunk.type !== "document") {
+			throw new Error("Expected a document chunk.");
+		}
+		// The chunk carries the placeholder, not the source.
+		expect(chunk.content).not.toContain("Interactive");
+		const widgetTag = /<div[^>]*data-type="widget"[^>]*>/.exec(chunk.content)?.[0] ?? "";
+		const editRef = /data-edit-ref="([^"]+)"/.exec(widgetTag)?.[1];
+		expect(editRef).toBeTruthy();
+		const staleEditRef = editRef?.replace(/\.r_.+$/, ".r_0000000000");
+
+		const [block] = await read([
+			{ editRef: staleEditRef as string, mode: "block", path: "/Notes" },
+		]);
+		expect(block).toMatchObject({ editRef, status: "ready", type: "block" });
+		if (!block || block.status !== "ready" || block.type !== "block") {
+			throw new Error("Expected a block read.");
+		}
+		expect(block.content).toContain("Interactive");
+		expect(block.content).not.toContain("data-edit-ref");
+	});
+
+	it("rejects block reads for files", async () => {
+		const fileItem = {
+			...documentItem,
+			id: "file-1",
+			meta: "PDF",
+			name: "Book.pdf",
+			title: "Book.pdf",
+			type: "file",
+		} satisfies WorkspaceItemSummary;
+		const read = createReader({
+			bucket: {} as R2Bucket,
+			getDocumentSession: () => createDocumentSession({ html: "", revision: "revision-1" }),
+			kernel: createKernel(fileItem),
+		});
+
+		await expect(
+			read([
+				{
+					editRef: "b_abcdefghijkl.r_0123456789",
+					mode: "block",
+					path: "/Book.pdf",
+				},
+			]),
+		).resolves.toEqual([{ code: "invalid_selection", path: "/Book.pdf", status: "failed" }]);
+	});
+
 	it("keeps one ordered result for every requested path", async () => {
 		const kernel = createKernel();
 		kernel.resolvePaths = vi.fn(
@@ -216,7 +286,7 @@ describe("WorkspaceContentReader", () => {
 });
 
 function createDocumentSession(input: { html: string; revision: string }) {
-	const document = ensureTiptapDocumentAiRefs(parseDocumentAiHtml(input.html)).document;
+	const document = ensureTiptapDocumentBlockIds(parseDocumentAiHtml(input.html)).document;
 	const documentNode = getTiptapDocumentSchema().nodeFromJSON(document);
 	return {
 		readHtmlChunk: vi.fn(async ({ expectedRevision, offset }) => {
@@ -228,16 +298,34 @@ function createDocumentSession(input: { html: string; revision: string }) {
 				? { ...chunk, revision: input.revision, status: "ready" as const }
 				: { status: "invalid_offset" as const };
 		}),
+		readBlock: vi.fn(async ({ editRef }: { editRef: string }) => {
+			const blockId = parseDocumentAiEditRef(editRef);
+			if (!blockId) {
+				return { status: "edit_ref_not_found" as const };
+			}
+			let found: ReturnType<typeof documentNode.child> | null = null;
+			documentNode.forEach((node) => {
+				if (!found && readTiptapNodeBlockId(node) === blockId) {
+					found = node;
+				}
+			});
+			return found
+				? {
+						...(await createDocumentAiBlockSnapshot(found)),
+						status: "ready" as const,
+					}
+				: { status: "edit_ref_not_found" as const };
+		}),
 	};
 }
 
-function createKernel() {
+function createKernel(item: WorkspaceItemSummary = documentItem) {
 	return {
 		resolvePaths: vi.fn(async ({ paths }: { paths: string[] }) =>
-			paths.map((path) => ({ item: documentItem, path, status: "item" as const })),
+			paths.map((path) => ({ item, path, status: "item" as const })),
 		),
 		listItemRelations: vi.fn(async () => []),
-		getItemPaths: vi.fn(async () => [{ itemId: documentItem.id, path: "/Notes" }]),
+		getItemPaths: vi.fn(async () => [{ itemId: item.id, path: `/${item.name}` }]),
 	} as unknown as WorkspaceKernelClient;
 }
 

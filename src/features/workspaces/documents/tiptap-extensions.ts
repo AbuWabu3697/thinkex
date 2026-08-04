@@ -5,6 +5,7 @@ import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem";
 
 import { CodeBlockShiki } from "#/features/workspaces/documents/code-block-shiki";
+import { DocumentWidget } from "#/features/workspaces/documents/document-widget-extension";
 import { DocumentCitation } from "#/features/workspaces/documents/document-citation-node";
 import {
 	getTiptapDocumentSchemaExtensions,
@@ -16,9 +17,10 @@ export { tiptapDocumentYjsField };
 export function getTiptapDocumentBaseExtensions() {
 	return [
 		...getTiptapDocumentSchemaExtensions({
-			// Both extend the node spec the server uses, adding only how it draws.
+			// All three extend the node spec the server uses, adding only how it draws.
 			citation: DocumentCitation,
 			codeBlock: CodeBlockShiki,
+			widget: DocumentWidget,
 		}),
 		Placeholder.configure({
 			placeholder: ({ node }) => (node.type.name === "heading" ? "Untitled" : "Write something..."),

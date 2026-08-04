@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, Download, EllipsisVertical, FileText, Redo2, Shapes, Undo2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { DocumentEditUndoButton } from "#/features/workspaces/components/document-editor/DocumentEditUndoButton";
@@ -32,6 +32,7 @@ import {
 	getTextAlignIcon,
 	isCodeBlock,
 } from "#/features/workspaces/components/document-editor/document-editor-toolbar-actions";
+import { WorkspaceAddWidgetDialog } from "#/features/workspaces/components/widget/WorkspaceAddWidgetDialog";
 import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
@@ -40,14 +41,19 @@ import { workspaceToolbarTextButtonSizeClass } from "#/features/workspaces/compo
 
 export function DocumentToolbar({
 	canEdit,
+	documentPath,
 	editor,
 	itemId,
+	workspaceId,
 }: {
 	canEdit: boolean;
+	documentPath: string;
 	editor: Editor | null;
 	itemId: string;
+	workspaceId: string;
 }) {
 	const editorState = useDocumentEditorUiState(editor);
+	const [addWidgetOpen, setAddWidgetOpen] = useState(false);
 	const { activeReview, hideReview } = useDocumentEditReview();
 
 	// Reviewing borrows the toolbar rather than floating over the page: the
@@ -77,31 +83,48 @@ export function DocumentToolbar({
 	}
 
 	return (
-		<WorkspaceResponsiveToolbar
-			mobileLabel="Document actions"
-			mobileContent={<DocumentMobileMenuContent editor={editor} editorState={editorState} />}
-			mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
-			scrollable
-		>
-			<BlockTypeMenu editor={editor} editorState={editorState} />
-			<InlineFormatMenu editor={editor} editorState={editorState} />
-			<AlignMenu editor={editor} editorState={editorState} />
-			<ToolbarButton
-				label="Undo"
-				disabled={!editorState.canUndo}
-				onClick={() => editor?.chain().focus().undo().run()}
+		<>
+			<WorkspaceResponsiveToolbar
+				mobileLabel="Document actions"
+				mobileContent={
+					<DocumentMobileMenuContent
+						editor={editor}
+						editorState={editorState}
+						onAddWidget={() => setAddWidgetOpen(true)}
+					/>
+				}
+				mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
+				scrollable
 			>
-				<Undo2 />
-			</ToolbarButton>
-			<ToolbarButton
-				label="Redo"
-				disabled={!editorState.canRedo}
-				onClick={() => editor?.chain().focus().redo().run()}
-			>
-				<Redo2 />
-			</ToolbarButton>
-			<DocumentMoreMenu disabled={!editor} />
-		</WorkspaceResponsiveToolbar>
+				<BlockTypeMenu editor={editor} editorState={editorState} />
+				<InlineFormatMenu editor={editor} editorState={editorState} />
+				<AlignMenu editor={editor} editorState={editorState} />
+				<ToolbarButton
+					label="Undo"
+					disabled={!editorState.canUndo}
+					onClick={() => editor?.chain().focus().undo().run()}
+				>
+					<Undo2 />
+				</ToolbarButton>
+				<ToolbarButton
+					label="Redo"
+					disabled={!editorState.canRedo}
+					onClick={() => editor?.chain().focus().redo().run()}
+				>
+					<Redo2 />
+				</ToolbarButton>
+				<ToolbarButton label="Add widget" onClick={() => setAddWidgetOpen(true)}>
+					<Shapes />
+				</ToolbarButton>
+				<DocumentMoreMenu disabled={!editor} />
+			</WorkspaceResponsiveToolbar>
+			<WorkspaceAddWidgetDialog
+				documentPath={documentPath}
+				open={addWidgetOpen}
+				workspaceId={workspaceId}
+				onOpenChange={setAddWidgetOpen}
+			/>
+		</>
 	);
 }
 
@@ -149,9 +172,11 @@ function DocumentEditReviewControls({
 function DocumentMobileMenuContent({
 	editor,
 	editorState,
+	onAddWidget,
 }: {
 	editor: Editor | null;
 	editorState: DocumentEditorUiState;
+	onAddWidget: () => void;
 }) {
 	return (
 		<>
@@ -195,6 +220,7 @@ function DocumentMobileMenuContent({
 					label="Redo"
 					onClick={() => editor?.chain().focus().redo().run()}
 				/>
+				<DocumentHistoryMenuItem icon={<Shapes />} label="Add widget" onClick={onAddWidget} />
 			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
 			<DocumentExportMenuGroup />

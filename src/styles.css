@@ -497,6 +497,16 @@
 	}
 
 	.workspace-document-prose {
+		/*
+		 * A readable measure, held by the container's own padding rather than a
+		 * max-width on each block. Blocks set margin shorthand (widgets, tables,
+		 * rules, block math all do), which would reset any inline auto-margin and
+		 * strand them left of the text. Padding cannot be overridden that way, and
+		 * the editable element stays full width so a click anywhere still focuses
+		 * the editor.
+		 */
+		--workspace-document-measure: 80ch;
+		padding-inline: max(1rem, calc((100% - var(--workspace-document-measure)) / 2));
 		--workspace-document-code-background: var(--muted);
 		--workspace-document-highlight: oklch(0.9 0.14 90 / 70%);
 		--workspace-document-highlight-foreground: oklch(0.2 0.05 78);
@@ -685,6 +695,81 @@
 		color: inherit;
 	}
 
+	/* An interactive widget block. The frame owns every click inside it, so the
+	   handle strip above is the only way to select, drag, or delete the widget. */
+	.workspace-document-prose .workspace-document-widget {
+		margin: 1rem 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
+	}
+
+	.workspace-document-prose .workspace-document-widget[data-selected="true"] {
+		outline: 2px solid var(--ring);
+		outline-offset: 1px;
+	}
+
+	/* Layout comes from the shared block chrome; only the drag affordance is
+	   the widget's own. */
+	.workspace-document-prose .workspace-document-widget-header {
+		cursor: grab;
+		user-select: none;
+	}
+
+	/* No height here: the frame measures its own content and sizes itself. */
+	.workspace-document-prose .workspace-document-widget-frame {
+		width: 100%;
+	}
+
+	/* Holds the widget's source, which ProseMirror must render somewhere but the
+	   reader should never see. The frame is the visible form of this text. */
+	.workspace-document-prose .workspace-document-widget-source {
+		display: none;
+	}
+
+	/* Collapsible sections. The Details node view renders a toggle button next to
+	   the summary and hides the content div, so it only needs layout here — the
+	   AI writes <details> and there is no toolbar affordance for inserting one. */
+	.workspace-document-prose details {
+		display: flex;
+		gap: 0.5rem;
+		margin: 0.85rem 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 0.65rem 0.85rem;
+	}
+
+	.workspace-document-prose details > button {
+		display: flex;
+		align-items: center;
+		align-self: flex-start;
+		justify-content: center;
+		width: 1.15rem;
+		height: 1.15rem;
+		border-radius: var(--radius-sm);
+		color: var(--muted-foreground);
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.workspace-document-prose details > button::before {
+		content: "▸";
+	}
+
+	.workspace-document-prose details.is-open > button::before {
+		content: "▾";
+	}
+
+	.workspace-document-prose details > div {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.workspace-document-prose details summary {
+		font-weight: 600;
+		list-style: none;
+	}
+
 	.workspace-document-prose [data-type="inline-math"] {
 		display: inline-flex;
 		align-items: baseline;
@@ -706,10 +791,6 @@
 		display: inline-block;
 		max-width: 100%;
 		min-width: max-content;
-	}
-
-	.workspace-document-prose .tiptap-mathematics-render--editable {
-		cursor: pointer;
 	}
 
 	.workspace-document-prose .inline-math-error,

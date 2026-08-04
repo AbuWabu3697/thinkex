@@ -29,11 +29,12 @@ exports[`workspace tool surface > system prompt is stable 1`] = `
 
 # Output Format
 - Format final answers as GitHub-flavored Markdown. Use concise headings, lists, blockquotes, links, tables, task lists, strikethrough, and fenced code blocks with language tags when they improve clarity.
-- When a diagram communicates structure more clearly than prose, use a fenced \`mermaid\` block for a small flowchart, sequence diagram, state diagram, class diagram, or entity-relationship diagram. Keep it focused to about 10 nodes, use short plain-text labels, minimize crossing or backward edges and subgraphs, and split complex systems into multiple diagrams.
+- When the user asks for a diagram or visual explanation, use a fenced \`mermaid\` block for a small flowchart, sequence diagram, state diagram, class diagram, or entity-relationship diagram. Keep it focused to about 10 nodes, use short plain-text labels, minimize crossing or backward edges and subgraphs, and split complex systems into multiple diagrams.
 - Let the app control Mermaid presentation: do not add frontmatter or init directives, custom styles or colors, embedded HTML, links, images, or other external resources. Include a concise \`accTitle\` and \`accDescr\` describing the diagram.
 - When writing Markdown with math, use \`$...$\` for inline math and \`$$...$$\` on separate lines for block math. Do not use \`\\(...\\)\` or \`\\[...\\]\`; our renderer only understands dollar-sign delimiters.
 - Chemistry renders with \`\\ce{...}\` (e.g. \`$\\ce{CH4 + 2 O2 -> CO2 + 2 H2O}$\`) and quantities with units render with \`\\pu{...}\`.
-- CRITICAL: every literal dollar sign — every price, cost, salary, or currency figure — MUST be escaped as \`\\$\`. Write \`\\$5\`, not \`$5\`. Write \`\\$1,000 − \\$200 = \\$800\`, not \`$1,000 − $200 = $800\`. A missed escape turns the price into broken math on screen.
+- CRITICAL, in chat replies only: every literal dollar sign — every price, cost, salary, or currency figure — MUST be escaped as \`\\$\`. Write \`\\$5\`, not \`$5\`. Write \`\\$1,000 − \\$200 = \\$800\`, not \`$1,000 − $200 = $800\`. A missed escape turns the price into broken math on screen.
+- That escape is a Markdown rule and applies to chat replies only. Document and widget content is HTML, where \`\\$\` renders as a visible backslash — write money plainly there, as \`$30\`.
 
 # Memory
 - Use memory only for durable preferences, workspace goals, thread goals, and decisions. Do not store transient requests, secrets, full documents, item bodies, or actual workspace state."
@@ -200,14 +201,20 @@ exports[`workspace tool surface > workspace_edit_item input schema is stable 1`]
   "additionalProperties": false,
   "properties": {
     "edits": {
-      "description": "Ordered structural HTML edits, at most 40. For targeted operations, copy data-ref into the "ref" field; there is no "target" field. These refs are local to this document and are not workspace citation refs.",
+      "description": "Ordered edits, at most 40. Target a block with the exact editRef from a document or block read. A block read returns the exact content that replace_text matches. Use overwrite only to discard the entire document and write a new one.",
       "items": {
         "anyOf": [
           {
             "additionalProperties": false,
             "properties": {
+              "editRef": {
+                "description": "Exact editRef from a recent document or block read.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string",
+              },
               "html": {
-                "description": "Schema-constrained HTML fragment. Model-supplied data-ref attributes are ignored.",
+                "description": "Schema-constrained HTML fragment. Model-supplied data-edit-ref attributes are ignored.",
                 "maxLength": 512000,
                 "type": "string",
               },
@@ -219,37 +226,31 @@ exports[`workspace tool surface > workspace_edit_item input schema is stable 1`]
                 ],
                 "type": "string",
               },
-              "ref": {
-                "description": "Exact data-ref from a recent HTML read. Put it in the "ref" field, never "target".",
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string",
-              },
             },
             "required": [
+              "editRef",
               "html",
               "op",
-              "ref",
             ],
             "type": "object",
           },
           {
             "additionalProperties": false,
             "properties": {
-              "op": {
-                "const": "delete",
-                "type": "string",
-              },
-              "ref": {
-                "description": "Exact data-ref from a recent HTML read. Put it in the "ref" field, never "target".",
+              "editRef": {
+                "description": "Exact editRef from a recent document or block read.",
                 "maxLength": 64,
                 "minLength": 1,
                 "type": "string",
               },
+              "op": {
+                "const": "delete",
+                "type": "string",
+              },
             },
             "required": [
+              "editRef",
               "op",
-              "ref",
             ],
             "type": "object",
           },
@@ -257,18 +258,51 @@ exports[`workspace tool surface > workspace_edit_item input schema is stable 1`]
             "additionalProperties": false,
             "properties": {
               "html": {
-                "description": "Schema-constrained HTML fragment. Model-supplied data-ref attributes are ignored.",
+                "description": "Schema-constrained HTML fragment. Model-supplied data-edit-ref attributes are ignored.",
                 "maxLength": 512000,
                 "type": "string",
               },
               "op": {
-                "const": "replace_all",
+                "const": "overwrite",
                 "type": "string",
               },
             },
             "required": [
               "html",
               "op",
+            ],
+            "type": "object",
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "editRef": {
+                "description": "Exact editRef from a recent document or block read.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string",
+              },
+              "find": {
+                "description": "Exact text to replace inside the target block, copied from a read. It must appear exactly once in that block; if it matches more than once the edit fails instead of replacing every occurrence.",
+                "maxLength": 512000,
+                "minLength": 1,
+                "type": "string",
+              },
+              "op": {
+                "const": "replace_text",
+                "type": "string",
+              },
+              "replace": {
+                "description": "Replacement text. May be empty to delete the matched text.",
+                "maxLength": 512000,
+                "type": "string",
+              },
+            },
+            "required": [
+              "editRef",
+              "find",
+              "op",
+              "replace",
             ],
             "type": "object",
           },
@@ -475,6 +509,32 @@ exports[`workspace tool surface > workspace_read_items input schema is stable 1`
             "required": [
               "path",
               "cursor",
+              "mode",
+            ],
+            "type": "object",
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "editRef": {
+                "description": "editRef of one block from an earlier document read. The result returns the block in full with its current editRef.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string",
+              },
+              "mode": {
+                "const": "block",
+                "type": "string",
+              },
+              "path": {
+                "description": "Absolute path of the workspace item to read.",
+                "minLength": 1,
+                "type": "string",
+              },
+            },
+            "required": [
+              "path",
+              "editRef",
               "mode",
             ],
             "type": "object",

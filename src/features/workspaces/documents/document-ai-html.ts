@@ -14,49 +14,14 @@ import {
 import { sha256Base64UrlText } from "#/lib/binary";
 
 const TEXT_NODE = 3;
-const documentAiRefPattern = /^b_[A-Za-z0-9_-]{12}$/;
-const documentAiTargetRefPattern = /^(b_[A-Za-z0-9_-]{12})\.r_[A-Za-z0-9_-]{10}$/;
-const supportedDocumentAiHtmlTags = new Set([
-	"a",
-	"b",
-	"blockquote",
-	"br",
-	"citation",
-	"code",
-	"col",
-	"colgroup",
-	"del",
-	"div",
-	"em",
-	"h1",
-	"h2",
-	"h3",
-	"h4",
-	"hr",
-	"i",
-	"input",
-	"label",
-	"li",
-	"mark",
-	"ol",
-	"p",
-	"pre",
-	"s",
-	"span",
-	"strike",
-	"strong",
-	"table",
-	"tbody",
-	"td",
-	"tfoot",
-	"th",
-	"thead",
-	"tr",
-	"u",
-	"ul",
-]);
-
+const documentBlockIdPattern = /^b_[A-Za-z0-9_-]{12}$/;
+const documentAiEditRefPattern = /^(b_[A-Za-z0-9_-]{12})\.r_[A-Za-z0-9_-]{10}$/;
 export class DocumentAiHtmlError extends Error {}
+
+export interface DocumentAiBlockSnapshot {
+	content: string;
+	editRef: string;
+}
 
 export function parseDocumentAiHtml(html: string): TiptapDocumentJson {
 	const htmlDocument = createHtmlDocument();
@@ -68,10 +33,12 @@ export function parseDocumentAiHtml(html: string): TiptapDocumentJson {
 		element.replaceWith(htmlDocument.createTextNode(element.textContent ?? ""));
 	}
 
+	rewriteLossyElements(htmlDocument);
+
 	validateDocumentAiHtml(htmlDocument.body);
 
-	for (const element of htmlDocument.body.querySelectorAll("[data-ref]")) {
-		element.removeAttribute("data-ref");
+	for (const element of htmlDocument.body.querySelectorAll("[data-edit-ref]")) {
+		element.removeAttribute("data-edit-ref");
 	}
 
 	try {
@@ -99,53 +66,74 @@ export async function serializeTiptapDocumentToAiHtml(document: TiptapDocumentJs
 }
 
 export async function serializeTiptapNodeToAiHtml(node: ProseMirrorNode) {
-	return serializeTiptapFragmentToAiHtml(
-		Fragment.from(withTiptapNodeAiRef(node, await createDocumentAiTargetRef(node))),
-	);
+	// The editRef is hashed from the full node, so a widget source change still
+	// invalidates it. Only the serialized source is elided.
+	const withEditRef = withTiptapNodeAiRef(node, await createDocumentAiEditRef(node));
+	return serializeTiptapFragmentToAiHtml(Fragment.from(elideWidgetSource(withEditRef)));
 }
 
-export async function createDocumentAiTargetRef(node: ProseMirrorNode) {
-	const ref = readTiptapNodeAiRef(node);
-	if (!ref) {
-		throw new Error(`Top-level document node ${node.type.name} is missing an AI ref.`);
+/**
+ * Replaces a widget's source with nothing for the model's benefit.
+ *
+ * A widget runs to kilobytes of markup and script. Inlining that in every read
+ * would crowd out the prose the model actually needs — a handful of widgets
+ * would fill a whole chunk. The placeholder keeps the editRef and title, which
+ * is enough to decide whether to read it in full.
+ */
+function elideWidgetSource(node: ProseMirrorNode): ProseMirrorNode {
+	if (node.type.name !== "widget") {
+		return node;
+	}
+	return node.type.create(node.attrs, undefined, node.marks);
+}
+
+export async function createDocumentAiEditRef(node: ProseMirrorNode) {
+	const blockId = readTiptapNodeBlockId(node);
+	if (!blockId) {
+		throw new Error(`Top-level document node ${node.type.name} is missing a block ID.`);
 	}
 
 	// Fingerprint the block's JSON rather than its HTML: rendering costs a whole
-	// second DOM pass per block per read, and the ref only has to change whenever
+	// second DOM pass per block per read, and the editRef only has to change when
 	// the block's content does.
 	const content = JSON.stringify(withTiptapNodeAiRef(node, null).toJSON());
 	const revision = (await sha256Base64UrlText(content)).slice(0, 10);
-	return `${ref}.r_${revision}`;
+	return `${blockId}.r_${revision}`;
 }
 
-export function parseDocumentAiTargetRef(ref: string) {
-	return documentAiTargetRefPattern.exec(ref)?.[1] ?? null;
+export function parseDocumentAiEditRef(editRef: string) {
+	return documentAiEditRefPattern.exec(editRef)?.[1] ?? null;
 }
 
-export function ensureTiptapDocumentAiRefs(document: TiptapDocumentJson): {
+export function ensureTiptapDocumentBlockIds(document: TiptapDocumentJson): {
 	changed: boolean;
 	document: TiptapDocumentJson;
 } {
-	const refs = ensureProseMirrorDocumentAiRefs(getTiptapDocumentSchema().nodeFromJSON(document));
-	return refs.changed
-		? { changed: true, document: coerceTiptapDocumentJson(refs.document.toJSON()) }
+	const result = ensureProseMirrorDocumentBlockIds(
+		getTiptapDocumentSchema().nodeFromJSON(document),
+	);
+	return result.changed
+		? { changed: true, document: coerceTiptapDocumentJson(result.document.toJSON()) }
 		: { changed: false, document };
 }
 
-export function ensureProseMirrorDocumentAiRefs(document: ProseMirrorNode): {
+export function ensureProseMirrorDocumentBlockIds(document: ProseMirrorNode): {
 	changed: boolean;
 	document: ProseMirrorNode;
 } {
-	const usedRefs = new Set<string>();
+	const usedBlockIds = new Set<string>();
 	let changed = false;
 	const children: ProseMirrorNode[] = [];
 
 	document.forEach((node) => {
-		const currentRef = readTiptapNodeAiRef(node);
-		const ref = currentRef && !usedRefs.has(currentRef) ? currentRef : createDocumentAiRef();
-		usedRefs.add(ref);
-		changed ||= ref !== currentRef;
-		children.push(withTiptapNodeAiRef(node, ref));
+		const currentBlockId = readTiptapNodeBlockId(node);
+		const blockId =
+			currentBlockId && !usedBlockIds.has(currentBlockId)
+				? currentBlockId
+				: createDocumentBlockId();
+		usedBlockIds.add(blockId);
+		changed ||= blockId !== currentBlockId;
+		children.push(withTiptapNodeAiRef(node, blockId));
 	});
 
 	if (!changed) {
@@ -158,19 +146,19 @@ export function ensureProseMirrorDocumentAiRefs(document: ProseMirrorNode): {
 	};
 }
 
-export function createDocumentAiRef() {
+function createDocumentBlockId() {
 	return `b_${nanoid(12)}`;
 }
 
-export function readTiptapNodeAiRef(node: ProseMirrorNode) {
-	const ref = node.attrs[tiptapDocumentAiRefAttribute];
-	return typeof ref === "string" && documentAiRefPattern.test(ref) ? ref : null;
+export function readTiptapNodeBlockId(node: ProseMirrorNode) {
+	const blockId = node.attrs[tiptapDocumentAiRefAttribute];
+	return typeof blockId === "string" && documentBlockIdPattern.test(blockId) ? blockId : null;
 }
 
 export function withTiptapNodeAiRef(node: ProseMirrorNode, ref: string | null) {
 	const attributes = node.type.spec.attrs;
 	if (!attributes || !(tiptapDocumentAiRefAttribute in attributes)) {
-		throw new Error(`Top-level document node ${node.type.name} cannot carry an AI ref.`);
+		throw new Error(`Top-level document node ${node.type.name} cannot carry a block ID.`);
 	}
 
 	return node.type.create(
@@ -178,6 +166,25 @@ export function withTiptapNodeAiRef(node: ProseMirrorNode, ref: string | null) {
 		node.content,
 		node.marks,
 	);
+}
+
+/**
+ * The exact block HTML returned by a block read and matched by `replace_text`.
+ * Its editRef travels beside it, never inside it, so there is only one target
+ * value for the model to copy.
+ */
+export function serializeTiptapNodeToEditableAiHtml(node: ProseMirrorNode) {
+	return serializeTiptapFragmentToAiHtml(Fragment.from(withTiptapNodeAiRef(node, null)));
+}
+
+/** Content and edit target minted together from one live block. */
+export async function createDocumentAiBlockSnapshot(
+	node: ProseMirrorNode,
+): Promise<DocumentAiBlockSnapshot> {
+	return {
+		content: serializeTiptapNodeToEditableAiHtml(node),
+		editRef: await createDocumentAiEditRef(node),
+	};
 }
 
 function serializeTiptapFragmentToAiHtml(fragment: Fragment) {
@@ -189,6 +196,47 @@ function serializeTiptapFragmentToAiHtml(fragment: Fragment) {
 	);
 	container.appendChild(serialized as unknown as globalThis.Node);
 	return container.innerHTML;
+}
+
+/**
+ * Rescues the two tags ProseMirror parses lossily.
+ *
+ * Everything else outside the schema is already handled by the parser: unknown
+ * wrappers are skipped with their children kept, and `<script>`/`<style>` text
+ * never reaches the document. These two lose meaning instead:
+ *  - `<h5>`/`<h6>` fall all the way to a paragraph, so the heading disappears;
+ *    the schema stops at 4, so 4 is where they belong.
+ *  - `<sub>`/`<sup>` flatten to bare text (`CH<sub>4</sub>` becomes `CH4`), so
+ *    they become inline math instead. `{}_{4}` is the KaTeX form for a
+ *    subscript with no base, which is what the tag means on its own.
+ *
+ * Models write both by habit — evals showed `CH<sub>4</sub>` surviving an
+ * explicit instruction not to use it.
+ */
+function rewriteLossyElements(htmlDocument: Document) {
+	for (const element of htmlDocument.body.querySelectorAll("h5, h6")) {
+		const heading = htmlDocument.createElement("h4");
+		for (const child of Array.from(element.childNodes)) {
+			heading.appendChild(child);
+		}
+		element.replaceWith(heading);
+	}
+
+	for (const element of htmlDocument.body.querySelectorAll("sub, sup")) {
+		const latex = element.textContent?.trim();
+		if (!latex) {
+			element.remove();
+			continue;
+		}
+
+		const math = htmlDocument.createElement("span");
+		math.setAttribute("data-type", "inline-math");
+		math.setAttribute(
+			"data-latex",
+			`{}${element.tagName.toLowerCase() === "sub" ? "_" : "^"}{${latex}}`,
+		);
+		element.replaceWith(math);
+	}
 }
 
 function validateDocumentAiHtml(root: HTMLElement) {
@@ -203,33 +251,6 @@ function validateDocumentAiHtml(root: HTMLElement) {
 			);
 		}
 	}
-
-	for (const element of root.querySelectorAll("*")) {
-		const tagName = element.tagName.toLowerCase();
-		if (!supportedDocumentAiHtmlTags.has(tagName) || !isSupportedSpecialElement(element)) {
-			throw new DocumentAiHtmlError(`Unsupported document HTML element: <${tagName}>.`);
-		}
-	}
-}
-
-function isSupportedSpecialElement(element: Element) {
-	const tagName = element.tagName.toLowerCase();
-	if (tagName === "div") {
-		return (
-			element.getAttribute("data-type") === "block-math" ||
-			element.parentElement?.getAttribute("data-type") === "taskItem"
-		);
-	}
-	if (tagName === "span") {
-		return (
-			element.getAttribute("data-type") === "inline-math" ||
-			element.parentElement?.tagName.toLowerCase() === "label"
-		);
-	}
-	if (tagName === "label" || tagName === "input") {
-		return Boolean(element.closest('li[data-type="taskItem"]'));
-	}
-	return true;
 }
 
 /** Short refs the assistant cited, for the caller to resolve to locations. */

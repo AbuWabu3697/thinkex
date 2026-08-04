@@ -66,36 +66,47 @@ export function scoreNoForbiddenTools(
 
 /**
  * For a read→edit turn: the model must submit a *targeted* edit (replace / insert /
- * delete) whose `ref` came from the read fixture — not a fabricated ref, and not a
- * whole-document `replace_all`. Without this, a hollow read stub plus the permissive
- * `ref` schema (any nonempty string) let a hallucinated target score a false pass.
+ * delete) whose `editRef` came from a completed earlier read, not a fabricated
+ * target or a whole-document `overwrite`.
  */
-export function scoreTargetedEditProvenance(
-	output: WorkspaceAgentOutput,
-	validRefs: string[],
-): ScoreResult {
-	const refs = new Set(validRefs);
-	const edits = output.toolCalls
-		.filter((call) => call.name === "workspace_edit_item")
-		.flatMap((call) => {
-			const input = call.input as { edits?: Array<{ op?: string; ref?: string }> };
-			return Array.isArray(input.edits) ? input.edits : [];
-		});
-	const isValidRef = (edit: { ref?: string }) => typeof edit.ref === "string" && refs.has(edit.ref);
-	const targeted = edits.filter((edit) => edit.op !== "replace_all" && isValidRef(edit));
-	const fabricated = edits.filter((edit) => edit.op !== "replace_all" && !isValidRef(edit));
-	const usedReplaceAll = edits.some((edit) => edit.op === "replace_all");
-	const pass = targeted.length > 0 && fabricated.length === 0 && !usedReplaceAll;
+export function scoreTargetedEditProvenance(output: WorkspaceAgentOutput): ScoreResult {
+	let targeted = 0;
+	const fabricated: string[] = [];
+	let usedOverwrite = false;
+
+	for (const call of output.toolCalls) {
+		if (call.name !== "workspace_edit_item") continue;
+		const input = call.input as {
+			edits?: Array<{ editRef?: string; op?: string }>;
+			path?: string;
+		};
+		if (!Array.isArray(input.edits)) continue;
+
+		const priorReadEditRefs = new Set(
+			typeof input.path === "string" && Object.hasOwn(call.priorReadEditRefsByPath, input.path)
+				? call.priorReadEditRefsByPath[input.path]
+				: [],
+		);
+		for (const edit of input.edits) {
+			if (edit.op === "overwrite") {
+				usedOverwrite = true;
+			} else if (typeof edit.editRef === "string" && priorReadEditRefs.has(edit.editRef)) {
+				targeted += 1;
+			} else {
+				fabricated.push(edit.editRef ?? "<none>");
+			}
+		}
+	}
+	const pass = targeted > 0 && fabricated.length === 0 && !usedOverwrite;
 
 	const reasons: string[] = [];
-	if (targeted.length === 0) reasons.push("no targeted edit used a ref from the read");
-	if (fabricated.length > 0)
-		reasons.push(`fabricated ref(s): ${fabricated.map((e) => e.ref ?? "<none>").join(", ")}`);
-	if (usedReplaceAll) reasons.push("used replace_all instead of a targeted edit");
+	if (targeted === 0) reasons.push("no targeted edit used an editRef from the read");
+	if (fabricated.length > 0) reasons.push(`fabricated editRef(s): ${fabricated.join(", ")}`);
+	if (usedOverwrite) reasons.push("used overwrite instead of a targeted edit");
 	return {
 		score: pass ? 1 : 0,
 		pass,
-		message: pass ? "targeted edit used a ref from the read fixture" : reasons.join("; "),
+		message: pass ? "targeted edit used an editRef from a prior read" : reasons.join("; "),
 	};
 }
 
