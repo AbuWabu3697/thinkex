@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { EllipsisVertical } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 
 import { Button } from "#/components/ui/button";
 import {
@@ -108,7 +108,7 @@ function WorkspaceToolbarMenuButton({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger render={<WorkspaceToolbarIconButton aria-label={ariaLabel} />}>
-				<EllipsisVertical />
+				<Ellipsis />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className={contentClassName} align="end">
 				{content}

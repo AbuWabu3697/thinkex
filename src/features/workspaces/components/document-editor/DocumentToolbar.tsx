@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Shapes, Undo2 } from "lucide-react";
+import { Check, Download, FileText, Redo2, Shapes, Undo2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
@@ -419,11 +419,9 @@ function DocumentMoreMenu({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				render={
-					<WorkspaceToolbarIconButton disabled={disabled} aria-label="More document actions" />
-				}
+				render={<WorkspaceToolbarIconButton disabled={disabled} aria-label="Export document" />}
 			>
-				<EllipsisVertical />
+				<Download />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-48" align="end">
 				<DocumentExportMenuGroup onExportPdf={onExportPdf} />
