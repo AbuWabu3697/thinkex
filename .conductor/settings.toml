@@ -6,14 +6,14 @@ spotlight_testing = true
 [scripts]
 setup = """
 pnpm install --frozen-lockfile
-pnpm db:migrate:local
+CI=true pnpm db:migrate:local
 """
 run_mode = "concurrent"
 
 [scripts.run.dev]
-available_in = [ "local" ]
+available_in = ["local"]
 command = """
-pnpm db:migrate:local &&
+CI=true pnpm db:migrate:local &&
 env INFISICAL_DISABLE_UPDATE_CHECK=true \
   infisical run --env=dev --path=/app --watch -- \
   env BETTER_AUTH_URL="http://localhost:$CONDUCTOR_PORT" \
