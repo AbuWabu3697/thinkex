@@ -34,6 +34,23 @@ export interface AutumnCheckResult {
 	balance: AutumnBalance | null;
 }
 
+class AutumnRequestError extends Error {
+	constructor(
+		message: string,
+		readonly code?: string,
+	) {
+		super(message);
+	}
+}
+
+function getAutumnErrorCode(body: string) {
+	try {
+		return (JSON.parse(body) as { code?: string }).code;
+	} catch {
+		return undefined;
+	}
+}
+
 async function autumnRequest<TResult>(input: {
 	body: Record<string, unknown>;
 	path: string;
@@ -51,7 +68,10 @@ async function autumnRequest<TResult>(input: {
 	const body = await response.text();
 
 	if (!response.ok) {
-		throw new Error(`Autumn ${input.path} failed with ${response.status}: ${body.slice(0, 200)}`);
+		throw new AutumnRequestError(
+			`Autumn ${input.path} failed with ${response.status}: ${body.slice(0, 200)}`,
+			getAutumnErrorCode(body),
+		);
 	}
 
 	// Parsed from text because an accepted async event answers 202 with no body,
@@ -59,16 +79,33 @@ async function autumnRequest<TResult>(input: {
 	return (body ? JSON.parse(body) : undefined) as TResult;
 }
 
-export function checkAutumnBalance(input: {
+export async function checkAutumnBalance(input: {
 	customerId: string;
 	featureId: string;
 	secretKey: string;
 }) {
-	return autumnRequest<AutumnCheckResult>({
-		body: { customer_id: input.customerId, feature_id: input.featureId },
-		path: "balances.check",
-		secretKey: input.secretKey,
-	});
+	const check = () =>
+		autumnRequest<AutumnCheckResult>({
+			body: { customer_id: input.customerId, feature_id: input.featureId },
+			path: "balances.check",
+			secretKey: input.secretKey,
+		});
+
+	try {
+		return await check();
+	} catch (error) {
+		if (!(error instanceof AutumnRequestError) || error.code !== "customer_not_found") {
+			throw error;
+		}
+
+		// Callers use authenticated user IDs. Recover legacy users once, then keep
+		// Autumn's strict error behavior for every other missing resource.
+		await getOrCreateAutumnCustomer({
+			customerId: input.customerId,
+			secretKey: input.secretKey,
+		});
+		return check();
+	}
 }
 
 /**
