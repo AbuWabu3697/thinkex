@@ -322,9 +322,12 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 		input: DeleteWorkspaceKernelItemsArgs,
 	): Promise<WorkspaceCommandResult<DeleteWorkspaceKernelItemsResult>> {
 		return this.runMutation("delete_items", input, input.itemIds.length, async () => {
-			const command = await this.itemCommands.deleteItems(input);
-			await this.fileCommands.deleteObjects(command.result.deletedItemIds);
-			await this.purgeDeletedDocumentSessions({ itemIds: command.result.deletedItemIds });
+			const { command, shellPaths } = this.itemCommands.tombstoneItems(input);
+			await Promise.all([
+				this.itemCommands.deleteShellPaths(shellPaths),
+				this.fileCommands.deleteObjects(command.result.deletedItemIds),
+				this.purgeDeletedDocumentSessions({ itemIds: command.result.deletedItemIds }),
+			]);
 			return command;
 		});
 	}

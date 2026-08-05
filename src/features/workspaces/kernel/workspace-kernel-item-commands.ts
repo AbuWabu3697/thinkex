@@ -22,7 +22,6 @@ import type { WorkspaceKernelStore } from "#/features/workspaces/kernel/workspac
 import type {
 	CreateWorkspaceKernelItemArgs,
 	DeleteWorkspaceKernelItemsArgs,
-	DeleteWorkspaceKernelItemsResult,
 	MoveWorkspaceKernelItemsArgs,
 	MoveWorkspaceKernelItemsResult,
 	ReadWorkspaceDocumentCheckpointArgs,
@@ -279,9 +278,7 @@ export class WorkspaceKernelItemCommands {
 		});
 	}
 
-	async deleteItems(
-		input: DeleteWorkspaceKernelItemsArgs,
-	): Promise<WorkspaceCommandResult<DeleteWorkspaceKernelItemsResult>> {
+	tombstoneItems(input: DeleteWorkspaceKernelItemsArgs) {
 		const roots = this.getUniqueRootRows(input.itemIds);
 		const rootIds = roots.map((root) => root.id);
 		const deleteIds = this.getDeleteItemIds(roots);
@@ -303,10 +300,17 @@ export class WorkspaceKernelItemCommands {
 			payload: { itemIds: rootIds, deletedItemIds: deleteIds, itemFacts },
 		});
 
+		return {
+			command: { result, event },
+			shellPaths: rowsToRemove.map((row) => row.shell_path),
+		};
+	}
+
+	async deleteShellPaths(shellPaths: string[]) {
 		try {
 			await Promise.all(
-				rowsToRemove.map((row) =>
-					this.workspace.rm(row.shell_path, {
+				shellPaths.map((shellPath) =>
+					this.workspace.rm(shellPath, {
 						recursive: true,
 						force: true,
 					}),
@@ -317,13 +321,11 @@ export class WorkspaceKernelItemCommands {
 				error,
 				event: "workspace_shell_cleanup",
 				fields: {
-					item_count: rowsToRemove.length,
+					item_count: shellPaths.length,
 					workspace_id: this.workspaceId(),
 				},
 			});
 		}
-
-		return { result, event };
 	}
 
 	async readDocumentCheckpoint(input: ReadWorkspaceDocumentCheckpointArgs) {
