@@ -103,6 +103,8 @@ export type WorkspaceKernelMutationOutcome<T> =
 			status: "conflict";
 	  };
 
+export type WorkspaceKernelPublishOutcome = "applied" | "discarded";
+
 export function requireAppliedWorkspaceKernelMutation<T>(
 	outcome: WorkspaceKernelMutationOutcome<T>,
 ): WorkspaceCommandResult<T> {

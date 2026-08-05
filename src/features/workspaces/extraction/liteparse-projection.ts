@@ -6,7 +6,10 @@ import type {
 	WorkspaceFileExtractionWorkflowParams,
 } from "#/features/workspaces/extraction/types";
 import { getWorkspaceFileSourceObject } from "#/features/workspaces/extraction/workspace-file-source";
-import { writeWorkspacePageProjection } from "#/features/workspaces/extraction/workspace-page-projection";
+import {
+	publishWorkspacePageProjection,
+	writeWorkspacePageProjection,
+} from "#/features/workspaces/extraction/workspace-page-projection";
 import { getWorkspaceKernelFromEnv } from "#/features/workspaces/kernel/workspace-kernel-access";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 
@@ -15,7 +18,7 @@ export async function publishLiteParseProjection(
 	step: WorkflowStep,
 	params: WorkspaceFileExtractionWorkflowParams,
 	runId: string,
-): Promise<LiteParseStageOutcome> {
+): Promise<LiteParseStageOutcome | { durationMs: number; outcome: "discarded" }> {
 	if (params.assetKind !== "pdf") {
 		return { durationMs: 0, outcome: "skipped" };
 	}
@@ -52,22 +55,32 @@ export async function publishLiteParseProjection(
 					workspaceId: params.workspaceId,
 				});
 
-				await kernel.upsertFileProjection({
-					itemId: params.itemId,
-					format: "pages",
-					status: "ready",
-					objectKey: projection.manifestObjectKey,
-					provider: "liteparse",
-					providerMode: "fast",
-					sourceHash: object.etag,
-					metadataJson: {
-						markdownLength: projection.manifest.markdownLength,
-						pageCount: projection.manifest.pageCount,
-						provisional: true,
+				const status = await publishWorkspacePageProjection({
+					bucket: env.WORKSPACE_KERNEL_FILES,
+					kernel,
+					projection: {
+						itemId: params.itemId,
+						format: "pages",
+						status: "ready",
+						objectKey: projection.manifestObjectKey,
+						provider: "liteparse",
+						providerMode: "fast",
+						sourceHash: object.etag,
+						metadataJson: {
+							markdownLength: projection.manifest.markdownLength,
+							pageCount: projection.manifest.pageCount,
+							provisional: true,
+						},
+						actorUserId: params.actorUserId,
+						clientMutationId: `${runId}:projection:liteparse-ready`,
 					},
-					actorUserId: params.actorUserId,
-					clientMutationId: `${runId}:projection:liteparse-ready`,
 				});
+				if (status === "discarded") {
+					return {
+						durationMs: Date.now() - startedAt,
+						outcome: "discarded" as const,
+					};
+				}
 
 				return {
 					durationMs: Date.now() - startedAt,

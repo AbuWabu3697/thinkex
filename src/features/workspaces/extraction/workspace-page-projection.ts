@@ -3,6 +3,8 @@ import { z } from "zod";
 import { jsonValueSchema, type JsonValue } from "#/features/workspaces/contracts";
 import type { MarkdownProjectionPage } from "#/features/workspaces/extraction/page-markdown-projection";
 import { getWorkspaceFileItemObjectPrefix } from "#/features/workspaces/files/workspace-file-object-keys";
+import type { WorkspaceKernelClient } from "#/features/workspaces/kernel/workspace-kernel-access";
+import type { UpsertWorkspaceKernelFileProjectionArgs } from "#/features/workspaces/kernel/workspace-kernel-types";
 import {
 	parseWorkspacePageRange,
 	WorkspacePageSelectionError,
@@ -141,6 +143,19 @@ export async function writeWorkspacePageProjection(input: {
 
 		throw error;
 	}
+}
+
+export async function publishWorkspacePageProjection(input: {
+	bucket: R2Bucket;
+	kernel: Pick<WorkspaceKernelClient, "upsertFileProjection">;
+	projection: Extract<UpsertWorkspaceKernelFileProjectionArgs, { status: "ready" }>;
+}) {
+	const outcome = await input.kernel.upsertFileProjection(input.projection);
+	if (outcome === "discarded") {
+		await deleteR2Prefix(input.bucket, getManifestPrefix(input.projection.objectKey));
+	}
+
+	return outcome;
 }
 
 export async function readWorkspacePageProjection(input: {

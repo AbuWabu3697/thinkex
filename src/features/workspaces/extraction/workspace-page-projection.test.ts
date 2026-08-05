@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	getWorkspacePageObjectKey,
+	publishWorkspacePageProjection,
 	readWorkspacePageProjection,
 	writeWorkspacePageProjection,
 } from "#/features/workspaces/extraction/workspace-page-projection";
@@ -240,6 +241,40 @@ describe("workspace page projections", () => {
 				workspaceId: "workspace-1",
 			}),
 		).rejects.toThrow("Extracted pages must be ordered");
+		expect(storage.values.size).toBe(0);
+	});
+
+	it("removes staged artifacts when the kernel discards publication", async () => {
+		const storage = createObjectStorage();
+		const reference = await writeWorkspacePageProjection({
+			bucket: storage.bucket,
+			itemId: "item-1",
+			pages: [{ pageNumber: 1, markdown: "First" }],
+			provider: "liteparse",
+			providerMode: "fast",
+			runId: "run-1",
+			sourceHash: "etag-1",
+			tier: "fast",
+			workspaceId: "workspace-1",
+		});
+
+		await expect(
+			publishWorkspacePageProjection({
+				bucket: storage.bucket,
+				kernel: {
+					async upsertFileProjection() {
+						return "discarded" as const;
+					},
+				},
+				projection: {
+					format: "pages",
+					itemId: "item-1",
+					objectKey: reference.manifestObjectKey,
+					sourceHash: "etag-1",
+					status: "ready",
+				},
+			}),
+		).resolves.toBe("discarded");
 		expect(storage.values.size).toBe(0);
 	});
 });

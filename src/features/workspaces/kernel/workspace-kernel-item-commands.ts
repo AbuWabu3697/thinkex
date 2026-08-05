@@ -30,6 +30,7 @@ import type {
 	UpdateWorkspaceKernelItemColorArgs,
 	CommitWorkspaceDocumentCheckpointArgs,
 	WorkspaceKernelMutationOutcome,
+	WorkspaceKernelPublishOutcome,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
 import {
 	resolveWorkspaceItemColorForCreate,
@@ -339,8 +340,11 @@ export class WorkspaceKernelItemCommands {
 
 	async commitDocumentCheckpoint(
 		input: CommitWorkspaceDocumentCheckpointArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
-		const item = this.store.assertActiveItem(input.itemId);
+	): Promise<WorkspaceKernelPublishOutcome> {
+		const item = this.store.getActiveItemRow(input.itemId);
+		if (!item) {
+			return "discarded";
+		}
 		const type = workspaceItemTypeSchema.parse(item.type);
 
 		if (type !== "document") {
@@ -353,7 +357,11 @@ export class WorkspaceKernelItemCommands {
 			getWorkspaceKernelContentMimeType(type),
 		);
 
-		const currentItem = this.store.assertActiveItem(input.itemId);
+		const currentItem = this.store.getActiveItemRow(input.itemId);
+		if (!currentItem) {
+			await this.workspace.rm(item.shell_path, { force: true });
+			return "discarded";
+		}
 		const updatedAt = Math.max(Date.now(), currentItem.updated_at + 1);
 
 		persistDocumentItemContentUpdate({
@@ -364,12 +372,13 @@ export class WorkspaceKernelItemCommands {
 			updatedAt,
 		});
 
-		return this.commitItemEvent({
+		this.commitItemEvent({
 			type: "workspace.item.content.updated",
 			itemId: input.itemId,
 			actorUserId: input.actorUserId,
 			clientMutationId: input.clientMutationId,
 		});
+		return "applied";
 	}
 
 	private async createWorkspaceFile(input: {

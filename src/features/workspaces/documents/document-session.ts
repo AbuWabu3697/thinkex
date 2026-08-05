@@ -75,7 +75,11 @@ export interface DocumentSessionApplyEditsResult {
 	 * receipt states what the edit did rather than what is left of it later. */
 	lineChanges?: DocumentEditLineChanges;
 	failures: {
-		code: DocumentAiEditFailureCode | "content_changed" | "operation_id_conflict";
+		code:
+			| DocumentAiEditFailureCode
+			| "content_changed"
+			| "operation_id_conflict"
+			| "path_not_found";
 		detail?: string;
 		index: number;
 	}[];
@@ -196,7 +200,7 @@ export class DocumentSession extends YServer {
 		if (existingReceipt) {
 			return existingReceipt.inputHash === inputHash
 				? existingReceipt.result
-				: operationIdConflictResult(input.edits.length);
+				: rejectedDocumentEditResult("operation_id_conflict", input.edits.length);
 		}
 
 		const latestReceiptId = await this.ctx.storage.get<string>(latestDocumentEditReceiptKey);
@@ -224,15 +228,7 @@ export class DocumentSession extends YServer {
 		]);
 
 		if (stringifyTiptapDocumentJson(this.getCurrentTiptapDocument()) !== beforeDocumentText) {
-			return {
-				applied: 0,
-				failed: input.edits.length,
-				failures: input.edits.map((_, index) => ({
-					code: "content_changed",
-					index,
-				})),
-				status: "rejected",
-			};
+			return rejectedDocumentEditResult("content_changed", input.edits.length);
 		}
 
 		const result: DocumentSessionApplyEditsResult = {
@@ -283,7 +279,9 @@ export class DocumentSession extends YServer {
 			]);
 		});
 		this.assertActive();
-		await this.checkpointToKernel(input.operationId);
+		if (!(await this.checkpointToKernel(input.operationId))) {
+			return rejectedDocumentEditResult("path_not_found", input.edits.length);
+		}
 		this.assertActive();
 
 		return result;
@@ -334,7 +332,9 @@ export class DocumentSession extends YServer {
 			}
 		});
 
-		await this.checkpointToKernel(`undo:${group.lastReceiptId}`);
+		if (!(await this.checkpointToKernel(`undo:${group.lastReceiptId}`))) {
+			return { status: "not_found" };
+		}
 
 		return { status: "undone" };
 	}
@@ -399,12 +399,18 @@ export class DocumentSession extends YServer {
 		const document = this.getCurrentTiptapDocument();
 		const kernel = await this.getWorkspaceKernel(room.workspaceId);
 
-		await kernel.commitDocumentCheckpoint({
+		const outcome = await kernel.commitDocumentCheckpoint({
 			itemId: room.itemId,
 			content: stringifyTiptapDocumentJson(document),
 			actorUserId: null,
 			clientMutationId,
 		});
+		if (outcome === "discarded") {
+			await this.purgeForDeletion();
+			return false;
+		}
+
+		return true;
 	}
 
 	private async getDocumentEditReceipt(receiptId: string) {
@@ -541,12 +547,15 @@ function fitsDocumentEditReceiptSnapshot(documentText: string) {
 	);
 }
 
-function operationIdConflictResult(editCount: number): DocumentSessionApplyEditsResult {
+function rejectedDocumentEditResult(
+	code: DocumentSessionApplyEditsResult["failures"][number]["code"],
+	editCount: number,
+): DocumentSessionApplyEditsResult {
 	return {
 		applied: 0,
 		failed: editCount,
 		failures: Array.from({ length: editCount }, (_, index) => ({
-			code: "operation_id_conflict",
+			code,
 			index,
 		})),
 		status: "rejected",

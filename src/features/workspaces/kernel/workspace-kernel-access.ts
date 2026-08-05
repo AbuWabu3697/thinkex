@@ -30,6 +30,7 @@ import {
 	type WorkspaceKernelItemRelation,
 	type WorkspaceKernelNameConflictPolicy,
 	type WorkspaceKernelMutationOutcome,
+	type WorkspaceKernelPublishOutcome,
 	type WorkspaceKernelItemPath,
 	type WorkspaceKernelPathResolution,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
@@ -110,7 +111,7 @@ export interface WorkspaceKernelClient {
 	readFilePreview(input: { itemId: string }): Promise<ReadWorkspaceKernelFilePreviewResult | null>;
 	upsertFileProjection(
 		input: UpsertWorkspaceKernelFileProjectionArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemFacts[]>>;
+	): Promise<WorkspaceKernelPublishOutcome>;
 	readFileProjection(
 		input: ReadWorkspaceKernelFileProjectionArgs,
 	): Promise<ReadWorkspaceKernelFileProjectionResult | null>;
@@ -119,7 +120,7 @@ export interface WorkspaceKernelClient {
 		content: string;
 		actorUserId?: string | null;
 		clientMutationId?: string | null;
-	}): Promise<WorkspaceCommandResult<WorkspaceItemSummary>>;
+	}): Promise<WorkspaceKernelPublishOutcome>;
 	searchWorkspace(input: WorkspaceSearchInput): Promise<{
 		failed: WorkspaceSearchFailure[];
 		results: WorkspaceSearchResult[];

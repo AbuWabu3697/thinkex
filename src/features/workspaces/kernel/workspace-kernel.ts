@@ -50,6 +50,7 @@ import type {
 	UpsertWorkspaceKernelFileProjectionArgs,
 	WorkspaceKernelPage,
 	WorkspaceKernelMutationOutcome,
+	WorkspaceKernelPublishOutcome,
 	CommitWorkspaceDocumentCheckpointArgs,
 	WorkspaceKernelPathResolution,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
@@ -385,7 +386,7 @@ export class WorkspaceKernel extends Agent<Cloudflare.Env> {
 
 	async commitDocumentCheckpoint(
 		input: CommitWorkspaceDocumentCheckpointArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
+	): Promise<WorkspaceKernelPublishOutcome> {
 		return this.runMutation("commit_document_checkpoint", input, 1, () =>
 			this.itemCommands.commitDocumentCheckpoint(input),
 		);
