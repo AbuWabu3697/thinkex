@@ -54,7 +54,7 @@ export interface CreateWorkspaceItemsOperationResult {
 
 type CreateWorkspaceItemPathResolution =
 	| {
-			code: "cannot_create_root" | "path_not_absolute" | "path_not_canonical";
+			code: "cannot_create_root" | "path_not_absolute";
 			path: string;
 			status: "failed";
 	  }
@@ -246,14 +246,6 @@ function resolveCreateWorkspaceItemPath(path: string): CreateWorkspaceItemPathRe
 		const parentPath = getParentWorkspacePath(normalizedPath);
 		const name = getWorkspacePathName(normalizedPath);
 		const canonicalPath = joinWorkspaceItemPath(parentPath, name);
-
-		if (canonicalPath !== normalizedPath) {
-			return {
-				code: "path_not_canonical",
-				path: normalizedPath,
-				status: "failed",
-			};
-		}
 
 		return {
 			name,

@@ -1,7 +1,8 @@
-import type {
-	WorkspaceColor,
-	WorkspaceIcon,
-	WorkspaceItemType,
+import {
+	WORKSPACE_ITEM_NAME_MAX_LENGTH,
+	type WorkspaceColor,
+	type WorkspaceIcon,
+	type WorkspaceItemType,
 } from "#/features/workspaces/contracts";
 import { getWorkspaceItemRegistryEntry } from "#/features/workspaces/workspace-item-registry";
 
@@ -27,9 +28,9 @@ export function getAvailableWorkspaceItemName(input: {
 		? normalizeWorkspaceItemName(input.requestedName, "")
 		: "";
 	const baseName = requestedName || getDefaultWorkspaceItemName(input.type);
-	const existingNames = new Set(input.existingNames);
+	const existingNames = new Set(Array.from(input.existingNames, getWorkspaceItemNameKey));
 
-	if (requestedName && !existingNames.has(baseName)) {
+	if (requestedName && !existingNames.has(getWorkspaceItemNameKey(baseName))) {
 		return baseName;
 	}
 
@@ -37,7 +38,7 @@ export function getAvailableWorkspaceItemName(input: {
 		for (let suffix = 1; suffix < 1000; suffix += 1) {
 			const candidate = `${baseName} ${suffix}`;
 
-			if (!existingNames.has(candidate)) {
+			if (!existingNames.has(getWorkspaceItemNameKey(candidate))) {
 				return candidate;
 			}
 		}
@@ -48,7 +49,7 @@ export function getAvailableWorkspaceItemName(input: {
 	for (let suffix = 2; suffix < 1000; suffix += 1) {
 		const candidate = `${baseName} ${suffix}`;
 
-		if (!existingNames.has(candidate)) {
+		if (!existingNames.has(getWorkspaceItemNameKey(candidate))) {
 			return candidate;
 		}
 	}
@@ -59,13 +60,25 @@ export function getAvailableWorkspaceItemName(input: {
 export function normalizeWorkspaceItemName(name: string | null | undefined, fallback = "Untitled") {
 	const normalized =
 		stripControlCharacters(name ?? "")
-			.replace(/[\\/]+/g, "-")
+			.normalize("NFC")
+			.replace(/[<>:"/\\|?*]+/g, "-")
 			.replace(/\s+/g, " ")
 			.trim()
-			.slice(0, 160)
-			.trim() ?? "";
+			.slice(0, WORKSPACE_ITEM_NAME_MAX_LENGTH)
+			.trim()
+			.replace(/[. ]+$/g, "") ?? "";
 
-	return normalized || fallback;
+	if (!normalized) {
+		return fallback;
+	}
+
+	return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(normalized)
+		? `_${normalized}`.slice(0, WORKSPACE_ITEM_NAME_MAX_LENGTH)
+		: normalized;
+}
+
+export function getWorkspaceItemNameKey(name: string) {
+	return name.normalize("NFC").toLowerCase();
 }
 
 function stripControlCharacters(value: string) {

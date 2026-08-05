@@ -1,5 +1,6 @@
-import { ChevronDown, Clock3, Settings, Share2 } from "lucide-react";
+import { ChevronDown, Clock3, Download, Settings, Share2 } from "lucide-react";
 import { type ComponentType, type ReactElement, useState } from "react";
+import { toast } from "sonner";
 
 import {
 	Breadcrumb,
@@ -94,6 +95,14 @@ export default function WorkspaceContextBar({
 	const workspaceItems = Array.from(itemsById.values());
 	const searchHotkey = formatAppHotkey(getAppHotkey("workspace.search.open").hotkey);
 	const openWorkspaceSearch = () => setSearchOpen(true);
+	const exportWorkspace = () => {
+		toast.message("Preparing workspace export…");
+		const link = document.createElement("a");
+		link.href = `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export`;
+		link.target = "_blank";
+		link.rel = "noopener";
+		link.click();
+	};
 
 	useAppHotkey("workspace.search.open", () => {
 		openWorkspaceSearch();
@@ -117,6 +126,7 @@ export default function WorkspaceContextBar({
 							) : (
 								<WorkspaceRootActionsMenu
 									capabilities={capabilities}
+									onExport={exportWorkspace}
 									onOpenSettings={() => setSettingsOpen(true)}
 									onOpenShare={() => setShareOpen(true)}
 									trigger={
@@ -221,11 +231,13 @@ export default function WorkspaceContextBar({
 
 function WorkspaceRootActionsMenu({
 	capabilities,
+	onExport,
 	onOpenSettings,
 	onOpenShare,
 	trigger,
 }: {
 	capabilities: ReturnType<typeof useWorkspaceMutationAccess>["capabilities"];
+	onExport: () => void;
 	onOpenSettings: () => void;
 	onOpenShare: () => void;
 	trigger: ReactElement;
@@ -237,6 +249,7 @@ function WorkspaceRootActionsMenu({
 				{renderWorkspaceMenuActions(
 					getWorkspaceRootMenuActions({
 						canOpenSettings: capabilities.canMutateContent,
+						onExport,
 						onOpenSettings,
 						onOpenShare,
 					}),
@@ -249,6 +262,7 @@ function WorkspaceRootActionsMenu({
 
 function getWorkspaceRootMenuActions(input: {
 	canOpenSettings: boolean;
+	onExport: () => void;
 	onOpenSettings: () => void;
 	onOpenShare: () => void;
 }): WorkspaceMenuAction[] {
@@ -267,6 +281,13 @@ function getWorkspaceRootMenuActions(input: {
 			leading: <Clock3 className="size-4" />,
 			trailing: "Soon",
 			disabled: true,
+		},
+		{
+			kind: "item",
+			id: "export",
+			label: "Export",
+			leading: <Download className="size-4" />,
+			onSelect: input.onExport,
 		},
 		{
 			kind: "item",

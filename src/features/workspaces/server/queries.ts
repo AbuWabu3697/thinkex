@@ -51,41 +51,58 @@ export async function getWorkspacePageForCurrentUser(
 	const [userId, dbContext] = await Promise.all([getCurrentUserId(), createDbContext()]);
 
 	try {
-		const [workspaceRow] = await dbContext.db
-			.select({
-				lastOpenedAt: workspaceMembers.lastOpenedAt,
-				membershipRole: workspaceMembers.role,
-				workspace: workspaces,
-			})
-			.from(workspaceMembers)
-			.innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
-			.where(
-				and(
-					eq(workspaceMembers.workspaceId, workspaceId),
-					eq(workspaceMembers.userId, userId),
-					isNull(workspaces.archivedAt),
-				),
-			)
-			.limit(1);
-
-		if (!workspaceRow) {
-			return null;
-		}
-
-		const workspace = mapWorkspaceDetailRow(
-			{
-				...workspaceRow.workspace,
-				lastOpenedAt: workspaceRow.lastOpenedAt,
-			},
-			workspaceRow.membershipRole,
-		);
-
-		return await getWorkspaceKernelPage({
-			workspaceId,
-			userId,
-			workspace,
-		});
+		return await getWorkspacePage(dbContext.db, workspaceId, userId);
 	} finally {
 		await dbContext.dispose();
 	}
+}
+
+export async function getWorkspacePageForUser(
+	workspaceId: string,
+	userId: string,
+): Promise<WorkspacePage | null> {
+	const dbContext = await createDbContext();
+
+	try {
+		return await getWorkspacePage(dbContext.db, workspaceId, userId);
+	} finally {
+		await dbContext.dispose();
+	}
+}
+
+async function getWorkspacePage(db: Db, workspaceId: string, userId: string) {
+	const [workspaceRow] = await db
+		.select({
+			lastOpenedAt: workspaceMembers.lastOpenedAt,
+			membershipRole: workspaceMembers.role,
+			workspace: workspaces,
+		})
+		.from(workspaceMembers)
+		.innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+		.where(
+			and(
+				eq(workspaceMembers.workspaceId, workspaceId),
+				eq(workspaceMembers.userId, userId),
+				isNull(workspaces.archivedAt),
+			),
+		)
+		.limit(1);
+
+	if (!workspaceRow) {
+		return null;
+	}
+
+	const workspace = mapWorkspaceDetailRow(
+		{
+			...workspaceRow.workspace,
+			lastOpenedAt: workspaceRow.lastOpenedAt,
+		},
+		workspaceRow.membershipRole,
+	);
+
+	return await getWorkspaceKernelPage({
+		workspaceId,
+		userId,
+		workspace,
+	});
 }
