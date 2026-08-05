@@ -146,15 +146,22 @@ async function addZipStream(
 	zip.add(file);
 	const reader = stream.getReader();
 
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) {
-			file.push(emptyBytes, true);
-			await getOutput();
-			return;
-		}
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				file.push(emptyBytes, true);
+				await getOutput();
+				return;
+			}
 
-		file.push(value);
-		await getOutput();
+			file.push(value);
+			await getOutput();
+		}
+	} catch (error) {
+		await reader.cancel(error).catch(() => undefined);
+		throw error;
+	} finally {
+		reader.releaseLock();
 	}
 }

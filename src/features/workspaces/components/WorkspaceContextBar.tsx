@@ -99,6 +99,8 @@ export default function WorkspaceContextBar({
 		toast.message("Preparing workspace export…");
 		const link = document.createElement("a");
 		link.href = `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/export`;
+		link.target = "_blank";
+		link.rel = "noopener";
 		link.click();
 	};
 
