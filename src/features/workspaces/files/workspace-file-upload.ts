@@ -27,6 +27,7 @@ interface WorkspaceFileUploadBatchInput {
 	workspaceId: string;
 	parentId: string | null;
 	files: readonly File[];
+	onLimitReached: (result: { successCount: number; total: number }) => void;
 	onSuccess: (command: WorkspaceCommandResult<WorkspaceItemSummary>) => void;
 }
 
@@ -108,7 +109,10 @@ export async function runWorkspaceFileUploadBatch(
 		});
 		const failures = outcomes.flatMap((outcome) => (outcome.ok ? [] : [outcome.error]));
 		const successCount = outcomes.length - failures.length;
-		const reportableFailure = failures.find((failure) => !isWorkspaceUploadAbortError(failure));
+		const limitReached = failures.some(isWorkspaceUploadLimitError);
+		const reportableFailure = failures.find(
+			(failure) => !isWorkspaceUploadAbortError(failure) && !isWorkspaceUploadLimitError(failure),
+		);
 
 		if (reportableFailure) {
 			capturePostHogClientException(reportableFailure, {
@@ -117,6 +121,12 @@ export async function runWorkspaceFileUploadBatch(
 				upload_skipped_count: rejected.length,
 				upload_success_count: successCount,
 			});
+		}
+
+		if (limitReached) {
+			toast.dismiss(toastId);
+			input.onLimitReached({ successCount, total: accepted.length });
+			return;
 		}
 
 		if (successCount === 0) {
@@ -195,7 +205,7 @@ async function requestUploadJson<T>(url: string, init: RequestInit): Promise<T> 
 	const response = await fetch(url, init);
 
 	if (!response.ok) {
-		throw new Error(await getWorkspaceFileUploadErrorMessage(response));
+		throw await getWorkspaceFileUploadError(response);
 	}
 
 	return (await response.json()) as T;
@@ -244,15 +254,26 @@ async function uploadAcceptedFiles(input: {
 	return workerOutcomes.flat();
 }
 
-async function getWorkspaceFileUploadErrorMessage(response: Response) {
+class WorkspaceFileUploadRequestError extends Error {
+	constructor(
+		message: string,
+		readonly code: string,
+	) {
+		super(message);
+	}
+}
+
+async function getWorkspaceFileUploadError(response: Response) {
 	const fallback = "Unable to upload file to workspace storage.";
 
 	try {
 		const payload = apiErrorSchema.safeParse(await response.json());
 
-		return payload.success ? payload.data.message : fallback;
+		return payload.success
+			? new WorkspaceFileUploadRequestError(payload.data.message, payload.data.code)
+			: new Error(fallback);
 	} catch {
-		return fallback;
+		return new Error(fallback);
 	}
 }
 
@@ -282,6 +303,10 @@ function getUploadBatchErrorMessage(error: unknown, signal: AbortSignal) {
 
 function isWorkspaceUploadAbortError(error: Error) {
 	return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isWorkspaceUploadLimitError(error: Error) {
+	return error instanceof WorkspaceFileUploadRequestError && error.code === "upload_limit_reached";
 }
 
 function getUploadRequestSignal(signal: AbortSignal) {
