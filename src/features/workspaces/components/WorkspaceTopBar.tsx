@@ -1,12 +1,12 @@
-import { MessageSquare, Share2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Ellipsis, MessageSquare } from "lucide-react";
+import type { ReactNode } from "react";
 
 import UserProfileDropdown from "#/components/UserProfileDropdown";
 import { Kbd } from "#/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
 import WorkspaceHeaderChrome from "#/features/workspaces/components/WorkspaceHeaderChrome";
 import { WorkspacePresence } from "#/features/workspaces/components/WorkspacePresence";
-import { WorkspaceShareDialog } from "#/features/workspaces/components/WorkspaceShareDialog";
+import WorkspaceRootActionsMenu from "#/features/workspaces/components/WorkspaceRootActionsMenu";
 import WorkspaceTabBar from "#/features/workspaces/components/WorkspaceTabBar";
 import {
 	WorkspaceToolbarIconButton,
@@ -60,69 +60,65 @@ export default function WorkspaceTopBar({
 }: WorkspaceTopBarProps) {
 	const chatSurfaceMode = useWorkspaceAiChatSurfaceMode(workspace.id);
 	const setChatSurfaceMode = useWorkspaceUiStore((state) => state.setChatSurfaceMode);
-	const [shareOpen, setShareOpen] = useState(false);
 	const aiChatHotkey = formatAppHotkey(getAppHotkey("workspace.aiChat.toggle").hotkey);
 
 	return (
-		<>
-			<WorkspaceHeaderChrome
-				actions={
-					<>
-						<WorkspacePresence status={presence.status} users={presence.users} />
-						<WorkspaceToolbarIconButton
-							aria-label="Share workspace"
-							onClick={() => setShareOpen(true)}
-						>
-							<Share2 />
-						</WorkspaceToolbarIconButton>
+		<WorkspaceHeaderChrome
+			actions={
+				<>
+					<WorkspacePresence status={presence.status} users={presence.users} />
+					<div className="flex items-center gap-1">
+						<WorkspaceRootActionsMenu
+							workspace={workspace}
+							align="end"
+							showShareButton
+							trigger={
+								<WorkspaceToolbarIconButton aria-label="Open workspace actions">
+									<Ellipsis />
+								</WorkspaceToolbarIconButton>
+							}
+						/>
 						<UserProfileDropdown />
-						{chatSurfaceMode === "hidden" ? (
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<WorkspaceToolbarTextButton
-											variant="outline"
-											className="border-border bg-background shadow-xs hover:bg-muted"
-											onClick={() => setChatSurfaceMode(workspace.id, "docked")}
-										>
-											<MessageSquare />
-											<span>Chat</span>
-										</WorkspaceToolbarTextButton>
-									}
-								/>
-								<TooltipContent>
-									<span>AI Chat</span>
-									<Kbd>{aiChatHotkey}</Kbd>
-								</TooltipContent>
-							</Tooltip>
-						) : null}
-					</>
-				}
-				actionsLabel="Workspace global actions"
-				center={
-					<WorkspaceTabBar
-						workspace={workspace}
-						itemsById={itemsById}
-						tabs={tabs}
-						activeTab={activeTab}
-						onActivateTab={onActivateTab}
-						onCloseTab={onCloseTab}
-						onCloseOtherTabs={onCloseOtherTabs}
-						onCloseTabsToRight={onCloseTabsToRight}
-						onCreateRootTab={onCreateRootTab}
-						onCreateRootTabAfter={onCreateRootTabAfter}
-						onDuplicateTab={onDuplicateTab}
-					/>
-				}
-				contextBar={contextBar}
-			/>
-			<WorkspaceShareDialog
-				membershipRole={workspace.membershipRole}
-				onOpenChange={setShareOpen}
-				open={shareOpen}
-				workspaceId={workspace.id}
-				workspaceName={workspace.name}
-			/>
-		</>
+					</div>
+					{chatSurfaceMode === "hidden" ? (
+						<Tooltip>
+							<TooltipTrigger
+								render={
+									<WorkspaceToolbarTextButton
+										variant="outline"
+										className="border-border bg-background shadow-xs hover:bg-muted"
+										onClick={() => setChatSurfaceMode(workspace.id, "docked")}
+									>
+										<MessageSquare />
+										<span>Chat</span>
+									</WorkspaceToolbarTextButton>
+								}
+							/>
+							<TooltipContent>
+								<span>AI Chat</span>
+								<Kbd>{aiChatHotkey}</Kbd>
+							</TooltipContent>
+						</Tooltip>
+					) : null}
+				</>
+			}
+			actionsLabel="Workspace global actions"
+			center={
+				<WorkspaceTabBar
+					workspace={workspace}
+					itemsById={itemsById}
+					tabs={tabs}
+					activeTab={activeTab}
+					onActivateTab={onActivateTab}
+					onCloseTab={onCloseTab}
+					onCloseOtherTabs={onCloseOtherTabs}
+					onCloseTabsToRight={onCloseTabsToRight}
+					onCreateRootTab={onCreateRootTab}
+					onCreateRootTabAfter={onCreateRootTabAfter}
+					onDuplicateTab={onDuplicateTab}
+				/>
+			}
+			contextBar={contextBar}
+		/>
 	);
 }
