@@ -11,7 +11,6 @@ export const createWorkspaceItemsFailureCodes = [
 	"invalid_initial_content",
 	"path_already_exists",
 	"path_not_absolute",
-	"path_not_canonical",
 	"path_not_folder",
 	"path_not_found",
 	...workspaceRelationFailureCodes,

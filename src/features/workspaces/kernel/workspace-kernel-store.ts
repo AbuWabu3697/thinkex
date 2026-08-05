@@ -5,6 +5,7 @@ import type {
 } from "#/features/workspaces/contracts";
 import {
 	getAvailableWorkspaceItemName,
+	getWorkspaceItemNameKey,
 	normalizeWorkspaceItemName,
 } from "#/features/workspaces/defaults";
 import {
@@ -200,11 +201,10 @@ export class WorkspaceKernelStore {
 			...this.getActiveSiblingNames(input.parentId, input.excludeItemId),
 			...(input.reservedNames ?? []),
 		];
-		const requestedName = input.requestedName
-			? normalizeWorkspaceItemName(input.requestedName, "")
-			: "";
-
 		if (input.onNameConflict === "error") {
+			const requestedName = input.requestedName
+				? normalizeWorkspaceItemName(input.requestedName, "")
+				: "";
 			if (!requestedName) {
 				return {
 					conflict: {
@@ -216,7 +216,12 @@ export class WorkspaceKernelStore {
 				};
 			}
 
-			if (existingNames.includes(requestedName)) {
+			if (
+				existingNames.some(
+					(existingName) =>
+						getWorkspaceItemNameKey(existingName) === getWorkspaceItemNameKey(requestedName),
+				)
+			) {
 				return {
 					conflict: {
 						code: "name_conflict",

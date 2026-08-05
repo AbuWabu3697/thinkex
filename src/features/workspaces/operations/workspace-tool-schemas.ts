@@ -13,6 +13,7 @@ import {
 	renameWorkspaceItemFailureCodes,
 } from "#/features/workspaces/operations/workspace-operation-failure-codes";
 import {
+	WORKSPACE_ITEM_NAME_MAX_LENGTH,
 	workspaceItemTypeSchema,
 	workspaceRelationKindSchema,
 } from "#/features/workspaces/contracts";
@@ -151,7 +152,12 @@ export const workspaceLinkItemsInputSchema = z.object({
 });
 
 export const workspaceRenameItemInputSchema = z.object({
-	name: z.string().trim().min(1).max(160).describe("New user-visible item name."),
+	name: z
+		.string()
+		.trim()
+		.min(1)
+		.max(WORKSPACE_ITEM_NAME_MAX_LENGTH)
+		.describe("New user-visible item name."),
 	path: z.string().min(1).describe("Absolute path of one actual ThinkEx workspace item to rename."),
 });
 
