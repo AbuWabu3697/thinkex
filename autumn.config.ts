@@ -103,22 +103,3 @@ export const pro = plan({
 		}),
 	],
 });
-
-// A premium message costs ~$0.031, so 100 of them cost ~$3.14 against $8.
-export const premiumCreditsAddOn = plan({
-	id: "premium_credits_add_on",
-	name: "Premium Credits Add-on",
-	addOn: true,
-	items: [
-		item({
-			featureId: premiumMessages.id,
-			included: 0,
-			price: {
-				amount: 8,
-				billingUnits: 100,
-				billingMethod: "prepaid",
-				interval: "one_off",
-			},
-		}),
-	],
-});
