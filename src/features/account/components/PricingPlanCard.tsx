@@ -1,33 +1,19 @@
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 
-import { Badge } from "#/components/ui/badge";
 import type { PricingPlan } from "#/features/account/pricing";
 import { cn } from "#/lib/utils";
 
-export function PricingPlanCard({
-	action,
-	current = false,
-	plan,
-}: {
-	action?: ReactNode;
-	current?: boolean;
-	plan: PricingPlan;
-}) {
+export function PricingPlanCard({ action, plan }: { action?: ReactNode; plan: PricingPlan }) {
 	return (
 		<article
 			className={cn(
-				"flex flex-col rounded-md border border-border bg-background p-5 dark:bg-black",
+				"flex flex-col rounded-md border border-border bg-card p-5",
 				plan.emphasized && "border-foreground/30",
 			)}
 		>
 			<div className="flex items-start justify-between gap-4">
-				<div className="flex min-w-0 items-center gap-2">
-					<h3 className="text-2xl font-medium tracking-tight">{plan.name}</h3>
-					{current ? (
-						<Badge variant={plan.id === "pro" ? "premium" : "secondary"}>Current plan</Badge>
-					) : null}
-				</div>
+				<h3 className="text-2xl font-medium tracking-tight">{plan.name}</h3>
 				<div className="shrink-0 text-right">
 					<div className="text-xl font-medium tracking-tight">{plan.price}</div>
 					<div className="text-xs text-muted-foreground">

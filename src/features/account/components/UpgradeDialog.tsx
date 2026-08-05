@@ -76,7 +76,7 @@ export function UpgradeDialog({
 							);
 						}
 
-						return <PricingPlanCard key={plan.id} action={action} current={current} plan={plan} />;
+						return <PricingPlanCard key={plan.id} action={action} plan={plan} />;
 					})}
 				</div>
 			</DialogContent>
