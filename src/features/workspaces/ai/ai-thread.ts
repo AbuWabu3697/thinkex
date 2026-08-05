@@ -131,10 +131,6 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			);
 		}
 
-		getSystemPrompt(): string {
-			return getAIThreadSoulPrompt();
-		}
-
 		// On-demand instruction bundles (progressive disclosure). The model sees
 		// only each skill's name/description until a task matches, then calls
 		// activate_skill to load the full guide. Bundled from ./skills via the
