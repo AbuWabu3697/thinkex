@@ -4,7 +4,7 @@ import {
 	type Sandbox,
 	type SandboxOptions,
 } from "@cloudflare/sandbox";
-import type { ToolSet } from "ai";
+import type { JSONValue, ToolSet } from "ai";
 import { z } from "zod";
 import {
 	aiThreadActivityTitleSchema,
@@ -97,6 +97,17 @@ export function createAIThreadCodeRunTools(input: {
 			inputSchema: codeRunInputSchema,
 			inputExamples: codeRunInputExamples,
 			outputSchema: codeRunOutputSchema,
+			toModelOutput: ({ output }) => ({
+				type: "json" as const,
+				value: {
+					...output,
+					results: output.results.map(({ png, jpeg, ...result }) => ({
+						...result,
+						...(png ? { png: "[image rendered in chat]" } : {}),
+						...(jpeg ? { jpeg: "[image rendered in chat]" } : {}),
+					})),
+				} as JSONValue,
+			}),
 			execute: async (args) => {
 				const { code } = args as CodeRunInput;
 

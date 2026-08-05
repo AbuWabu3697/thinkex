@@ -215,6 +215,7 @@ export class AIThreadPostHogRecorder {
 		if (!activeToolSpan) {
 			return;
 		}
+		const computeError = getComputeErrorTelemetry(ctx);
 
 		capturePostHogAiSpan({
 			distinctId: turn.distinctId,
@@ -230,7 +231,7 @@ export class AIThreadPostHogRecorder {
 					: undefined,
 			latencySeconds: ctx.durationMs / 1000,
 			isError: outcome.status !== "success",
-			error: ctx.success ? undefined : ctx.error,
+			error: ctx.success ? computeError?.summary : ctx.error,
 			properties: {
 				...turnTelemetryProperties(turn),
 				failure_codes: outcome.failureCodes,
@@ -239,6 +240,7 @@ export class AIThreadPostHogRecorder {
 				runtime_success: ctx.success,
 				tool_call_id: ctx.toolCallId,
 				step_number: ctx.stepNumber,
+				...computeError?.properties,
 			},
 			schedule: this.schedule,
 		});
@@ -255,6 +257,7 @@ export class AIThreadPostHogRecorder {
 				runtime_success: ctx.success,
 				success: outcome.status === "success",
 				duration_ms: ctx.durationMs,
+				...computeError?.properties,
 			},
 			...this.serverEventRuntime,
 		});
@@ -550,4 +553,34 @@ export class AIThreadPostHogRecorder {
 
 function getAIThreadToolTelemetryOutput(toolName: string, output: unknown) {
 	return toolName === "orchestrate" ? getAIThreadOrchestrationTelemetryOutput(output) : output;
+}
+
+function getComputeErrorTelemetry(ctx: ToolCallResultContext) {
+	if (ctx.toolName !== "compute" || !ctx.success || !isRecord(ctx.output)) {
+		return null;
+	}
+
+	const error = isRecord(ctx.output.error) ? ctx.output.error : null;
+	if (!error) {
+		return null;
+	}
+
+	const name = typeof error.name === "string" ? error.name : null;
+	const code = typeof error.code === "string" ? error.code : null;
+	const retryable = typeof error.retryable === "boolean" ? error.retryable : null;
+	const lineNumber = typeof error.line_number === "number" ? error.line_number : null;
+
+	return {
+		summary: [name, code].filter(Boolean).join(": ") || "compute_error",
+		properties: {
+			compute_error_name: name,
+			compute_error_code: code,
+			compute_error_retryable: retryable,
+			compute_error_line_number: lineNumber,
+		},
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
