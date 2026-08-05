@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import {
 	getWorkspaceAiChatModelById,
 	type WorkspaceAiChatModelId,
@@ -66,12 +67,9 @@ function Notice({ children }: { children: React.ReactNode }) {
 function UpgradeLink({ children }: { children: React.ReactNode }) {
 	return (
 		<Link
-			to="."
 			replace
-			search={(previous: Record<string, unknown>) => ({
-				...previous,
-				settings: "plan" as const,
-			})}
+			search={showUpgradeDialog}
+			to="."
 			className="font-medium text-foreground underline underline-offset-4"
 		>
 			{children}

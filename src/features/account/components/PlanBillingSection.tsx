@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { Badge } from "#/components/ui/badge";
@@ -14,7 +15,8 @@ import {
 import { Progress } from "#/components/ui/progress";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
-import { openBillingPortalFn, startProCheckoutFn } from "#/features/account/billing-functions";
+import { openBillingPortalFn } from "#/features/account/billing-functions";
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import { BILLING_STATE_QUERY_KEY, useBillingState } from "#/features/account/use-billing-state";
 
 // Feature IDs are the contract with autumn.config.ts. Labels are ours.
@@ -37,12 +39,8 @@ export function PlanBillingSection() {
 		),
 	);
 	const queryClient = useQueryClient();
-	// Both actions round-trip to Autumn and Stripe before the browser goes
-	// anywhere, which is long enough that an unchanged button reads as a dead
-	// click — and a second click starts a second checkout. One mutation covers
-	// both, since only one of the buttons renders at a time.
 	const billingAction = useMutation({
-		mutationFn: (run: () => Promise<{ url: string | null }>) => run(),
+		mutationFn: () => openBillingPortalFn(),
 		onSuccess: async ({ url }) => {
 			// The server hands back a URL rather than redirecting, so the navigation
 			// happens here once Stripe has answered.
@@ -82,7 +80,7 @@ export function PlanBillingSection() {
 									size="sm"
 									disabled={billingAction.isPending}
 									onClick={() => {
-										billingAction.mutate(() => openBillingPortalFn());
+										billingAction.mutate();
 									}}
 								>
 									{billingAction.isPending ? <Spinner /> : null}
@@ -90,33 +88,16 @@ export function PlanBillingSection() {
 								</Button>
 							) : (
 								<Button
+									nativeButton={false}
+									render={<Link replace search={showUpgradeDialog} to="." />}
 									size="sm"
-									disabled={billingAction.isPending}
-									onClick={() => {
-										billingAction.mutate(() => startProCheckoutFn());
-									}}
 								>
-									{billingAction.isPending ? <Spinner /> : null}
-									Upgrade to Pro
+									View plans
 								</Button>
 							)}
 						</ItemActions>
 					</Item>
 					<ItemSeparator className="my-0" />
-
-					{/* Every allowance shares one monthly reset, so this is one row rather
-					    than the same date repeated under each meter. */}
-					{resetsOn ? (
-						<>
-							<Item size="sm" className="px-0">
-								<ItemContent>
-									<ItemTitle className="font-normal text-muted-foreground">Resets</ItemTitle>
-								</ItemContent>
-								<span className="text-sm text-foreground">{resetsOn}</span>
-							</Item>
-							<ItemSeparator className="my-0" />
-						</>
-					) : null}
 				</>
 			)}
 
@@ -141,6 +122,20 @@ export function PlanBillingSection() {
 					/>
 				),
 			)}
+
+			{/* Every allowance shares one monthly reset, so keep it below the
+			    meters rather than repeating the date under each one. */}
+			{!isPending && resetsOn ? (
+				<>
+					<ItemSeparator className="my-0" />
+					<Item size="sm" className="px-0">
+						<ItemContent>
+							<ItemTitle className="font-normal text-muted-foreground">Resets</ItemTitle>
+						</ItemContent>
+						<span className="text-sm text-foreground">{resetsOn}</span>
+					</Item>
+				</>
+			) : null}
 		</ItemGroup>
 	);
 }

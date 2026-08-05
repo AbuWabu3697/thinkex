@@ -5,21 +5,26 @@ import {
 	AccountSettingsDialog,
 	type AccountSettingsTab,
 } from "#/features/account/components/AccountSettingsDialog";
+import { UpgradeDialog } from "#/features/account/components/UpgradeDialog";
 import { getAuthSessionQueryOptions } from "#/lib/session-query";
 
 /**
- * Settings is a search param rather than a route or a hash: a hash never reaches
- * the server, so a cold load would render the page and only pop the dialog in
- * after hydration. This stays linkable for upgrade prompts elsewhere in the app
- * and leaves whatever the user was looking at intact behind the dialog.
+ * Account dialogs are search params rather than routes or hashes: they stay
+ * linkable while leaving whatever the user was looking at behind the dialog.
  */
 interface ProtectedSearch {
 	settings?: AccountSettingsTab;
+	upgrade?: true;
 }
 
 export const Route = createFileRoute("/_protected")({
 	validateSearch: (search: Record<string, unknown>): ProtectedSearch => {
 		const settings = search.settings as AccountSettingsTab | undefined;
+		const upgrade = search.upgrade === true || search.upgrade === "true";
+
+		if (upgrade) {
+			return { upgrade: true };
+		}
 
 		return settings && ACCOUNT_SETTINGS_TABS.includes(settings) ? { settings } : {};
 	},
@@ -41,7 +46,7 @@ export const Route = createFileRoute("/_protected")({
 });
 
 function ProtectedLayout() {
-	const { settings } = Route.useSearch();
+	const { settings, upgrade } = Route.useSearch();
 	const navigate = useNavigate();
 
 	// replace: true so opening and closing settings doesn't stack history entries
@@ -49,7 +54,21 @@ function ProtectedLayout() {
 	const setSettings = (tab: AccountSettingsTab | undefined) => {
 		void navigate({
 			replace: true,
-			search: (previous: ProtectedSearch) => ({ ...previous, settings: tab }),
+			search: (previous: ProtectedSearch) => ({
+				...previous,
+				settings: tab,
+				upgrade: tab ? undefined : previous.upgrade,
+			}),
+			to: ".",
+		});
+	};
+	const setUpgrade = (open: boolean) => {
+		void navigate({
+			replace: true,
+			search: (previous: ProtectedSearch) => ({
+				...previous,
+				upgrade: open ? (true as const) : undefined,
+			}),
 			to: ".",
 		});
 	};
@@ -65,6 +84,7 @@ function ProtectedLayout() {
 				onTabChange={setSettings}
 				tab={settings ?? "account"}
 			/>
+			<UpgradeDialog open={Boolean(upgrade)} onOpenChange={setUpgrade} />
 		</>
 	);
 }

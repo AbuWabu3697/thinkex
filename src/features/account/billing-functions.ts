@@ -99,10 +99,8 @@ export const startProCheckoutFn = createServerFn({ method: "POST" }).handler(
 			customerId: userId,
 			planId: PRO_PLAN_ID,
 			secretKey,
-			// Back to the panel they upgraded from, with the new plan already
-			// rendered — landing on a bare home screen after paying reads as though
-			// the payment went nowhere.
-			successUrl: `${getAppOrigin()}/home?settings=plan`,
+			// Return with the plan dialog open so the updated plan is visible.
+			successUrl: `${getAppOrigin()}/home?upgrade=true`,
 		});
 
 		return { url: result.payment_url };

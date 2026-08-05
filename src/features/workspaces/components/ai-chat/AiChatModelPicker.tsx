@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Badge } from "#/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "#/components/ui/popover";
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import {
 	getWorkspaceAiChatModelById,
 	WORKSPACE_AI_CHAT_MODELS,
@@ -198,12 +199,9 @@ function ModelDetails({
 						<span className="text-xs text-muted-foreground">None left this month</span>
 					) : (
 						<Link
-							to="."
 							replace
-							search={(previous: Record<string, unknown>) => ({
-								...previous,
-								settings: "plan" as const,
-							})}
+							search={showUpgradeDialog}
+							to="."
 							className="text-xs font-medium text-foreground underline underline-offset-4"
 						>
 							None left this month &mdash; get 400 with Pro
