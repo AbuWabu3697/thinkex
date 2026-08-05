@@ -25,6 +25,7 @@ coverage
 .cache
 .cta.json
 .cursorrules
+.conductor/settings.local.toml
 .firecrawl/
 /references/
 
