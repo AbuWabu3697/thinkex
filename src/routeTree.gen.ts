@@ -33,6 +33,7 @@ import { Route as ApiV1WorkspacesRouteImport } from './routes/api/v1/workspaces'
 import { Route as ApiV1WorkspacesWorkspaceIdExportRouteImport } from './routes/api/v1/workspaces.$workspaceId.export'
 import { Route as ApiV1WorkspacesWorkspaceIdFileUploadRouteImport } from './routes/api/v1/workspaces.$workspaceId.file-upload'
 import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments'
+import { Route as ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport } from './routes/api/v1/workspaces.$workspaceId.documents.$itemId.pdf'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
 import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
 import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments.$attachmentId'
@@ -161,6 +162,12 @@ const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute =
     path: '/$workspaceId/ai-threads/$threadId/attachments',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
+const ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute =
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport.update({
+    id: '/$workspaceId/documents/$itemId/pdf',
+    path: '/$workspaceId/documents/$itemId/pdf',
+    getParentRoute: () => ApiV1WorkspacesRoute,
+  } as any)
 const ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute =
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport.update({
     id: '/$workspaceId/files/$itemId/content',
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -234,6 +242,7 @@ export interface FileRoutesByTo {
   '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -264,6 +273,7 @@ export interface FileRoutesById {
   '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -321,6 +332,7 @@ export interface FileRouteTypes {
     | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -350,6 +362,7 @@ export interface FileRouteTypes {
     | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -543,6 +556,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
+    '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': {
+      id: '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
+      path: '/$workspaceId/documents/$itemId/pdf'
+      fullPath: '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport
+      parentRoute: typeof ApiV1WorkspacesRoute
+    }
     '/api/v1/workspaces/$workspaceId/files/$itemId/content': {
       id: '/api/v1/workspaces/$workspaceId/files/$itemId/content'
       path: '/$workspaceId/files/$itemId/content'
@@ -616,6 +636,7 @@ interface ApiV1WorkspacesRouteChildren {
   ApiV1WorkspacesWorkspaceIdExportRoute: typeof ApiV1WorkspacesWorkspaceIdExportRoute
   ApiV1WorkspacesWorkspaceIdFileUploadRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute: typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
 }
@@ -626,6 +647,8 @@ const ApiV1WorkspacesRouteChildren: ApiV1WorkspacesRouteChildren = {
     ApiV1WorkspacesWorkspaceIdFileUploadRoute,
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute:
     ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren,
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute:
+    ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute,
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute:
     ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute,
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute:

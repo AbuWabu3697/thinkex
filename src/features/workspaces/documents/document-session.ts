@@ -188,6 +188,13 @@ export class DocumentSession extends YServer {
 		await this.checkpointToKernel();
 	}
 
+	async readDocumentSnapshot() {
+		this.assertActive();
+		return {
+			content: stringifyTiptapDocumentJson(this.getCurrentTiptapDocument()),
+		};
+	}
+
 	async applyEdits(
 		input: DocumentSessionApplyEditsInput,
 	): Promise<DocumentSessionApplyEditsResult> {

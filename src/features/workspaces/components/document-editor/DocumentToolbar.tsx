@@ -1,10 +1,13 @@
 import type { Editor } from "@tiptap/react";
 import { Check, Download, EllipsisVertical, FileText, Redo2, Shapes, Undo2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "#/components/ui/button";
 import { DocumentEditUndoButton } from "#/features/workspaces/components/document-editor/DocumentEditUndoButton";
 import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
+import { downloadWorkspaceDocumentPdf } from "#/features/workspaces/export/download-workspace-document-pdf";
+import { getErrorMessage } from "#/lib/error-message";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -55,6 +58,13 @@ export function DocumentToolbar({
 	const editorState = useDocumentEditorUiState(editor);
 	const [addWidgetOpen, setAddWidgetOpen] = useState(false);
 	const { activeReview, hideReview } = useDocumentEditReview();
+	const handleExportPdf = () => {
+		void toast.promise(downloadWorkspaceDocumentPdf({ documentPath, itemId, workspaceId }), {
+			error: (error) => getErrorMessage(error, "Unable to export this document as PDF."),
+			loading: "Preparing PDF…",
+			success: "PDF downloaded.",
+		});
+	};
 
 	// Reviewing borrows the toolbar rather than floating over the page: the
 	// formatting controls are unusable mid-review anyway, so the space is free.
@@ -75,9 +85,9 @@ export function DocumentToolbar({
 		return (
 			<WorkspaceResponsiveToolbar
 				mobileLabel="Document actions"
-				mobileContent={<DocumentExportMenuGroup />}
+				mobileContent={<DocumentExportMenuGroup onExportPdf={handleExportPdf} />}
 			>
-				<DocumentMoreMenu />
+				<DocumentMoreMenu onExportPdf={handleExportPdf} />
 			</WorkspaceResponsiveToolbar>
 		);
 	}
@@ -91,6 +101,7 @@ export function DocumentToolbar({
 						editor={editor}
 						editorState={editorState}
 						onAddWidget={() => setAddWidgetOpen(true)}
+						onExportPdf={handleExportPdf}
 					/>
 				}
 				mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
@@ -116,7 +127,7 @@ export function DocumentToolbar({
 				<ToolbarButton label="Add widget" onClick={() => setAddWidgetOpen(true)}>
 					<Shapes />
 				</ToolbarButton>
-				<DocumentMoreMenu disabled={!editor} />
+				<DocumentMoreMenu disabled={!editor} onExportPdf={handleExportPdf} />
 			</WorkspaceResponsiveToolbar>
 			<WorkspaceAddWidgetDialog
 				documentPath={documentPath}
@@ -173,10 +184,12 @@ function DocumentMobileMenuContent({
 	editor,
 	editorState,
 	onAddWidget,
+	onExportPdf,
 }: {
 	editor: Editor | null;
 	editorState: DocumentEditorUiState;
 	onAddWidget: () => void;
+	onExportPdf: () => void;
 }) {
 	return (
 		<>
@@ -223,7 +236,7 @@ function DocumentMobileMenuContent({
 				<DocumentHistoryMenuItem icon={<Shapes />} label="Add widget" onClick={onAddWidget} />
 			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
-			<DocumentExportMenuGroup />
+			<DocumentExportMenuGroup onExportPdf={onExportPdf} />
 		</>
 	);
 }
@@ -396,7 +409,13 @@ function DocumentMenuAction({
 	);
 }
 
-function DocumentMoreMenu({ disabled }: { disabled?: boolean }) {
+function DocumentMoreMenu({
+	disabled,
+	onExportPdf,
+}: {
+	disabled?: boolean;
+	onExportPdf: () => void;
+}) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -407,22 +426,21 @@ function DocumentMoreMenu({ disabled }: { disabled?: boolean }) {
 				<EllipsisVertical />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-48" align="end">
-				<DocumentExportMenuGroup />
+				<DocumentExportMenuGroup onExportPdf={onExportPdf} />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
 
-function DocumentExportMenuGroup() {
+function DocumentExportMenuGroup({ onExportPdf }: { onExportPdf: () => void }) {
 	return (
 		<DropdownMenuGroup>
 			<DropdownMenuLabel>Export</DropdownMenuLabel>
-			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
+			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" onClick={onExportPdf}>
 				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
 					<Download />
 				</span>
 				PDF
-				<span className="ml-auto text-xs text-muted-foreground">Soon</span>
 			</DropdownMenuItem>
 			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
 				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
