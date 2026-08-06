@@ -16,7 +16,7 @@ export function PricingSection() {
 			<div className="max-w-2xl">
 				<h2 className="text-3xl font-medium tracking-tight text-balance sm:text-4xl">Pricing</h2>
 			</div>
-			<div className="mt-6 grid gap-5 md:grid-cols-2 lg:gap-6">
+			<div className="mt-6 grid gap-5 md:grid-cols-2 lg:gap-6 dark:[&_article]:bg-black">
 				{pricingPlans.map((plan) => (
 					<PricingPlanCard
 						key={plan.id}
