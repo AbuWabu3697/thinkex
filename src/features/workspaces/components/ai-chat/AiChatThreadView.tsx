@@ -37,6 +37,8 @@ export default function AiChatThreadView({
 	const chat = useWorkspaceAiChat({ modelId, threadId });
 	const [sentMessageAnimationId, setSentMessageAnimationId] = useState<string | null>(null);
 	const {
+		browser,
+		canSend,
 		connectionError,
 		inputStatus,
 		messages,
@@ -61,47 +63,51 @@ export default function AiChatThreadView({
 	}, [onRecoveringChange, presentation.isRecovering]);
 
 	const assistantError = deriveAiChatAssistantErrorState({
+		chatStatus: presentation.status,
 		hasConnectionError: Boolean(connectionError),
-		inputStatus,
 		threadSummary,
 	});
+	const stopChatAndBrowser = () => {
+		void stop();
+		if (browser.hasSession || browser.handoff) {
+			void browser.stopBrowser().catch(() => undefined);
+		}
+	};
 
 	const sendMessage = (message: PromptInputMessage) => {
 		const chatMessage = getChatMessageFromPrompt(message, generateId());
 
 		if (!chatMessage) {
-			return false;
+			throw new Error("Cannot send an empty chat message");
 		}
 
-		const didSend = sendChatMessage(chatMessage, {
+		sendChatMessage(chatMessage, {
 			body: {
 				workspaceAiContext: buildWorkspaceAiContextSnapshot(context),
 			},
 		});
-
-		if (didSend) {
-			setSentMessageAnimationId(chatMessage.id);
-			clearDraftArtifacts(context.workspaceId, threadId);
-		}
-
-		return didSend;
+		setSentMessageAnimationId(chatMessage.id);
+		clearDraftArtifacts(context.workspaceId, threadId);
 	};
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
 			<AiChatMessageList
 				assistantError={assistantError}
+				browser={browser}
 				messages={messages}
 				presentation={presentation}
 				sentMessageAnimationId={sentMessageAnimationId}
 				workspaceId={context.workspaceId}
 				onRegenerateLastResponse={regenerate}
+				onStopBrowser={stopChatAndBrowser}
 			/>
 
 			<div className="px-3 pb-3">
 				<div className={aiChatComposerRailClassName}>
 					<AiChatPromptInput
 						activeThreadId={threadId}
+						canSend={canSend}
 						context={context}
 						getInspectorSnapshot={getInspectorSnapshot}
 						modelId={modelId}
@@ -109,7 +115,7 @@ export default function AiChatThreadView({
 						onModelChange={onModelChange}
 						onSubmit={sendMessage}
 						onStop={() => {
-							void stop();
+							stopChatAndBrowser();
 						}}
 					/>
 				</div>

@@ -2,12 +2,17 @@ import { getAuthorizedWorkspaceKernel } from "#/features/workspaces/operations/w
 import {
 	resolveWorkspaceRelations,
 	type WorkspaceRelationInput,
-	workspaceRelationFailureCodes,
 } from "#/features/workspaces/operations/relations";
+import { createWorkspaceItemsFailureCodes } from "#/features/workspaces/operations/workspace-operation-failure-codes";
 import type { WorkspaceAccessContext } from "#/features/workspaces/operations/workspace-access-context";
 import type { WorkspaceKernelPathResolution } from "#/features/workspaces/kernel/workspace-kernel-types";
-import { parseMarkdownToTiptapDocumentProjection } from "#/features/workspaces/documents/document-markdown";
+import { parseDocumentAiHtml } from "#/features/workspaces/documents/document-ai-html";
+import { resolveDocumentCitations } from "#/features/workspaces/operations/document-citations";
 import { stringifyTiptapDocumentJson } from "#/features/workspaces/documents/tiptap-document";
+import {
+	createWorkspaceReferenceRecords,
+	type WorkspaceReferenceRecord,
+} from "#/features/workspaces/locations/workspace-location";
 import {
 	getParentWorkspacePath,
 	getWorkspacePathName,
@@ -27,17 +32,6 @@ export interface CreateWorkspaceItemsOperationInput {
 	items: CreateWorkspaceItemOperationInput[];
 }
 
-export const createWorkspaceItemsFailureCodes = [
-	"cannot_create_root",
-	"invalid_initial_content",
-	"path_already_exists",
-	"path_not_absolute",
-	"path_not_canonical",
-	"path_not_folder",
-	"path_not_found",
-	...workspaceRelationFailureCodes,
-] as const;
-
 type CreateWorkspaceItemsFailureCode = (typeof createWorkspaceItemsFailureCodes)[number];
 
 export interface CreateWorkspaceItemsFailure {
@@ -47,19 +41,20 @@ export interface CreateWorkspaceItemsFailure {
 }
 
 export interface CreatedWorkspaceItem {
+	itemId: string;
 	path: string;
 	type: "document" | "folder";
-	warnings?: string[];
 }
 
 export interface CreateWorkspaceItemsOperationResult {
 	items: CreatedWorkspaceItem[];
 	failed: CreateWorkspaceItemsFailure[];
+	references: WorkspaceReferenceRecord[];
 }
 
 type CreateWorkspaceItemPathResolution =
 	| {
-			code: "cannot_create_root" | "path_not_absolute" | "path_not_canonical";
+			code: "cannot_create_root" | "path_not_absolute";
 			path: string;
 			status: "failed";
 	  }
@@ -112,7 +107,17 @@ export async function createWorkspaceItemsOperation(
 			continue;
 		}
 
-		const initialContent = getCreateWorkspaceItemInitialContent(itemInput);
+		const initialContent = getCreateWorkspaceItemInitialContent(
+			itemInput.type === "document" && itemInput.initialContent !== undefined
+				? {
+						...itemInput,
+						initialContent: await resolveDocumentCitations({
+							context: accessContext,
+							html: itemInput.initialContent,
+						}),
+					}
+				: itemInput,
+		);
 
 		if (initialContent.status === "failed") {
 			failed.push({
@@ -168,17 +173,18 @@ export async function createWorkspaceItemsOperation(
 		}
 
 		items.push({
+			itemId: id,
 			path: createdPath,
 			type: itemInput.type,
-			...(initialContent.warnings && initialContent.warnings.length > 0
-				? { warnings: initialContent.warnings }
-				: {}),
 		});
 	}
 
 	return {
 		items,
 		failed,
+		references: createWorkspaceReferenceRecords(
+			items.map((item) => ({ itemId: item.itemId, kind: "item", version: 1 })),
+		),
 	};
 }
 
@@ -241,14 +247,6 @@ function resolveCreateWorkspaceItemPath(path: string): CreateWorkspaceItemPathRe
 		const name = getWorkspacePathName(normalizedPath);
 		const canonicalPath = joinWorkspaceItemPath(parentPath, name);
 
-		if (canonicalPath !== normalizedPath) {
-			return {
-				code: "path_not_canonical",
-				path: normalizedPath,
-				status: "failed",
-			};
-		}
-
 		return {
 			name,
 			parentPath,
@@ -272,7 +270,6 @@ function getCreateWorkspaceItemInitialContent(input: CreateWorkspaceItemOperatio
 	| {
 			content?: string;
 			status: "ready";
-			warnings?: string[];
 	  }
 	| {
 			code: "invalid_initial_content";
@@ -283,12 +280,9 @@ function getCreateWorkspaceItemInitialContent(input: CreateWorkspaceItemOperatio
 	}
 
 	try {
-		const projection = parseMarkdownToTiptapDocumentProjection(input.initialContent);
-
 		return {
-			content: stringifyTiptapDocumentJson(projection.document),
+			content: stringifyTiptapDocumentJson(parseDocumentAiHtml(input.initialContent)),
 			status: "ready",
-			...(projection.warnings.length > 0 ? { warnings: projection.warnings } : {}),
 		};
 	} catch {
 		return {

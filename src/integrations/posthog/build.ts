@@ -31,6 +31,12 @@ export function assertRequiredPostHogBuildEnv(command: string) {
 		return typeof value !== "string" || value.trim().length === 0;
 	});
 
+	// Staging-shaped builds (CI/local) may omit PostHog entirely; analytics stays off.
+	// If any staging PostHog var is set, require the full staging set.
+	if (cloudflareEnv === "staging" && missing.length === requiredEnv.length) {
+		return;
+	}
+
 	if (missing.length > 0) {
 		throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
 	}

@@ -8,6 +8,7 @@ import { listWorkspaceItemsOperation } from "#/features/workspaces/operations/li
 import { moveWorkspaceItemsOperation } from "#/features/workspaces/operations/move-items";
 import { readWorkspaceItemsOperation } from "#/features/workspaces/operations/read-items";
 import { renameWorkspaceItemOperation } from "#/features/workspaces/operations/rename-item";
+import { searchWorkspaceOperation } from "#/features/workspaces/operations/search-workspace";
 import {
 	workspaceCreateItemsInputExamples,
 	workspaceCreateItemsInputSchema,
@@ -15,7 +16,7 @@ import {
 	workspaceDeleteItemsInputExamples,
 	workspaceDeleteItemsInputSchema,
 	workspaceDeleteItemsOutputSchema,
-	workspaceDocumentMarkdownMathInstruction,
+	workspaceDocumentHtmlInstruction,
 	workspaceEditItemInputExamples,
 	workspaceEditItemInputSchema,
 	workspaceEditItemOutputSchema,
@@ -31,6 +32,9 @@ import {
 	workspaceReadItemsInputExamples,
 	workspaceReadItemsInputSchema,
 	workspaceReadItemsOutputSchema,
+	workspaceSearchInputExamples,
+	workspaceSearchInputSchema,
+	workspaceSearchOutputSchema,
 	workspaceRenameItemInputExamples,
 	workspaceRenameItemInputSchema,
 	workspaceRenameItemOutputSchema,
@@ -62,7 +66,7 @@ export function getWorkspaceToolScopes(
 	return access === "read" ? ["workspace:read"] : workspaceAccessScopes;
 }
 
-export type WorkspaceToolDefinition<
+type WorkspaceToolDefinition<
 	TName extends string = string,
 	TInputSchema extends z.ZodTypeAny = z.ZodTypeAny,
 	TOutputSchema extends z.ZodTypeAny = z.ZodTypeAny,
@@ -133,12 +137,11 @@ export const workspaceToolDefinitions = [
 		outputSchema: workspaceListItemsOutputSchema,
 		summarizeResult: summarizeWorkspaceCollectionResult,
 		effects: { destructive: false, idempotent: true },
-		execute: async ({ limit, offset, path, recursive }, context) => {
+		execute: async ({ offset, path, recursive }, context) => {
 			return await listWorkspaceItemsOperation(context, {
 				offset,
 				path,
 				recursive,
-				limit,
 			});
 		},
 	}),
@@ -146,7 +149,7 @@ export const workspaceToolDefinitions = [
 		name: "workspace_read_items",
 		access: "read",
 		description:
-			"Read ThinkEx documents and extracted files by absolute path. Documents return bounded line chunks; files support explicit physical-page selections. Continue either kind with the returned nextCursor.",
+			"Read ThinkEx documents and extracted files by absolute path. Document chunks give each top-level block an editRef. Widgets come back as an empty placeholder, so read one with mode block to get its full content and current editRef before editing it. Files support explicit physical-page selections. Continue either kind with nextCursor. Uploaded files may still be extracting; each result carries any needed handling guidance.",
 		inputSchema: workspaceReadItemsInputSchema,
 		inputExamples: workspaceReadItemsInputExamples,
 		outputSchema: workspaceReadItemsOutputSchema,
@@ -154,6 +157,24 @@ export const workspaceToolDefinitions = [
 		effects: { destructive: false, idempotent: true },
 		execute: async ({ requests }, context) => {
 			return await readWorkspaceItemsOperation(context, { requests });
+		},
+	}),
+	defineWorkspaceTool({
+		name: "workspace_search",
+		access: "read",
+		description:
+			"Search current ThinkEx workspace documents and extracted files by meaning and exact text. Optionally scope to an absolute item or folder path and filter content types.",
+		inputSchema: workspaceSearchInputSchema,
+		inputExamples: workspaceSearchInputExamples,
+		outputSchema: workspaceSearchOutputSchema,
+		summarizeResult: (result) =>
+			summarizeWorkspaceCollectionResult({
+				failed: result.failed,
+				items: result.results,
+			}),
+		effects: { destructive: false, idempotent: true },
+		execute: async (args, context) => {
+			return await searchWorkspaceOperation(context, args);
 		},
 	}),
 	defineWorkspaceTool({
@@ -193,7 +214,7 @@ export const workspaceToolDefinitions = [
 	defineWorkspaceTool({
 		name: "workspace_create_items",
 		access: "write",
-		description: `Create one or more folders or documents at exact absolute paths. If a path already exists, creation fails instead of renaming. ${workspaceDocumentMarkdownMathInstruction}`,
+		description: `Create one or more folders or documents at exact absolute paths. If a path already exists, creation fails instead of renaming. ${workspaceDocumentHtmlInstruction}`,
 		inputSchema: workspaceCreateItemsInputSchema,
 		inputExamples: workspaceCreateItemsInputExamples,
 		outputSchema: workspaceCreateItemsOutputSchema,
@@ -223,7 +244,7 @@ export const workspaceToolDefinitions = [
 	defineWorkspaceTool({
 		name: "workspace_edit_item",
 		access: "write",
-		description: `Edit one actual ThinkEx workspace document by absolute path. Use workspace_link_items to add relationships. Read before editing unless the user requested a simple append or prepend. ${workspaceDocumentMarkdownMathInstruction}`,
+		description: `Edit one actual ThinkEx workspace document by absolute path. Read it first, then target blocks with their exact editRef. A block read returns the exact content that replace_text matches. Only overwrite replaces the whole document, and only it works without a read. Use workspace_link_items to add relationships. ${workspaceDocumentHtmlInstruction}`,
 		inputSchema: workspaceEditItemInputSchema,
 		inputExamples: workspaceEditItemInputExamples,
 		outputSchema: workspaceEditItemOutputSchema,

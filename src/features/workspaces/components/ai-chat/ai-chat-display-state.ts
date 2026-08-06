@@ -18,10 +18,17 @@ import {
 import {
 	getFinishedToolReceipt,
 	getRunningToolReceipt,
+	type AiChatToolReceiptSegment,
 } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 
 export type AssistantPendingKind = "thinking" | "working" | "recovering";
 
+/**
+ * Every `orchestrate` call in a message collapses into one row: the header
+ * describes the last call — the model's most recent title, so it reads as
+ * current activity — and `children` is the whole message's activity trail in
+ * execution order, regardless of which call produced each entry.
+ */
 export interface AiChatToolGroupPart {
 	type: "data-tool-group";
 	children: AiChatToolChildActivity[];
@@ -30,16 +37,21 @@ export interface AiChatToolGroupPart {
 
 export type AiChatRenderablePart = AiChatMessagePart | AiChatToolGroupPart;
 
+export function isAiChatToolGroupPart(part: AiChatRenderablePart): part is AiChatToolGroupPart {
+	return part.type === "data-tool-group" && "children" in part;
+}
+
 export type AssistantRowDisplay =
-	| { kind: "content"; parts: AiChatRenderablePart[] }
+	| { interruptUnfinishedTools: boolean; kind: "content"; parts: AiChatRenderablePart[] }
 	| { kind: "empty-terminal"; canRegenerate: boolean }
 	| { kind: "hidden" };
 
 export interface AiChatToolActivity {
 	detail: AiChatToolPart;
 	presentation: AiToolPresentation;
-	status: "completed" | "failed" | "running";
+	status: "completed" | "failed" | "interrupted" | "running";
 	summary: string;
+	segments?: AiChatToolReceiptSegment[];
 	toolName: string;
 }
 
@@ -117,7 +129,11 @@ export function getAssistantRowDisplay(
 	}
 
 	if (displayableParts.length > 0) {
-		return { kind: "content", parts: displayableParts };
+		return {
+			kind: "content",
+			parts: displayableParts,
+			interruptUnfinishedTools: presentation.status === "error" && isLastAssistant,
+		};
 	}
 
 	if (message.parts.some((part) => isToolUIPart(part))) {
@@ -143,9 +159,10 @@ export function getAssistantRowDisplay(
 
 export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePart[] {
 	const parts = message.parts.filter(isDisplayableMessagePart);
-	const codemodePart = parts.find(
+	const codemodeParts = parts.filter(
 		(part): part is AiChatToolPart => isToolUIPart(part) && getToolPartName(part) === "orchestrate",
 	);
+	const codemodePart = codemodeParts.at(-1);
 
 	if (!codemodePart) {
 		return parts;
@@ -153,11 +170,23 @@ export function getDisplayableParts(message: AiChatMessage): AiChatRenderablePar
 
 	const loggedChildren = getCodemodeCallActivities(codemodePart.output);
 	const groupsSiblingTools = loggedChildren === undefined;
-	const codemodeChildren = loggedChildren ?? getLegacyCodemodeChildren(parts, codemodePart);
+	// Each call logs its own `seq`, so ids repeat across calls. Namespace them by
+	// the call that produced them to keep the merged trail's keys unique.
+	const codemodeChildren = groupsSiblingTools
+		? getLegacyCodemodeChildren(parts, codemodePart)
+		: codemodeParts.flatMap((part) =>
+				(getCodemodeCallActivities(part.output) ?? []).map((child) => ({
+					...child,
+					id: `${part.toolCallId}:${child.id}`,
+				})),
+			);
 
 	const result: AiChatRenderablePart[] = [];
 
 	for (const part of parts) {
+		if (isToolUIPart(part) && getToolPartName(part) === "orchestrate" && part !== codemodePart) {
+			continue;
+		}
 		if (
 			groupsSiblingTools &&
 			isToolUIPart(part) &&
@@ -187,23 +216,33 @@ function getLegacyCodemodeChildren(
 	codemodePart: AiChatToolPart,
 ): AiChatToolChildActivity[] {
 	return parts.flatMap((part) => {
-		if (!isToolUIPart(part) || part === codemodePart || !isVisibleToolPart(part)) {
+		if (
+			!isToolUIPart(part) ||
+			part === codemodePart ||
+			getToolPartName(part) === "orchestrate" ||
+			!isVisibleToolPart(part)
+		) {
 			return [];
 		}
 
-		const activity = getToolActivityForPart(part);
-		return activity
-			? [
-					{
-						id: part.toolCallId,
-						presentation: activity.presentation,
-						status: activity.status,
-						summary: activity.summary,
-						toolName: activity.toolName,
-					},
-				]
-			: [];
+		return getToolPartActivities(part);
 	});
+}
+
+function getToolPartActivities(part: AiChatToolPart): AiChatToolChildActivity[] {
+	const activity = getToolActivityForPart(part);
+	return activity
+		? [
+				{
+					id: part.toolCallId,
+					presentation: activity.presentation,
+					status: activity.status,
+					summary: activity.summary,
+					segments: activity.segments,
+					toolName: activity.toolName,
+				},
+			]
+		: [];
 }
 
 export function isDisplayableMessagePart(part: AiChatMessagePart): boolean {
@@ -235,20 +274,24 @@ export function isDisplayableMessagePart(part: AiChatMessagePart): boolean {
 	return false;
 }
 
-export function getToolActivityForPart(part: AiChatToolPart): AiChatToolActivity | null {
+export function getToolActivityForPart(
+	part: AiChatToolPart,
+	{ interrupted = false }: { interrupted?: boolean } = {},
+): AiChatToolActivity | null {
 	if (!isVisibleToolPart(part)) {
 		return null;
 	}
 
 	const toolName = getToolPartName(part);
 	const presentation = getAiToolPresentation(toolName);
-	const receipt = getToolActivityReceipt(part, toolName);
+	const receipt = getToolActivityReceipt(part, toolName, interrupted);
 
 	return {
 		detail: part,
 		presentation,
 		status: receipt.status,
 		summary: receipt.summary,
+		segments: receipt.segments,
 		toolName,
 	};
 }
@@ -258,14 +301,19 @@ export function isVisibleToolPart(part: AiChatToolPart) {
 	return getAiToolPresentation(toolName).visibility === "visible";
 }
 
-function getToolPartName(part: AiChatToolPart) {
+export function getToolPartName(part: AiChatToolPart) {
 	return part.type === "dynamic-tool" ? part.toolName : part.type.split("-").slice(1).join("-");
 }
 
 function getToolActivityReceipt(
 	part: AiChatToolPart,
 	toolName: string,
-): { status: AiChatToolActivity["status"]; summary: string } {
+	interrupted: boolean,
+): {
+	status: AiChatToolActivity["status"];
+	summary: string;
+	segments?: AiChatToolReceiptSegment[];
+} {
 	switch (part.state) {
 		case "output-available":
 			return getFinishedToolReceipt({
@@ -282,13 +330,27 @@ function getToolActivityReceipt(
 				toolInput: part.input,
 				toolName,
 			});
-		default:
+		default: {
+			const running = getRunningToolReceipt({
+				toolInput: part.input,
+				toolName,
+			});
+			if (interrupted) {
+				const interruptedSummary = lowercaseFirstCharacter(running.summary);
+				return {
+					status: "interrupted",
+					summary: `Interrupted while ${interruptedSummary} — status unknown`,
+				};
+			}
 			return {
 				status: "running",
-				summary: getRunningToolReceipt({
-					toolInput: part.input,
-					toolName,
-				}).summary,
+				summary: running.summary,
+				segments: running.segments,
 			};
+		}
 	}
+}
+
+function lowercaseFirstCharacter(value: string) {
+	return value.length === 0 ? value : `${value[0]?.toLocaleLowerCase()}${value.slice(1)}`;
 }

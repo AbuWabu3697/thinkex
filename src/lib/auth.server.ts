@@ -18,7 +18,12 @@ import { getAuthBaseURL, getTrustedAppOrigins } from "#/lib/app-origin";
 
 const isProduction = import.meta.env.PROD;
 
-type AuthEnvKey = "BETTER_AUTH_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET";
+type AuthEnvKey =
+	| "AUTUMN_PROD_SECRET_KEY"
+	| "AUTUMN_SECRET_KEY"
+	| "BETTER_AUTH_SECRET"
+	| "GOOGLE_CLIENT_ID"
+	| "GOOGLE_CLIENT_SECRET";
 
 type AuthRuntimeEnv = Record<AuthEnvKey, string | undefined>;
 type Db = Awaited<ReturnType<typeof createDbContext>>["db"];
@@ -30,6 +35,8 @@ function getEnvString(name: AuthEnvKey) {
 
 function getAuthRuntimeEnv(): AuthRuntimeEnv {
 	return {
+		AUTUMN_PROD_SECRET_KEY: getEnvString("AUTUMN_PROD_SECRET_KEY"),
+		AUTUMN_SECRET_KEY: getEnvString("AUTUMN_SECRET_KEY"),
 		BETTER_AUTH_SECRET: getEnvString("BETTER_AUTH_SECRET"),
 		GOOGLE_CLIENT_ID: getEnvString("GOOGLE_CLIENT_ID"),
 		GOOGLE_CLIENT_SECRET: getEnvString("GOOGLE_CLIENT_SECRET"),

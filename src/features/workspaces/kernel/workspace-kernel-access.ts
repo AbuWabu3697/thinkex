@@ -30,12 +30,19 @@ import {
 	type WorkspaceKernelItemRelation,
 	type WorkspaceKernelNameConflictPolicy,
 	type WorkspaceKernelMutationOutcome,
+	type WorkspaceKernelPublishOutcome,
 	type WorkspaceKernelItemPath,
 	type WorkspaceKernelPathResolution,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
 import type { ListWorkspaceKernelItemsResult } from "#/features/workspaces/kernel/workspace-kernel-list";
 import type { WorkspaceFileAssetKind } from "#/features/workspaces/model/workspace-file";
 import type { WorkspaceCommandResult } from "#/features/workspaces/realtime/messages";
+import type {
+	WorkspaceSearchFailure,
+	WorkspaceSearchInput,
+	WorkspaceSearchResult,
+	WorkspaceSearchStatus,
+} from "#/features/workspaces/search/workspace-search-contract";
 import {
 	assertCanMutateWorkspace,
 	assertCanReadWorkspace,
@@ -104,7 +111,7 @@ export interface WorkspaceKernelClient {
 	readFilePreview(input: { itemId: string }): Promise<ReadWorkspaceKernelFilePreviewResult | null>;
 	upsertFileProjection(
 		input: UpsertWorkspaceKernelFileProjectionArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemFacts[]>>;
+	): Promise<WorkspaceKernelPublishOutcome>;
 	readFileProjection(
 		input: ReadWorkspaceKernelFileProjectionArgs,
 	): Promise<ReadWorkspaceKernelFileProjectionResult | null>;
@@ -113,7 +120,12 @@ export interface WorkspaceKernelClient {
 		content: string;
 		actorUserId?: string | null;
 		clientMutationId?: string | null;
-	}): Promise<WorkspaceCommandResult<WorkspaceItemSummary>>;
+	}): Promise<WorkspaceKernelPublishOutcome>;
+	searchWorkspace(input: WorkspaceSearchInput): Promise<{
+		failed: WorkspaceSearchFailure[];
+		results: WorkspaceSearchResult[];
+		status: WorkspaceSearchStatus;
+	}>;
 	purgeForDeletion(): Promise<ResourcePurgeResult>;
 }
 
@@ -348,9 +360,9 @@ export async function getWorkspaceKernelFromEnv(
 	return namespace.getByName(workspaceId);
 }
 
-function isWorkspaceKernelNamespace(
-	value: unknown,
-): value is { getByName(name: string): WorkspaceKernelClient } {
+function isWorkspaceKernelNamespace(value: unknown): value is {
+	getByName(name: string): WorkspaceKernelClient;
+} {
 	return (
 		typeof value === "object" &&
 		value !== null &&

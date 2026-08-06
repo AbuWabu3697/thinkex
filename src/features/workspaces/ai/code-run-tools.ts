@@ -4,9 +4,12 @@ import {
 	type Sandbox,
 	type SandboxOptions,
 } from "@cloudflare/sandbox";
-import type { ToolSet } from "ai";
+import type { JSONValue, ToolSet } from "ai";
 import { z } from "zod";
-import { defineAIThreadTool } from "#/features/workspaces/ai/ai-thread-tool";
+import {
+	aiThreadActivityTitleSchema,
+	defineAIThreadTool,
+} from "#/features/workspaces/ai/ai-thread-tool";
 
 const COMPUTE_LANGUAGE = "python" as const;
 const COMPUTE_RUN_TIMEOUT_MS = 120_000;
@@ -19,6 +22,7 @@ const AI_THREAD_SANDBOX_OPTIONS = {
 } satisfies SandboxOptions;
 
 const codeRunInputSchema = z.object({
+	title: aiThreadActivityTitleSchema,
 	code: z.string().min(1).describe("Python code to execute in the private code sandbox."),
 });
 const codeRunErrorSchema = z.object({
@@ -57,11 +61,13 @@ const codeRunOutputSchema = z.object({
 const codeRunInputExamples = [
 	{
 		input: {
+			title: "Calculating the circle area",
 			code: "import math\nmath.pi * 5 ** 2",
 		},
 	},
 	{
 		input: {
+			title: "Plotting the growth curve",
 			code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3], [1, 4, 9])\nplt.show()",
 		},
 	},
@@ -91,7 +97,17 @@ export function createAIThreadCodeRunTools(input: {
 			inputSchema: codeRunInputSchema,
 			inputExamples: codeRunInputExamples,
 			outputSchema: codeRunOutputSchema,
-			strict: true,
+			toModelOutput: ({ output }) => ({
+				type: "json" as const,
+				value: {
+					...output,
+					results: output.results.map(({ png, jpeg, ...result }) => ({
+						...result,
+						...(png ? { png: "[image rendered in chat]" } : {}),
+						...(jpeg ? { jpeg: "[image rendered in chat]" } : {}),
+					})),
+				} as JSONValue,
+			}),
 			execute: async (args) => {
 				const { code } = args as CodeRunInput;
 

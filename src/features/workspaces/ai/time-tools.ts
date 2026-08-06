@@ -73,7 +73,6 @@ export function createAIThreadTimeTools(options?: { defaultTimeZone?: string }):
 			inputSchema: timeGetCurrentInputSchema,
 			inputExamples: timeGetCurrentInputExamples,
 			outputSchema: timePointOutputSchema,
-			strict: true,
 			execute: async (input) => {
 				const timeZone = resolveTimeZone(input.time_zone, options?.defaultTimeZone);
 				return formatTimeToolResult(new Date(), timeZone);
@@ -85,7 +84,6 @@ export function createAIThreadTimeTools(options?: { defaultTimeZone?: string }):
 			inputSchema: timeRelativeOffsetInputSchema,
 			inputExamples: timeCalculateRelativeInputExamples,
 			outputSchema: timeCalculateRelativeOutputSchema,
-			strict: true,
 			execute: async (input) => {
 				const offset = normalizeRelativeOffset(input);
 				const timeZone = resolveTimeZone(input.time_zone, options?.defaultTimeZone);

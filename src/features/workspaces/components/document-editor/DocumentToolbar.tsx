@@ -1,7 +1,13 @@
 import type { Editor } from "@tiptap/react";
-import { Check, Download, EllipsisVertical, FileText, Redo2, Undo2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, Download, FileText, Redo2, Shapes, Undo2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 
+import { Button } from "#/components/ui/button";
+import { DocumentEditUndoButton } from "#/features/workspaces/components/document-editor/DocumentEditUndoButton";
+import { useDocumentEditReview } from "#/features/workspaces/documents/document-edit-review-context";
+import { downloadWorkspaceDocumentPdf } from "#/features/workspaces/export/download-workspace-document-pdf";
+import { getErrorMessage } from "#/lib/error-message";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,63 +26,175 @@ import {
 import {
 	type DocumentToolbarAction,
 	documentBlockActions,
-	documentFontSizeActions,
+	documentTextStyleActions,
 	documentInlineActions,
 	documentTextAlignActions,
-	getFontSizeIcon,
+	getTextStyleIcon,
 	getInlineMarkIcon,
 	getStructureBlockIcon,
 	getTextAlignIcon,
 	isCodeBlock,
 } from "#/features/workspaces/components/document-editor/document-editor-toolbar-actions";
+import { WorkspaceAddWidgetDialog } from "#/features/workspaces/components/widget/WorkspaceAddWidgetDialog";
 import {
 	WorkspaceResponsiveToolbar,
 	WorkspaceToolbarIconButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
+import { workspaceToolbarTextButtonSizeClass } from "#/features/workspaces/components/workspace-toolbar-styles";
 
-export function DocumentToolbar({ editor }: { editor: Editor | null }) {
+export function DocumentToolbar({
+	canEdit,
+	documentPath,
+	editor,
+	itemId,
+	workspaceId,
+}: {
+	canEdit: boolean;
+	documentPath: string;
+	editor: Editor | null;
+	itemId: string;
+	workspaceId: string;
+}) {
 	const editorState = useDocumentEditorUiState(editor);
+	const [addWidgetOpen, setAddWidgetOpen] = useState(false);
+	const { activeReview, hideReview } = useDocumentEditReview();
+	const handleExportPdf = () => {
+		void toast.promise(downloadWorkspaceDocumentPdf({ documentPath, itemId, workspaceId }), {
+			error: (error) => getErrorMessage(error, "Unable to export this document as PDF."),
+			loading: "Preparing PDF…",
+			success: "PDF downloaded.",
+		});
+	};
+
+	// Reviewing borrows the toolbar rather than floating over the page: the
+	// formatting controls are unusable mid-review anyway, so the space is free.
+	if (activeReview?.itemId === itemId) {
+		return (
+			<DocumentEditReviewControls
+				canUndo={canEdit}
+				itemId={itemId}
+				receiptIds={activeReview.receiptIds}
+				onDone={hideReview}
+			/>
+		);
+	}
+
+	// Read-only viewers get every formatting control disabled, which reads as a
+	// broken toolbar. Show only what still works.
+	if (!canEdit) {
+		return (
+			<WorkspaceResponsiveToolbar
+				mobileLabel="Document actions"
+				mobileContent={<DocumentExportMenuGroup onExportPdf={handleExportPdf} />}
+			>
+				<DocumentMoreMenu onExportPdf={handleExportPdf} />
+			</WorkspaceResponsiveToolbar>
+		);
+	}
 
 	return (
-		<WorkspaceResponsiveToolbar
-			mobileLabel="Document actions"
-			mobileContent={<DocumentMobileMenuContent editor={editor} editorState={editorState} />}
-			mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
-			scrollable
-		>
-			<BlockTypeMenu editor={editor} editorState={editorState} />
-			<InlineFormatMenu editor={editor} editorState={editorState} />
-			<AlignMenu editor={editor} editorState={editorState} />
-			<ToolbarButton
-				label="Undo"
-				disabled={!editorState.canUndo}
-				onClick={() => editor?.chain().focus().undo().run()}
+		<>
+			<WorkspaceResponsiveToolbar
+				mobileLabel="Document actions"
+				mobileContent={
+					<DocumentMobileMenuContent
+						editor={editor}
+						editorState={editorState}
+						onAddWidget={() => setAddWidgetOpen(true)}
+						onExportPdf={handleExportPdf}
+					/>
+				}
+				mobileContentClassName="max-h-[min(var(--available-height),28rem)] w-64 max-w-[calc(100dvw-2rem)] overscroll-contain"
+				scrollable
 			>
-				<Undo2 />
-			</ToolbarButton>
-			<ToolbarButton
-				label="Redo"
-				disabled={!editorState.canRedo}
-				onClick={() => editor?.chain().focus().redo().run()}
+				<BlockTypeMenu editor={editor} editorState={editorState} />
+				<InlineFormatMenu editor={editor} editorState={editorState} />
+				<AlignMenu editor={editor} editorState={editorState} />
+				<ToolbarButton
+					label="Undo"
+					disabled={!editorState.canUndo}
+					onClick={() => editor?.chain().focus().undo().run()}
+				>
+					<Undo2 />
+				</ToolbarButton>
+				<ToolbarButton
+					label="Redo"
+					disabled={!editorState.canRedo}
+					onClick={() => editor?.chain().focus().redo().run()}
+				>
+					<Redo2 />
+				</ToolbarButton>
+				<ToolbarButton label="Add widget" onClick={() => setAddWidgetOpen(true)}>
+					<Shapes />
+				</ToolbarButton>
+				<DocumentMoreMenu disabled={!editor} onExportPdf={handleExportPdf} />
+			</WorkspaceResponsiveToolbar>
+			<WorkspaceAddWidgetDialog
+				documentPath={documentPath}
+				open={addWidgetOpen}
+				workspaceId={workspaceId}
+				onOpenChange={setAddWidgetOpen}
+			/>
+		</>
+	);
+}
+
+function DocumentEditReviewControls({
+	canUndo,
+	itemId,
+	onDone,
+	receiptIds,
+}: {
+	canUndo: boolean;
+	itemId: string;
+	onDone: () => void;
+	receiptIds: string[];
+}) {
+	const { workspaceId } = useDocumentEditReview();
+
+	// Wider than the toolbar's icon-button gap: these two carry a border and a
+	// fill, so flush spacing would read as one control.
+	return (
+		<div className="flex min-w-0 items-center gap-1.5">
+			<span className="min-w-0 truncate pr-0.5 pl-1 text-muted-foreground text-sm">
+				Reviewing changes:
+			</span>
+			{canUndo ? (
+				<DocumentEditUndoButton
+					className={workspaceToolbarTextButtonSizeClass}
+					itemId={itemId}
+					receiptIds={receiptIds}
+					workspaceId={workspaceId}
+				/>
+			) : null}
+			<Button
+				type="button"
+				size="sm"
+				className={workspaceToolbarTextButtonSizeClass}
+				onClick={onDone}
 			>
-				<Redo2 />
-			</ToolbarButton>
-			<DocumentMoreMenu disabled={!editor} />
-		</WorkspaceResponsiveToolbar>
+				<Check aria-hidden="true" />
+				Done
+			</Button>
+		</div>
 	);
 }
 
 function DocumentMobileMenuContent({
 	editor,
 	editorState,
+	onAddWidget,
+	onExportPdf,
 }: {
 	editor: Editor | null;
 	editorState: DocumentEditorUiState;
+	onAddWidget: () => void;
+	onExportPdf: () => void;
 }) {
 	return (
 		<>
 			<DocumentActionGroup
-				actions={documentFontSizeActions}
+				actions={documentTextStyleActions}
 				editor={editor}
 				editorState={editorState}
 				label="Text style"
@@ -115,9 +233,10 @@ function DocumentMobileMenuContent({
 					label="Redo"
 					onClick={() => editor?.chain().focus().redo().run()}
 				/>
+				<DocumentHistoryMenuItem icon={<Shapes />} label="Add widget" onClick={onAddWidget} />
 			</DropdownMenuGroup>
 			<DropdownMenuSeparator />
-			<DocumentExportMenuGroup />
+			<DocumentExportMenuGroup onExportPdf={onExportPdf} />
 		</>
 	);
 }
@@ -163,13 +282,13 @@ function BlockTypeMenu({
 				{editorState.block.kind === "structure" ? (
 					getStructureBlockIcon(editorState.block.type)
 				) : (
-					<span className="truncate">{getFontSizeIcon(editorState.block.size)}</span>
+					<span className="truncate">{getTextStyleIcon(editorState.block.style)}</span>
 				)}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-44">
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>Text style</DropdownMenuLabel>
-					{documentFontSizeActions.map((action) => (
+					{documentTextStyleActions.map((action) => (
 						<DocumentMenuAction
 							key={action.id}
 							action={action}
@@ -290,33 +409,36 @@ function DocumentMenuAction({
 	);
 }
 
-function DocumentMoreMenu({ disabled }: { disabled?: boolean }) {
+function DocumentMoreMenu({
+	disabled,
+	onExportPdf,
+}: {
+	disabled?: boolean;
+	onExportPdf: () => void;
+}) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				render={
-					<WorkspaceToolbarIconButton disabled={disabled} aria-label="More document actions" />
-				}
+				render={<WorkspaceToolbarIconButton disabled={disabled} aria-label="Export document" />}
 			>
-				<EllipsisVertical />
+				<Download />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-48" align="end">
-				<DocumentExportMenuGroup />
+				<DocumentExportMenuGroup onExportPdf={onExportPdf} />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
 
-function DocumentExportMenuGroup() {
+function DocumentExportMenuGroup({ onExportPdf }: { onExportPdf: () => void }) {
 	return (
 		<DropdownMenuGroup>
 			<DropdownMenuLabel>Export</DropdownMenuLabel>
-			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
+			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" onClick={onExportPdf}>
 				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">
 					<Download />
 				</span>
 				PDF
-				<span className="ml-auto text-xs text-muted-foreground">Soon</span>
 			</DropdownMenuItem>
 			<DropdownMenuItem className="[&_svg:not([class*='size-'])]:size-4" disabled>
 				<span className="inline-flex size-4 items-center justify-center text-muted-foreground">

@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { WORKSPACE_AI_CHAT_ATTACHMENT_POLICY } from "#/features/workspaces/components/ai-chat/constants";
+import { getWorkspaceViewportMode } from "#/features/workspaces/components/workspace-view-policy";
 import { getDefaultWorkspaceThreadId } from "#/features/workspaces/ai/ai-thread-identity";
 import type { WorkspaceSelectedQuote } from "#/features/workspaces/model/workspace-selected-quotes";
 import { useWorkspaceAiComposerDraftStore } from "#/features/workspaces/state/workspace-ai-composer-draft-store";
@@ -17,6 +18,22 @@ type StageComposerQuoteOptions = {
 	revealChat?: boolean;
 };
 
+/**
+ * Drop editable text into the AI composer from anywhere in the workspace (e.g.
+ * an item viewer's "Ask AI to fix" button) and reveal the chat.
+ * The text is staged as an editable draft — it is never auto-sent, so the user
+ * can review or amend it before sending. Reusable across item types.
+ */
+export function stageComposerPrompt(workspaceId: string, text: string) {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return;
+	}
+
+	useWorkspaceAiComposerDraftStore.getState().stageText(getComposerThreadId(workspaceId), trimmed);
+	revealComposer(workspaceId);
+}
+
 export function stageComposerQuote(
 	workspaceId: string,
 	quote: WorkspaceSelectedQuote,
@@ -27,7 +44,7 @@ export function stageComposerQuote(
 	useWorkspaceAiComposerDraftStore.getState().addQuote(workspaceId, quote);
 
 	if (revealChat) {
-		useWorkspaceUiStore.getState().setChatSurfaceMode(workspaceId, "docked");
+		revealComposer(workspaceId);
 	}
 }
 
@@ -45,8 +62,17 @@ export function stageComposerFiles(
 	});
 
 	if (revealChat) {
-		useWorkspaceUiStore.getState().setChatSurfaceMode(workspaceId, "docked");
+		revealComposer(workspaceId);
 	}
+}
+
+function revealComposer(workspaceId: string) {
+	useWorkspaceUiStore
+		.getState()
+		.setChatSurfaceMode(
+			workspaceId,
+			getWorkspaceViewportMode() === "mobile" ? "fullscreen" : "docked",
+		);
 }
 
 export function stageCaptureAttachmentToComposer(

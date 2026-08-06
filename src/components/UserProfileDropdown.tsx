@@ -1,6 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Laptop, LogOut, MessageSquarePlus, Moon, Settings, Sun, SunMoon } from "lucide-react";
+import {
+	CircleArrowUp,
+	Laptop,
+	LogOut,
+	MessageSquarePlus,
+	Moon,
+	Settings,
+	Sun,
+	SunMoon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +31,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { Skeleton } from "#/components/ui/skeleton";
+import { useBillingState } from "#/features/account/use-billing-state";
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import { getErrorMessage } from "#/lib/error-message";
 import { signOutCurrentUser } from "#/lib/auth-sign-out";
 import { isPostHogFeedbackEnabled } from "#/integrations/posthog/config";
@@ -54,6 +65,7 @@ export default function UserProfileDropdown() {
 	const queryClient = useQueryClient();
 	const { theme, setTheme } = useTheme();
 	const { data: session, isPending } = useQuery(getAuthSessionQueryOptions());
+	const { isPending: isBillingPending, isPro } = useBillingState();
 	const [feedbackOpen, setFeedbackOpen] = useState(false);
 
 	const handleSignOut = async () => {
@@ -88,7 +100,7 @@ export default function UserProfileDropdown() {
 							/>
 						}
 					>
-						<Avatar className="size-full">
+						<Avatar className="size-9 sm:size-7">
 							<AvatarImage src={session.user.image ?? undefined} alt="" />
 							<AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
 						</Avatar>
@@ -126,9 +138,29 @@ export default function UserProfileDropdown() {
 									Feedback
 								</DropdownMenuItem>
 							) : null}
+							{!isBillingPending && !isPro ? (
+								<DropdownMenuItem
+									onClick={() => {
+										void navigate({ replace: true, search: showUpgradeDialog, to: "." });
+									}}
+								>
+									<CircleArrowUp className="size-4" />
+									Upgrade
+								</DropdownMenuItem>
+							) : null}
 							<DropdownMenuItem
 								onClick={() => {
-									void navigate({ to: "/settings" });
+									// Stay on the current route: settings is a dialog now, and
+									// navigating to /settings would bounce the user out of
+									// whatever workspace they were in.
+									void navigate({
+										replace: true,
+										search: (previous: Record<string, unknown>) => ({
+											...previous,
+											settings: "account" as const,
+										}),
+										to: ".",
+									});
 								}}
 							>
 								<Settings className="size-4" />

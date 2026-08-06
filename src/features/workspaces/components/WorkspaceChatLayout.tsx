@@ -1,11 +1,13 @@
 import { type ReactElement, type ReactNode, useLayoutEffect, useRef } from "react";
-import type { OnPanelResize, PanelImperativeHandle } from "react-resizable-panels";
+import type { GroupProps, PanelImperativeHandle } from "react-resizable-panels";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable";
 import WorkspaceFrame from "#/features/workspaces/components/WorkspaceFrame";
 import { defaultWorkspaceUiSession } from "#/features/workspaces/model/workspace-ui";
 import type { WorkspaceAiChatSurfaceMode } from "#/features/workspaces/state/workspace-ui-store";
 import { cn } from "#/lib/utils";
+
+const CHAT_PANEL_ID = "ai-chat";
 
 interface WorkspaceChatLayoutProps {
 	chrome: ReactNode;
@@ -23,25 +25,42 @@ export default function WorkspaceChatLayout({
 	onDockedChatCollapse,
 }: WorkspaceChatLayoutProps) {
 	const chatPanelRef = useRef<PanelImperativeHandle | null>(null);
+	const lastDockedChatSizeRef = useRef<number | null>(null);
+	const hasChatPanel = Boolean(chatPanel);
 	const isChatHidden = chatSurfaceMode === "hidden";
 	const isChatFullscreen = chatSurfaceMode === "fullscreen";
 	const isDockedChat = chatSurfaceMode === "docked";
 
 	useLayoutEffect(() => {
-		if (!chatPanel || !chatPanelRef.current) {
+		if (!hasChatPanel || !chatPanelRef.current) {
 			return;
 		}
 
-		if (isDockedChat) {
-			chatPanelRef.current.expand();
+		if (!isDockedChat) {
+			chatPanelRef.current.collapse();
 			return;
 		}
 
-		chatPanelRef.current.collapse();
-	}, [chatPanel, isDockedChat]);
+		// `expand()` only restores the width remembered by a preceding imperative
+		// `collapse()`, so reopening after a drag-to-close would fall back to minSize.
+		if (lastDockedChatSizeRef.current) {
+			chatPanelRef.current.resize(`${lastDockedChatSizeRef.current}%`);
+			return;
+		}
 
-	const handleChatResize: OnPanelResize = () => {
-		if (!isDockedChat || !chatPanelRef.current?.isCollapsed()) {
+		chatPanelRef.current.expand();
+	}, [hasChatPanel, isDockedChat]);
+
+	// Fires only once the pointer is released, so dragging past the collapse
+	// threshold and back never flips chat surface mode mid-drag.
+	const handleLayoutChanged: GroupProps["onLayoutChanged"] = (layout, { isUserInteraction }) => {
+		const chatSize = layout[CHAT_PANEL_ID];
+
+		if (chatSize) {
+			lastDockedChatSizeRef.current = chatSize;
+		}
+
+		if (!isUserInteraction || !isDockedChat || !chatPanelRef.current?.isCollapsed()) {
 			return;
 		}
 
@@ -55,6 +74,7 @@ export default function WorkspaceChatLayout({
 				orientation="horizontal"
 				className="h-full min-h-0"
 				resizeTargetMinimumSize={{ coarse: 24, fine: 15 }}
+				onLayoutChanged={handleLayoutChanged}
 			>
 				<ResizablePanel id="workspace" minSize="45%" className="min-h-0 overflow-hidden">
 					<WorkspaceFrame chrome={chrome} content={content} />
@@ -74,13 +94,12 @@ export default function WorkspaceChatLayout({
 							<div className="my-0 w-px bg-border transition-[background-color,width] duration-150" />
 						</ResizableHandle>
 						<ResizablePanel
-							id="ai-chat"
+							id={CHAT_PANEL_ID}
 							defaultSize="30rem"
 							minSize="26rem"
 							maxSize="60%"
 							collapsible={true}
 							collapsedSize={0}
-							onResize={handleChatResize}
 							panelRef={chatPanelRef}
 							className="min-h-0 overflow-hidden"
 						>

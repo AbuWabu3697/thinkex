@@ -96,6 +96,21 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 	initialState: UserAIStoreState = { isLoaded: false, threads: [] };
 
+	// A purge empties storage without evicting this instance, so every query
+	// routes through here to stop reading a schema that no longer exists.
+	private purged = false;
+
+	override sql<T = Record<string, unknown>>(
+		strings: TemplateStringsArray,
+		...values: (string | number | boolean | null)[]
+	): T[] {
+		if (this.purged) {
+			throw new Error("Account deleted.");
+		}
+
+		return super.sql<T>(strings, ...values);
+	}
+
 	onStart() {
 		const startedAt = performance.now();
 		let stage: "schema" | "state_refresh" = "schema";
@@ -296,7 +311,6 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 		);
 	}
 
-	@callable()
 	async purgeForDeletion(): Promise<ResourcePurgeResult> {
 		const threads = this._getActiveThreadMetaRows();
 		let failed = 0;
@@ -331,7 +345,11 @@ export class UserAIStore extends Agent<Cloudflare.Env, UserAIStoreState> {
 
 		this._refreshState();
 		if (failed === 0) {
+			for (const connection of this.getConnections()) {
+				connection.close(1008, "Account deleted");
+			}
 			await this.ctx.storage.deleteAll();
+			this.purged = true;
 		}
 		return { attempted: threads.length + 1, failed };
 	}

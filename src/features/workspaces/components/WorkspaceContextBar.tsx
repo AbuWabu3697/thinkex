@@ -1,5 +1,5 @@
-import { ChevronDown, Clock3, Settings, Share2 } from "lucide-react";
-import { type ComponentType, type ReactElement, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { type ComponentType, useState } from "react";
 
 import {
 	Breadcrumb,
@@ -9,11 +9,6 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "#/components/ui/breadcrumb";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
 import { useWorkspaceItemActionDialogState } from "#/features/workspaces/components/useWorkspaceItemActionDialogState";
 import WorkspaceContextActions from "#/features/workspaces/components/WorkspaceContextActions";
 import {
@@ -22,18 +17,11 @@ import {
 } from "#/features/workspaces/components/WorkspaceItemActionDialogs";
 import WorkspaceItemActionsMenu from "#/features/workspaces/components/WorkspaceItemActionsMenu";
 import { WorkspaceItemToolbarSlot } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
-import { workspaceDropdownMenuRenderer } from "#/features/workspaces/components/WorkspaceMenuRenderers";
 import { MoveWorkspaceItemsDialog } from "#/features/workspaces/components/WorkspaceMoveItemsDialog";
 import WorkspaceMobileBreadcrumbOverflow from "#/features/workspaces/components/WorkspaceMobileBreadcrumbOverflow";
+import WorkspaceRootActionsMenu from "#/features/workspaces/components/WorkspaceRootActionsMenu";
 import { WorkspaceSearchDialog } from "#/features/workspaces/components/WorkspaceSearchDialog";
-import WorkspaceSettingsDialog from "#/features/workspaces/components/WorkspaceSettingsDialog";
-import { WorkspaceShareDialog } from "#/features/workspaces/components/WorkspaceShareDialog";
 import { WorkspaceToolbarGroup } from "#/features/workspaces/components/WorkspaceToolbar";
-import {
-	renderWorkspaceMenuActions,
-	type WorkspaceMenuAction,
-} from "#/features/workspaces/components/workspace-menu-actions";
-import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import type { WorkspaceItemType, WorkspaceSummary } from "#/features/workspaces/contracts";
 import { getWorkspaceDisplay } from "#/features/workspaces/model/display";
 import { getWorkspaceItemDisplay } from "#/features/workspaces/model/item-display";
@@ -69,11 +57,8 @@ export default function WorkspaceContextBar({
 	onNavigateToRoot,
 	onNavigateToItem,
 }: WorkspaceContextBarProps) {
-	const { capabilities } = useWorkspaceMutationAccess();
 	const { Icon: WorkspaceIcon, color } = getWorkspaceDisplay(workspace);
 	const [searchOpen, setSearchOpen] = useState(false);
-	const [shareOpen, setShareOpen] = useState(false);
-	const [settingsOpen, setSettingsOpen] = useState(false);
 	const breadcrumbs = getWorkspaceBreadcrumbItems(activeItem, itemsById);
 	const mobileOverflowBreadcrumbs = breadcrumbs.slice(0, -1);
 	const createParentId = getWorkspaceBrowseParentId(activeItem);
@@ -94,7 +79,6 @@ export default function WorkspaceContextBar({
 	const workspaceItems = Array.from(itemsById.values());
 	const searchHotkey = formatAppHotkey(getAppHotkey("workspace.search.open").hotkey);
 	const openWorkspaceSearch = () => setSearchOpen(true);
-
 	useAppHotkey("workspace.search.open", () => {
 		openWorkspaceSearch();
 	});
@@ -116,9 +100,7 @@ export default function WorkspaceContextBar({
 								/>
 							) : (
 								<WorkspaceRootActionsMenu
-									capabilities={capabilities}
-									onOpenSettings={() => setSettingsOpen(true)}
-									onOpenShare={() => setShareOpen(true)}
+									workspace={workspace}
 									trigger={
 										<button
 											type="button"
@@ -202,81 +184,8 @@ export default function WorkspaceContextBar({
 				onOpenChange={setSearchOpen}
 				onOpenItem={onNavigateToItem}
 			/>
-			<WorkspaceSettingsDialog
-				workspace={workspace}
-				capabilities={capabilities}
-				open={settingsOpen}
-				onOpenChange={setSettingsOpen}
-			/>
-			<WorkspaceShareDialog
-				membershipRole={workspace.membershipRole}
-				onOpenChange={setShareOpen}
-				open={shareOpen}
-				workspaceId={workspace.id}
-				workspaceName={workspace.name}
-			/>
 		</>
 	);
-}
-
-function WorkspaceRootActionsMenu({
-	capabilities,
-	onOpenSettings,
-	onOpenShare,
-	trigger,
-}: {
-	capabilities: ReturnType<typeof useWorkspaceMutationAccess>["capabilities"];
-	onOpenSettings: () => void;
-	onOpenShare: () => void;
-	trigger: ReactElement;
-}) {
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger render={trigger} />
-			<DropdownMenuContent align="start" className="w-52">
-				{renderWorkspaceMenuActions(
-					getWorkspaceRootMenuActions({
-						canOpenSettings: capabilities.canMutateContent,
-						onOpenSettings,
-						onOpenShare,
-					}),
-					workspaceDropdownMenuRenderer,
-				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-}
-
-function getWorkspaceRootMenuActions(input: {
-	canOpenSettings: boolean;
-	onOpenSettings: () => void;
-	onOpenShare: () => void;
-}): WorkspaceMenuAction[] {
-	return [
-		{
-			kind: "item",
-			id: "share",
-			label: "Share",
-			leading: <Share2 className="size-4" />,
-			onSelect: input.onOpenShare,
-		},
-		{
-			kind: "item",
-			id: "version-history",
-			label: "Version history",
-			leading: <Clock3 className="size-4" />,
-			trailing: "Soon",
-			disabled: true,
-		},
-		{
-			kind: "item",
-			id: "settings",
-			label: "Settings",
-			leading: <Settings className="size-4" />,
-			disabled: !input.canOpenSettings,
-			onSelect: input.onOpenSettings,
-		},
-	];
 }
 
 function WorkspaceBreadcrumbItem({

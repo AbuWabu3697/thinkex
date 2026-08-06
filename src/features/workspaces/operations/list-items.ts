@@ -3,7 +3,6 @@ import type { WorkspaceAccessContext } from "#/features/workspaces/operations/wo
 import type { ListWorkspaceKernelItemsResult } from "#/features/workspaces/kernel/workspace-kernel-list";
 
 export interface ListWorkspaceItemsOperationInput {
-	limit?: number;
 	offset?: number;
 	path?: string;
 	recursive?: boolean;
@@ -22,6 +21,5 @@ export async function listWorkspaceItemsOperation(
 		offset: input.offset,
 		path: input.path,
 		recursive: input.recursive,
-		limit: input.limit,
 	});
 }

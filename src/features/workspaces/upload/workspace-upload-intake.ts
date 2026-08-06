@@ -134,6 +134,21 @@ export function validateWorkspaceUpload(input: {
 		};
 	}
 
+	if (
+		plan.kind === "file" &&
+		plan.descriptor.assetKind === "image" &&
+		input.sizeBytes > workspaceFileUploadLimits.maxImageFileBytes
+	) {
+		return {
+			error: {
+				code: "SELECTION_TOO_LARGE",
+				message: "Upload images up to 20 MB.",
+				status: 413,
+			},
+			ok: false,
+		};
+	}
+
 	if (input.sizeBytes > workspaceFileUploadLimits.maxFileBytes) {
 		return {
 			error: {

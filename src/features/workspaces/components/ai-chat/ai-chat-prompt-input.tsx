@@ -41,7 +41,7 @@ export type PromptInputAttachmentFile = FileAttachmentData;
 
 export interface AttachmentsContext {
 	files: PromptInputAttachmentFile[];
-	composerReady?: boolean;
+	composerReady: boolean;
 	add: (files: File[] | FileList) => void;
 	remove: (id: string) => void;
 	clear: () => void;
@@ -126,7 +126,7 @@ export const PromptInput = ({
 
 			form.reset();
 
-			if (attachmentsCtx.composerReady === false) {
+			if (!attachmentsCtx.composerReady) {
 				return;
 			}
 
@@ -203,7 +203,7 @@ export const PromptInputTextarea = ({
 }: PromptInputTextareaProps) => {
 	const attachments = usePromptInputAttachments();
 	const isComposingRef = useRef(false);
-	const composerReady = attachments.composerReady !== false;
+	const composerReady = attachments.composerReady;
 
 	const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
 		onKeyDown?.(event);

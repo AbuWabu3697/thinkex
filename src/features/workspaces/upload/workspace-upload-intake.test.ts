@@ -32,6 +32,30 @@ describe("workspace upload intake", () => {
 		});
 	});
 
+	it("bounds images at the Images binding input limit", () => {
+		expect(
+			validateWorkspaceUpload({
+				contentType: "image/heic",
+				fileName: "photo.heic",
+				sizeBytes: workspaceFileUploadLimits.maxImageFileBytes,
+			}),
+		).toMatchObject({ ok: true, plan: { kind: "file" } });
+		expect(
+			validateWorkspaceUpload({
+				contentType: "image/jpeg",
+				fileName: "photo.jpg",
+				sizeBytes: workspaceFileUploadLimits.maxImageFileBytes + 1,
+			}),
+		).toMatchObject({
+			error: {
+				code: "SELECTION_TOO_LARGE",
+				message: "Upload images up to 20 MB.",
+				status: 413,
+			},
+			ok: false,
+		});
+	});
+
 	it("bounds document imports before they are materialized in Worker memory", () => {
 		expect(
 			validateWorkspaceUpload({

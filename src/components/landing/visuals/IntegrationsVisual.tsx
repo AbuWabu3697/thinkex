@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "#/lib/utils";
 
-import { Gravity, MatterBody } from "../gravity";
+import { Gravity, GravityBody } from "../gravity";
 
 type IntegrationThumbnailKind = "pdf" | "table" | "image" | "audio" | "notes";
 
@@ -81,11 +81,11 @@ const integrationBlocks: IntegrationBlock[] = [
 export function IntegrationsVisual() {
 	return (
 		<div className="relative h-full min-h-52 w-full overflow-hidden">
-			<Gravity gravity={{ x: 0, y: 1 }} topBoundaryOffset={220} className="min-h-52">
+			<Gravity gravity={{ x: 0, y: 0.7 }} topBoundaryOffset={220} className="min-h-52">
 				{integrationBlocks.map((block) => (
-					<MatterBody key={block.id} x={block.x} y={block.y} angle={block.angle}>
+					<GravityBody key={block.id} x={block.x} y={block.y} angle={block.angle}>
 						<IntegrationMaterialCard block={block} />
-					</MatterBody>
+					</GravityBody>
 				))}
 			</Gravity>
 		</div>

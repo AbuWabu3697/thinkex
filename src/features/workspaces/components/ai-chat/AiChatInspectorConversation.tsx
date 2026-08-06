@@ -122,7 +122,7 @@ function ModelInputDetails({ run, step }: { run: AIInspectorRunView; step: AIIns
 				</span>
 			</summary>
 			<div className="grid min-w-0 max-w-full gap-2 overflow-hidden border-t p-3">
-				{run.system ? <TextDisclosure title="System prompt" text={run.system} /> : null}
+				{run.instructions ? <TextDisclosure title="System prompt" text={run.instructions} /> : null}
 				<JsonDisclosure title="Messages sent to this step" value={step.messages} />
 				{run.tools.length > 0 ? <JsonDisclosure title="Available tools" value={run.tools} /> : null}
 				{run.body ? <JsonDisclosure title="Turn request body" value={run.body} /> : null}

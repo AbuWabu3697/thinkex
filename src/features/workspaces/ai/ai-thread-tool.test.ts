@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from "ai";
-import { tool } from "ai";
+import { asSchema, tool } from "ai";
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
 
@@ -11,9 +11,10 @@ import {
 
 const directOptions = {
 	abortSignal: new AbortController().signal,
+	context: {},
 	messages: [],
 	toolCallId: "direct-call",
-} satisfies ToolExecutionOptions;
+} satisfies ToolExecutionOptions<unknown>;
 
 describe("AI thread tool", () => {
 	it("uses one validated execution path for direct and Code Mode calls", async () => {
@@ -102,5 +103,22 @@ describe("AI thread tool", () => {
 			type: "json",
 			value: { value: "visible" },
 		});
+	});
+
+	it("omits unsupported provider array bounds without weakening runtime validation", async () => {
+		const aiTool = defineAIThreadTool({
+			inputSchema: z.object({ values: z.array(z.string()).max(1) }),
+			outputSchema: z.object({ accepted: z.boolean() }),
+			execute: async () => ({ accepted: true }),
+		});
+		const modelSchema = await asSchema(aiTool.inputSchema).jsonSchema;
+
+		expect(JSON.stringify(modelSchema)).not.toContain('"maxItems"');
+		await expect(
+			requireAIThreadToolRuntime("bounded", aiTool).execute(
+				{ values: ["one", "two"] },
+				{ invocationId: "nested-call", source: "codemode" },
+			),
+		).rejects.toThrow();
 	});
 });

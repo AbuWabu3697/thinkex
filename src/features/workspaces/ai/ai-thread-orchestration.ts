@@ -1,18 +1,40 @@
-import { generateTypes } from "@cloudflare/codemode/ai";
 import type { ConnectorTool, ConnectorTools } from "@cloudflare/codemode";
 import { CodemodeConnector, sanitizeToolName } from "@cloudflare/codemode";
 import { createExecuteRuntime } from "@cloudflare/think/tools/execute";
 import type { StateBackend } from "@cloudflare/shell";
-import type { ToolSet } from "ai";
+import type { Tool, ToolSet } from "ai";
+import { z } from "zod";
 
+import { generateAIThreadCodemodeTypes } from "#/features/workspaces/ai/ai-codemode-types";
+import { createAIThreadBrowserConnector } from "#/features/workspaces/ai/ai-thread-browser";
 import {
-	aiThreadOrchestrationOutputSchema,
+	getAIThreadOrchestrationModelOutput,
 	normalizeAIThreadOrchestrationOutput,
 } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
-import { requireAIThreadToolRuntime } from "#/features/workspaces/ai/ai-thread-tool";
+import {
+	aiThreadActivityTitleSchema,
+	getModelToolDefinition,
+	requireAIThreadToolRuntime,
+} from "#/features/workspaces/ai/ai-thread-tool";
+import { attachDocumentEditReceiptMetadata } from "#/features/workspaces/ai/ai-thread-tool-ui-metadata";
+
+type AIThreadOrchestrationRuntime = ReturnType<typeof createExecuteRuntime>["runtime"];
+
+/**
+ * Code Mode's own input schema is `{ code }` alone, which leaves the chat row
+ * with nothing to say but "Working". Widening it with a leading `title` costs
+ * the execution nothing — Cloudflare's executor destructures `code` and
+ * ignores the rest — and gives the row a model-authored label to show while
+ * the code streams in.
+ */
+const aiThreadOrchestrationInputSchema = z.object({
+	title: aiThreadActivityTitleSchema,
+	code: z.string(),
+});
 
 export {
 	getAIThreadOrchestrationTelemetryOutput,
+	getAIThreadOrchestrationModelOutput,
 	normalizeAIThreadOrchestrationOutput,
 } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
 export type { AIThreadOrchestrationOutput } from "#/features/workspaces/ai/ai-thread-orchestration-contract";
@@ -20,8 +42,10 @@ export type { AIThreadOrchestrationOutput } from "#/features/workspaces/ai/ai-th
 interface CreateAIThreadOrchestrationToolInput {
 	ctx: DurableObjectState;
 	description: string;
+	browser: Cloudflare.Env["BROWSER"];
 	loader: WorkerLoader;
 	name: string;
+	onRuntime?: (runtime: AIThreadOrchestrationRuntime) => void;
 	state?: StateBackend;
 	tools: ToolSet;
 }
@@ -31,15 +55,19 @@ interface CreateAIThreadOrchestrationToolInput {
  * Cloudflare keeps its full durable execution log; callers receive only the
  * typed, compact application result below.
  */
-export function createAIThreadOrchestrationTool(input: CreateAIThreadOrchestrationToolInput) {
+export function createAIThreadOrchestrationTool(input: CreateAIThreadOrchestrationToolInput): Tool {
 	const runtime = createExecuteRuntime({
 		ctx: input.ctx,
 		loader: input.loader,
 		state: input.state,
-		connectors: [new AIThreadToolSetConnector(input.ctx, input.tools)],
+		connectors: [
+			new AIThreadToolSetConnector(input.ctx, input.tools),
+			createAIThreadBrowserConnector(input.ctx, input.browser),
+		],
 		name: input.name,
 		description: input.description,
 	});
+	input.onRuntime?.(runtime.runtime);
 	const execute = runtime.tool.execute;
 
 	if (!execute) {
@@ -47,12 +75,16 @@ export function createAIThreadOrchestrationTool(input: CreateAIThreadOrchestrati
 	}
 
 	return {
-		...runtime.tool,
-		outputSchema: aiThreadOrchestrationOutputSchema,
+		...getModelToolDefinition(runtime.tool),
+		inputSchema: aiThreadOrchestrationInputSchema,
+		toModelOutput: ({ output }) => ({
+			type: "json" as const,
+			value: getAIThreadOrchestrationModelOutput(output),
+		}),
 		execute: async (...args: Parameters<typeof execute>) => {
 			return normalizeAIThreadOrchestrationOutput(await execute(...args));
 		},
-	};
+	} as Tool;
 }
 
 class AIThreadToolSetConnector extends CodemodeConnector {
@@ -84,18 +116,23 @@ class AIThreadToolSetConnector extends CodemodeConnector {
 					sources.set(methodName, toolName);
 
 					const connectorTool: ConnectorTool = {
-						description: aiTool.description,
+						description: typeof aiTool.description === "function" ? undefined : aiTool.description,
 						inputSchema: await runtime.inputSchema.jsonSchema,
 						outputSchema: await runtime.outputSchema.jsonSchema,
 						...(aiTool.needsApproval !== undefined && aiTool.needsApproval !== false
 							? { requiresApproval: true }
 							: {}),
 						execute: async (args, context) => {
-							return runtime.execute(args, {
+							const invocationId = crypto.randomUUID();
+							const output = await runtime.execute(args, {
 								codemodeExecutionId: context?.executionId,
-								invocationId: crypto.randomUUID(),
+								invocationId,
 								source: "codemode",
 							});
+
+							return toolName === "workspace_edit_item"
+								? attachDocumentEditReceiptMetadata(output, invocationId)
+								: output;
 						},
 					};
 
@@ -106,6 +143,6 @@ class AIThreadToolSetConnector extends CodemodeConnector {
 	}
 
 	async getTypeScriptTypes() {
-		return generateTypes(this.#toolSet, this.name());
+		return generateAIThreadCodemodeTypes(this.#toolSet, this.name());
 	}
 }

@@ -75,6 +75,38 @@ describe("workspace direct upload sessions", () => {
 		).resolves.toMatchObject({ fileName: "report.docx", target: "staging" });
 	});
 
+	it("rejects token operations when the upload token secret is missing", async () => {
+		sign.mockImplementation(async (request: Request) => request);
+		const env = createEnv();
+		const session = await createWorkspaceDirectUploadSession(env, {
+			clientMutationId: "mutation-1",
+			contentType: "application/pdf",
+			fileName: "report.pdf",
+			fileSize: 42,
+			parentId: null,
+			target: "source",
+			userId: "user-1",
+			workspaceId: "workspace-1",
+		});
+		delete (env as Partial<Cloudflare.Env>).WORKSPACE_UPLOAD_TOKEN_SECRET;
+
+		await expect(verifyWorkspaceDirectUploadToken(env, session.completionToken)).rejects.toThrow(
+			"WORKSPACE_UPLOAD_TOKEN_SECRET is required",
+		);
+		await expect(
+			createWorkspaceDirectUploadSession(env, {
+				clientMutationId: "mutation-1",
+				contentType: "application/pdf",
+				fileName: "report.pdf",
+				fileSize: 42,
+				parentId: null,
+				target: "source",
+				userId: "user-1",
+				workspaceId: "workspace-1",
+			}),
+		).rejects.toThrow("WORKSPACE_UPLOAD_TOKEN_SECRET is required");
+	});
+
 	it("rejects tampered and expired completion tokens", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-07-14T12:00:00Z"));

@@ -14,6 +14,11 @@ import type {
 	AiChatSendMessageOptions,
 	AiChatStatus,
 } from "#/features/workspaces/components/ai-chat/types";
+import { useWorkspaceAiBrowserSession } from "#/features/workspaces/components/ai-chat/useWorkspaceAiBrowserSession";
+import {
+	hasAnalyticsConsent,
+	hasExplicitSessionReplayConsent,
+} from "#/integrations/posthog/consent";
 
 interface UseWorkspaceAiChatOptions {
 	modelId: AiChatModelId;
@@ -33,8 +38,11 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 		body: () => ({
 			modelId,
 			timeZone: getClientTimeZone(),
+			// The DO can't read the browser consent cookie, so both choices ride in the turn body.
+			analyticsConsent: hasAnalyticsConsent(),
+			sessionReplayConsent: hasExplicitSessionReplayConsent(),
 		}),
-		experimental_throttle: AI_CHAT_RENDER_THROTTLE_MS,
+		throttle: AI_CHAT_RENDER_THROTTLE_MS,
 	});
 	const {
 		clearError,
@@ -56,6 +64,7 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 		isToolContinuation,
 	});
 	const canStop = status === "submitted" || presentation.isBusy;
+	const isConnected = agent.identified && agent.readyState === agent.OPEN;
 	const inputStatus: AiChatStatus = connectionError
 		? "error"
 		: presentation.tailPending || presentation.isRecovering
@@ -65,16 +74,21 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 				: status === "error"
 					? "ready"
 					: status;
-	const canSend = inputStatus === "ready" && !presentation.isBusy && !connectionError;
+	const canSend =
+		isConnected && inputStatus === "ready" && !presentation.isBusy && !connectionError;
+	const browser = useWorkspaceAiBrowserSession({
+		agent,
+		isChatBusy: canStop,
+		threadId,
+	});
 
 	const sendMessage = (message: AiChatSendMessage, options?: AiChatSendMessageOptions) => {
 		if (message.parts.length === 0 || !canSend) {
-			return false;
+			throw new Error("Cannot send a chat message while the chat is unavailable");
 		}
 
 		clearError();
 		void sendAgentMessage(message, options);
-		return true;
 	};
 	const regenerate = () => {
 		if (canStop) {
@@ -86,6 +100,8 @@ export function useWorkspaceAiChat({ modelId, threadId }: UseWorkspaceAiChatOpti
 	};
 
 	return {
+		browser,
+		canSend,
 		connectionError,
 		inputStatus,
 		messages,

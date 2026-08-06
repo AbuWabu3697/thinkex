@@ -7,7 +7,7 @@ import {
 } from "#/components/ui/dropdown-menu";
 import {
 	WorkspaceResponsiveToolbar,
-	WorkspaceToolbarMenuButton,
+	WorkspaceToolbarIconButton,
 	WorkspaceToolbarTextButton,
 } from "#/features/workspaces/components/WorkspaceToolbar";
 import { cn } from "#/lib/utils";
@@ -55,18 +55,10 @@ export function WorkspaceFileToolbar({
 					Capture
 				</WorkspaceToolbarTextButton>
 			) : null}
-			<WorkspaceFileMoreMenu onDownload={handleDownload} />
+			<WorkspaceToolbarIconButton aria-label="Download file" onClick={handleDownload}>
+				<Download />
+			</WorkspaceToolbarIconButton>
 		</WorkspaceResponsiveToolbar>
-	);
-}
-
-function WorkspaceFileMoreMenu({ onDownload }: { onDownload: () => void }) {
-	return (
-		<WorkspaceToolbarMenuButton
-			aria-label="More file actions"
-			contentClassName="w-48"
-			content={<WorkspaceFileActionsMenuContent onDownload={onDownload} />}
-		/>
 	);
 }
 

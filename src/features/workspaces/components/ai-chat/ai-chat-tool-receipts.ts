@@ -1,12 +1,89 @@
-export type AiChatToolReceiptStatus = "completed" | "failed" | "running";
-type AiChatFinishedToolReceiptStatus = Exclude<AiChatToolReceiptStatus, "running">;
+export type AiChatToolReceiptStatus = "completed" | "failed" | "interrupted" | "running";
+type AiChatFinishedToolReceiptStatus = Exclude<AiChatToolReceiptStatus, "interrupted" | "running">;
+
+/**
+ * A receipt segment is one visual chunk of the summary that either has fixed
+ * width (`text`, rendered `shrink-0 whitespace-pre` in the tool row) or holds
+ * a variable-width label that should shrink first (`name`, rendered
+ * `min-w-0 truncate`). The row-level flex layout then handles all dynamic
+ * truncation for free — no measurement, no ResizeObserver, no hard-coded
+ * character caps — while status icons, favicons, and prefix/suffix words
+ * stay visible.
+ */
+export type AiChatToolReceiptSegment =
+	| { kind: "text"; value: string }
+	| { kind: "name"; value: string };
 
 export interface AiChatToolReceipt {
 	status: AiChatToolReceiptStatus;
+	/**
+	 * Full plain-text summary used for the row title attribute, accessibility,
+	 * and telemetry. Always populated even when `segments` is present so the
+	 * hover tooltip and screen-reader output always match the visual state.
+	 */
 	summary: string;
+	/**
+	 * Optional structured breakdown for dynamic truncation. When present the
+	 * row renderer emits one flex child per segment; when omitted it renders
+	 * the summary as a single truncate span (legacy behavior).
+	 */
+	segments?: AiChatToolReceiptSegment[];
 }
 
-const TOOL_RECEIPT_VALUE_MAX_LENGTH = 72;
+type ReceiptPart = string | { name: string };
+
+function toSegments(parts: readonly ReceiptPart[]): AiChatToolReceiptSegment[] {
+	const out: AiChatToolReceiptSegment[] = [];
+	for (const part of parts) {
+		const next: AiChatToolReceiptSegment =
+			typeof part === "string" ? { kind: "text", value: part } : { kind: "name", value: part.name };
+		if (next.kind === "text" && !next.value) continue;
+		const previous = out[out.length - 1];
+		if (previous && previous.kind === "text" && next.kind === "text") {
+			out[out.length - 1] = { kind: "text", value: previous.value + next.value };
+		} else {
+			out.push(next);
+		}
+	}
+	return out;
+}
+
+function toSummary(segments: readonly AiChatToolReceiptSegment[]): string {
+	return segments.map((segment) => segment.value).join("");
+}
+
+function build(status: AiChatToolReceiptStatus, parts: readonly ReceiptPart[]): AiChatToolReceipt {
+	if (parts.length === 1 && typeof parts[0] === "string") {
+		return { status, summary: parts[0] };
+	}
+	const segments = toSegments(parts);
+	return { status, summary: toSummary(segments), segments };
+}
+
+/**
+ * Receipt factory. Pass strings and `{ name }` parts positionally and the
+ * builder assembles a summary string plus a matching segments array.
+ *
+ * @example
+ *   receipt.running("Editing ", ...name(basename))
+ *   receipt.completed("Updated ", ...name(basename), " with ", formatCount(count, "edit"))
+ */
+export const receipt = {
+	running: (...parts: ReceiptPart[]) => build("running", parts),
+	completed: (...parts: ReceiptPart[]) => build("completed", parts),
+	failed: (...parts: ReceiptPart[]) => build("failed", parts),
+};
+
+/**
+ * Emits a truncatable name wrapped in curly quotes as three receipt parts:
+ * the opening quote (fixed), the name (truncates), the closing quote (fixed).
+ * The quotes stay visible even when the middle gets ellipsized.
+ */
+export function name(value: string | undefined): ReceiptPart[] {
+	const trimmed = value?.trim();
+	if (!trimmed) return ["item"];
+	return ["“", { name: trimmed }, "”"];
+}
 
 export function getRunningToolReceipt(input: {
 	toolInput: unknown;
@@ -16,50 +93,57 @@ export function getRunningToolReceipt(input: {
 
 	switch (input.toolName) {
 		case "workspace_create_items":
-			return running(`Creating ${formatCount(getArray(toolInput.items).length, "item")}`);
+			return receipt.running(`Creating ${formatCount(getArray(toolInput.items).length, "item")}`);
 		case "workspace_delete_items":
-			return running(`Deleting ${formatCount(getArray(toolInput.paths).length, "item")}`);
+			return receipt.running(`Deleting ${formatCount(getArray(toolInput.paths).length, "item")}`);
 		case "workspace_edit_item":
-			return running(`Editing ${quoteName(getBaseName(getString(toolInput.path)))}`);
+			return receipt.running("Editing ", ...name(getBaseName(getString(toolInput.path))));
 		case "workspace_move_items": {
 			const count = getArray(toolInput.paths).length;
-			const destination = formatDestinationName(getString(toolInput.destinationPath));
+			const destinationName = getDestinationName(getString(toolInput.destinationPath));
 			const target = formatCount(count, "item");
-			return running(destination ? `Moving ${target} to ${destination}` : `Moving ${target}`);
+			return destinationName
+				? receipt.running(`Moving ${target} to `, ...destinationName)
+				: receipt.running(`Moving ${target}`);
 		}
 		case "workspace_read_items": {
 			const requests = getArray(toolInput.requests).map((request) => asRecord(request));
 			const paths = requests.map((request) => getString(request.path)).filter(Boolean) as string[];
-			const target = formatToolInputPaths(paths);
-			if (requests.length === 1) {
+			if (requests.length === 1 && paths[0]) {
 				const range = formatPageRange(getString(requests[0]?.range));
-				return running(range ? `Reading ${target} p. ${range}` : `Reading ${target}`);
+				return range
+					? receipt.running("Reading ", ...name(getBaseName(paths[0])), ` p. ${range}`)
+					: receipt.running("Reading ", ...name(getBaseName(paths[0])));
 			}
-			return running(`Reading ${target}`);
+			return receipt.running(`Reading ${formatCount(paths.length, "item")}`);
 		}
 		case "workspace_rename_item": {
-			const oldName = quoteName(getBaseName(getString(toolInput.path)));
+			const oldName = getBaseName(getString(toolInput.path));
 			const newName = getString(toolInput.name);
-			return running(
-				newName ? `Renaming ${oldName} → ${quoteName(newName)}` : `Renaming ${oldName}`,
-			);
+			return newName
+				? receipt.running("Renaming ", ...name(oldName), " → ", ...name(newName))
+				: receipt.running("Renaming ", ...name(oldName));
 		}
+		case "workspace_search":
+			return receipt.running("Searching the workspace for ", ...name(getString(toolInput.query)));
 		case "web_links":
-			return running(`Finding links on ${formatUrl(getString(toolInput.url))}`);
+			return receipt.running("Finding links on ", { name: formatUrl(getString(toolInput.url)) });
 		case "web_markdown":
-			return running(`Reading ${formatUrlWithPath(getString(toolInput.url))}`);
+			return receipt.running("Reading ", {
+				name: formatUrlWithPath(getString(toolInput.url)),
+			});
 		case "web_search":
-			return running(`Searching for ${quoteName(getString(toolInput.query))}`);
+			return receipt.running("Searching for ", ...name(getString(toolInput.query)));
 		case "research_deepen":
-			return running(summarizeRunningResearchDeepen(toolInput));
+			return summarizeRunningResearchDeepen(toolInput);
 		case "research_discover":
-			return running(`Finding sources for ${quoteName(getString(toolInput.query))}`);
+			return receipt.running("Finding sources for ", ...name(getString(toolInput.query)));
 		case "compute":
-			return running("Running Python");
+			return activityTitleReceipt("running", toolInput) ?? receipt.running("Running Python");
 		case "orchestrate":
-			return running("Working through the task");
+			return activityTitleReceipt("running", toolInput) ?? receipt.running("Working");
 		default:
-			return running(`Running ${formatToolNameFallback(input.toolName)}`);
+			return receipt.running(`Running ${formatToolNameFallback(input.toolName)}`);
 	}
 }
 
@@ -70,13 +154,8 @@ export function getFinishedToolReceipt(input: {
 	toolName: string;
 }): AiChatToolReceipt {
 	if (input.baseStatus === "failed") {
-		return {
-			status: "failed",
-			summary: summarizeFailedTool(input.toolName, input.output, input.toolInput),
-		};
+		return summarizeFailedTool(input.toolName, input.output, input.toolInput);
 	}
-
-	const unknownFallback = () => completed(summarizeUnknownResult(input.output, input.toolName));
 
 	switch (input.toolName) {
 		case "workspace_create_items":
@@ -95,7 +174,7 @@ export function getFinishedToolReceipt(input: {
 			return summarizeWorkspaceBatch(input.output, {
 				failureVerb: "move",
 				successVerb: "Moved",
-				destination: formatDestinationName(getString(asRecord(input.toolInput).destinationPath)),
+				destination: getDestinationName(getString(asRecord(input.toolInput).destinationPath)),
 			});
 		case "workspace_rename_item":
 			return summarizeWorkspaceRename(input.output, input.toolInput);
@@ -103,58 +182,69 @@ export function getFinishedToolReceipt(input: {
 			return summarizeWorkspaceEdit(input.output, input.toolInput);
 		case "workspace_read_items":
 			return summarizeWorkspaceRead(input.output);
+		case "workspace_search":
+			return summarizeWorkspaceSearch(input.output, input.toolInput);
 		case "web_search":
-			return completed(summarizeWebSearch(input.output, input.toolInput));
+			return summarizeWebSearch(input.output, input.toolInput);
 		case "web_markdown":
-			return completed(`Read ${formatUrlWithPath(getString(asRecord(input.toolInput).url))}`);
+			return receipt.completed("Read ", {
+				name: formatUrlWithPath(getString(asRecord(input.toolInput).url)),
+			});
 		case "web_links":
-			return completed(summarizeWebLinks(input.output, input.toolInput));
+			return summarizeWebLinks(input.output, input.toolInput);
 		case "research_discover":
-			return completed(summarizeResearchDiscover(input.output, input.toolInput));
+			return summarizeResearchDiscover(input.output, input.toolInput);
 		case "research_deepen":
-			return completed(summarizeResearchDeepen(input.output, input.toolInput));
+			return summarizeResearchDeepen(input.output, input.toolInput);
 		case "orchestrate":
-			return summarizeCodemode(input.output);
+			return summarizeCodemode(input.output, input.toolInput);
 		case "compute":
-			return summarizeCompute(input.output);
+			return summarizeCompute(input.output, input.toolInput);
 		default:
-			return unknownFallback();
+			return receipt.completed(summarizeUnknownResult(input.output, input.toolName));
 	}
 }
 
-function summarizeFailedTool(toolName: string, output: unknown, toolInput: unknown) {
+function summarizeFailedTool(
+	toolName: string,
+	output: unknown,
+	toolInput: unknown,
+): AiChatToolReceipt {
 	const outputRecord = asRecord(output);
 	const failedCount = getArray(outputRecord.failed).length;
 
 	switch (toolName) {
 		case "workspace_create_items":
 			return failedCount > 0
-				? `Couldn’t create ${formatCount(failedCount, "item")}`
-				: "Couldn’t update workspace";
+				? receipt.failed(`Couldn’t create ${formatCount(failedCount, "item")}`)
+				: receipt.failed("Couldn’t update workspace");
 		case "workspace_delete_items":
 			return failedCount > 0
-				? `Couldn’t delete ${formatCount(failedCount, "item")}`
-				: "Couldn’t update workspace";
+				? receipt.failed(`Couldn’t delete ${formatCount(failedCount, "item")}`)
+				: receipt.failed("Couldn’t update workspace");
 		case "workspace_move_items":
 			return failedCount > 0
-				? `Couldn’t move ${formatCount(failedCount, "item")}`
-				: "Couldn’t update workspace";
+				? receipt.failed(`Couldn’t move ${formatCount(failedCount, "item")}`)
+				: receipt.failed("Couldn’t update workspace");
 		case "workspace_rename_item":
 			return failedCount > 0
-				? `Couldn’t rename ${formatCount(failedCount, "item")}`
-				: "Couldn’t update workspace";
+				? receipt.failed(`Couldn’t rename ${formatCount(failedCount, "item")}`)
+				: receipt.failed("Couldn’t update workspace");
 		case "workspace_edit_item":
-			return `Couldn’t update ${quoteName(
-				getBaseName(getString(outputRecord.path) ?? getPathFromToolInput(toolInput)),
-			)}`;
+			return receipt.failed(
+				"Couldn’t update ",
+				...name(getBaseName(getString(outputRecord.path) ?? getPathFromToolInput(toolInput))),
+			);
 		case "workspace_read_items":
 			return failedCount > 0
-				? `Couldn’t read ${formatCount(failedCount, "item")}`
-				: "Couldn’t read workspace";
+				? receipt.failed(`Couldn’t read ${formatCount(failedCount, "item")}`)
+				: receipt.failed("Couldn’t read workspace");
+		case "workspace_search":
+			return receipt.failed("Couldn’t search the workspace");
 		case "compute":
-			return "Couldn’t compute";
+			return receipt.failed("Couldn’t compute");
 		default:
-			return `${capitalize(formatToolNameFallback(toolName))} failed`;
+			return receipt.failed(`${capitalize(formatToolNameFallback(toolName))} failed`);
 	}
 }
 
@@ -163,7 +253,7 @@ function summarizeWorkspaceBatch(
 	options: {
 		failureVerb: string;
 		successVerb: string;
-		destination?: string;
+		destination?: ReceiptPart[];
 		typeFromItem?: (item: unknown) => string;
 	},
 ): AiChatToolReceipt {
@@ -172,19 +262,39 @@ function summarizeWorkspaceBatch(
 	const failedCount = getArray(record.failed).length;
 
 	if (items.length === 0 && failedCount > 0) {
-		return failed(`Couldn’t ${options.failureVerb} ${formatCount(failedCount, "item")}`);
+		return receipt.failed(`Couldn’t ${options.failureVerb} ${formatCount(failedCount, "item")}`);
 	}
 
-	const base =
+	const base: ReceiptPart[] =
 		items.length === 1
-			? summarizeSingleWorkspaceItem(items[0], options)
+			? singleWorkspaceItemParts(items[0], options)
 			: items.length === 2
-				? `${options.successVerb} ${joinNames(items, "item")}`
-				: `${options.successVerb} ${formatCount(items.length, "item")}`;
+				? [`${options.successVerb} `, ...joinNames(items, "item")]
+				: [`${options.successVerb} ${formatCount(items.length, "item")}`];
 
-	const successSummary = options.destination ? `${base} to ${options.destination}` : base;
+	const withDestination = options.destination
+		? ([...base, " to ", ...options.destination] as ReceiptPart[])
+		: base;
+	const withFailures =
+		failedCount > 0
+			? ([...withDestination, `, ${formatCount(failedCount, "failure")}`] as ReceiptPart[])
+			: withDestination;
 
-	return completed(appendFailureCount(successSummary, failedCount));
+	return receipt.completed(...withFailures);
+}
+
+function singleWorkspaceItemParts(
+	item: unknown,
+	options: {
+		successVerb: string;
+		typeFromItem?: (item: unknown) => string;
+	},
+): ReceiptPart[] {
+	const type = options.typeFromItem?.(item);
+	const nameParts = name(getBaseName(getString(asRecord(item).path)));
+	return type
+		? [`${options.successVerb} ${type} `, ...nameParts]
+		: [`${options.successVerb} `, ...nameParts];
 }
 
 function summarizeWorkspaceRename(output: unknown, toolInput: unknown): AiChatToolReceipt {
@@ -193,28 +303,14 @@ function summarizeWorkspaceRename(output: unknown, toolInput: unknown): AiChatTo
 	const failedCount = getArray(record.failed).length;
 
 	if (!record.item && failedCount > 0) {
-		return failed(`Couldn’t rename ${formatCount(failedCount, "item")}`);
+		return receipt.failed(`Couldn’t rename ${formatCount(failedCount, "item")}`);
 	}
 
-	const oldName = quoteName(getBaseName(getString(item.previousPath)));
-	const newName = quoteName(
-		getBaseName(getString(item.path) ?? getString(asRecord(toolInput).name)),
-	);
-
-	return completed(appendFailureCount(`Renamed ${oldName} → ${newName}`, failedCount));
-}
-
-function summarizeSingleWorkspaceItem(
-	item: unknown,
-	options: {
-		successVerb: string;
-		typeFromItem?: (item: unknown) => string;
-	},
-) {
-	const type = options.typeFromItem?.(item);
-	const name = quoteName(getBaseName(getString(asRecord(item).path)));
-
-	return type ? `${options.successVerb} ${type} ${name}` : `${options.successVerb} ${name}`;
+	const oldName = getBaseName(getString(item.previousPath));
+	const newName = getBaseName(getString(item.path) ?? getString(asRecord(toolInput).name));
+	const parts: ReceiptPart[] = ["Renamed ", ...name(oldName), " → ", ...name(newName)];
+	if (failedCount > 0) parts.push(`, ${formatCount(failedCount, "failure")}`);
+	return receipt.completed(...parts);
 }
 
 function summarizeWorkspaceEdit(output: unknown, toolInput: unknown): AiChatToolReceipt {
@@ -224,25 +320,20 @@ function summarizeWorkspaceEdit(output: unknown, toolInput: unknown): AiChatTool
 	const appliedCount = getNumber(record.applied) ?? 0;
 
 	if (appliedCount === 0 && failedCount > 0) {
-		return failed(
-			`Couldn’t update ${quoteName(
-				getBaseName(getString(record.path) ?? getPathFromToolInput(toolInput)),
-			)}`,
+		return receipt.failed(
+			"Couldn’t update ",
+			...name(getBaseName(getString(record.path) ?? getPathFromToolInput(toolInput))),
 		);
 	}
 
-	const summary =
-		appliedCount > 1
-			? `Updated ${quoteName(getBaseName(getString(record.path)))} with ${formatCount(
-					appliedCount,
-					"edit",
-				)}`
-			: `Updated ${quoteName(getBaseName(getString(record.path)))}`;
+	const nameParts = name(getBaseName(getString(record.path)));
+	const suffixPieces: string[] = [];
+	if (appliedCount > 1) suffixPieces.push(`with ${formatCount(appliedCount, "edit")}`);
+	if (failedCount > 0) suffixPieces.push(formatCount(failedCount, "failure"));
+	if (warningCount > 0) suffixPieces.push(formatCount(warningCount, "warning"));
+	const suffix = suffixPieces.length > 0 ? ` ${suffixPieces.join(", ")}` : "";
 
-	const withFailures = appendFailureCount(summary, failedCount);
-	return completed(
-		warningCount > 0 ? `${withFailures}, ${formatCount(warningCount, "warning")}` : withFailures,
-	);
+	return receipt.completed("Updated ", ...nameParts, suffix);
 }
 
 function summarizeWorkspaceRead(output: unknown): AiChatToolReceipt {
@@ -255,44 +346,46 @@ function summarizeWorkspaceRead(output: unknown): AiChatToolReceipt {
 	const pendingItems = results.filter((item) => getString(asRecord(item).status) === "pending");
 
 	if (readyItems.length === 0 && pendingItems.length === 0 && failedCount > 0) {
-		return failed(`Couldn’t read ${formatCount(failedCount, "item")}`);
+		return receipt.failed(`Couldn’t read ${formatCount(failedCount, "item")}`);
 	}
 	if (readyItems.length === 0) {
-		return completed(
-			appendFailureCount(
-				`Extraction in progress for ${formatCount(pendingItems.length, "item")}`,
-				failedCount,
-			),
-		);
+		const parts: ReceiptPart[] = [
+			`Extraction in progress for ${formatCount(pendingItems.length, "item")}`,
+		];
+		if (failedCount > 0) parts.push(`, ${formatCount(failedCount, "failure")}`);
+		return receipt.completed(...parts);
 	}
 
-	const summary =
+	const base: ReceiptPart[] =
 		readyItems.length === 1
-			? formatSingleReadSummary(readyItems[0])
-			: `Read ${formatCount(readyItems.length, "item")}`;
+			? singleReadParts(readyItems[0])
+			: [`Read ${formatCount(readyItems.length, "item")}`];
 
-	const pendingSummary =
+	const withPending: ReceiptPart[] =
 		pendingItems.length > 0
-			? `${summary} · ${formatCount(pendingItems.length, "item")} still processing`
-			: summary;
-	return completed(appendFailureCount(pendingSummary, failedCount));
+			? [...base, ` · ${formatCount(pendingItems.length, "item")} still processing`]
+			: base;
+	const withFailures: ReceiptPart[] =
+		failedCount > 0 ? [...withPending, `, ${formatCount(failedCount, "failure")}`] : withPending;
+
+	return receipt.completed(...withFailures);
 }
 
-function formatSingleReadSummary(result: unknown) {
+function singleReadParts(result: unknown): ReceiptPart[] {
 	const record = asRecord(result);
-	const name = quoteName(getBaseName(getString(record.path)));
+	const basename = getBaseName(getString(record.path));
+	const nameParts = name(basename);
 	const location = asRecord(record.location);
 	if (getString(location.kind) === "pages") {
 		const range = formatPageRange(getString(location.requested));
 		const total = getNumber(location.total);
 		const returned = getArray(location.returned).length;
 		if (range) {
-			return total && returned < total
-				? `Read ${name} p. ${range} of ${total}`
-				: `Read ${name} p. ${range}`;
+			const suffix = total && returned < total ? ` p. ${range} of ${total}` : ` p. ${range}`;
+			return ["Read ", ...nameParts, suffix];
 		}
 	}
-	return `Read ${name}`;
+	return ["Read ", ...nameParts];
 }
 
 function formatPageRange(range: string | undefined) {
@@ -301,104 +394,134 @@ function formatPageRange(range: string | undefined) {
 	return trimmed ? trimmed.replace(/\s*-\s*/g, "–") : undefined;
 }
 
-function summarizeWebSearch(output: unknown, toolInput: unknown) {
+function summarizeWorkspaceSearch(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const results = getArray(asRecord(output).results);
-	return appendSubject(`Found ${formatCount(results.length, "source")}`, asRecord(toolInput).query);
+	const subject = getString(asRecord(toolInput).query);
+	const base: ReceiptPart[] = [`Found ${formatCount(results.length, "result")}`];
+	return subject
+		? receipt.completed(...base, " for ", ...name(subject))
+		: receipt.completed(...base);
 }
 
-function summarizeWebLinks(output: unknown, toolInput: unknown) {
+function summarizeWebSearch(output: unknown, toolInput: unknown): AiChatToolReceipt {
+	const results = getArray(asRecord(output).results);
+	const subject = getString(asRecord(toolInput).query);
+	const base: ReceiptPart[] = [`Found ${formatCount(results.length, "source")}`];
+	return subject
+		? receipt.completed(...base, " for ", ...name(subject))
+		: receipt.completed(...base);
+}
+
+function summarizeWebLinks(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const items = getArray(asRecord(output).items);
-	return `Found ${formatCount(items.length, "link")} on ${formatUrl(getString(asRecord(toolInput).url))}`;
+	return receipt.completed(`Found ${formatCount(items.length, "link")} on `, {
+		name: formatUrl(getString(asRecord(toolInput).url)),
+	});
 }
 
-function summarizeResearchDiscover(output: unknown, toolInput: unknown) {
+function summarizeResearchDiscover(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 	const total = getArray(record.papers).length + getArray(record.github).length;
-	return appendSubject(`Found ${formatCount(total, "source")}`, asRecord(toolInput).query);
+	const subject = getString(asRecord(toolInput).query);
+	const base: ReceiptPart[] = [`Found ${formatCount(total, "source")}`];
+	return subject
+		? receipt.completed(...base, " for ", ...name(subject))
+		: receipt.completed(...base);
 }
 
-function summarizeResearchDeepen(output: unknown, toolInput: unknown) {
+function summarizeResearchDeepen(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 	const input = asRecord(toolInput);
 	const paper = getString(input.paper_id);
 
 	if (Array.isArray(record.passages)) {
-		return `Read ${formatCount(record.passages.length, "passage")} from ${quoteName(paper)}`;
+		return receipt.completed(
+			`Read ${formatCount(record.passages.length, "passage")} from `,
+			...name(paper),
+		);
 	}
 
 	if (Array.isArray(record.papers)) {
-		return `Found ${formatCount(record.papers.length, "paper")} related to ${quoteName(paper)}`;
+		return receipt.completed(
+			`Found ${formatCount(record.papers.length, "paper")} related to `,
+			...name(paper),
+		);
 	}
 
-	return summarizeUnknownResult(output, "research_deepen");
+	return receipt.completed(summarizeUnknownResult(output, "research_deepen"));
 }
 
-function summarizeRunningResearchDeepen(input: Record<string, unknown>) {
-	const paper = quoteName(getString(input.paper_id));
+function summarizeRunningResearchDeepen(input: Record<string, unknown>): AiChatToolReceipt {
+	const paper = getString(input.paper_id);
 	const mode = getString(input.mode);
 
-	if (mode === "passages") {
-		return `Reading passages from ${paper}`;
-	}
-
-	if (mode === "related") {
-		return `Finding related papers for ${paper}`;
-	}
-
-	return `Researching ${paper}`;
+	if (mode === "passages") return receipt.running("Reading passages from ", ...name(paper));
+	if (mode === "related") return receipt.running("Finding related papers for ", ...name(paper));
+	return receipt.running("Researching ", ...name(paper));
 }
 
-function summarizeCodemode(output: unknown): AiChatToolReceipt {
+/**
+ * `orchestrate` and `compute` are the only tools whose arguments carry no noun
+ * to build a row from — the input is an opaque blob of code — so the model
+ * names the work itself in a leading `title` field and the row shows that
+ * instead of the mechanism. The derived summaries below stay as the fallback
+ * for a title that has not streamed in yet, or a model that skipped the field.
+ *
+ * States the title must not mask (a paused approval, a failed run) are settled
+ * by their callers before this is consulted.
+ */
+function activityTitleReceipt(
+	status: "completed" | "running",
+	toolInput: unknown,
+): AiChatToolReceipt | undefined {
+	const title = getString(asRecord(toolInput).title)?.trim();
+	if (!title) return undefined;
+
+	return status === "running" ? receipt.running(title) : receipt.completed(title);
+}
+
+function summarizeCodemode(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 	const status = getString(record.status);
 
-	if (status === "paused") {
-		return completed("Needs input");
-	}
+	if (status === "paused") return receipt.completed("Needs input");
+	if (status === "error") return receipt.failed("Couldn’t work through the task");
 
-	if (status === "error") {
-		return failed("Couldn’t work through the task");
-	}
+	const titled = activityTitleReceipt("completed", toolInput);
+	if (titled) return titled;
 
-	if (status === "completed") {
-		return completed(summarizeUnknownResult(record.result, "orchestrate"));
-	}
+	if (status === "completed")
+		return receipt.completed(summarizeUnknownResult(record.result, "orchestrate"));
 
-	return completed(summarizeUnknownResult(output, "orchestrate"));
+	return receipt.completed(summarizeUnknownResult(output, "orchestrate"));
 }
 
-function summarizeCompute(output: unknown): AiChatToolReceipt {
+function summarizeCompute(output: unknown, toolInput: unknown): AiChatToolReceipt {
 	const record = asRecord(output);
 
-	if (record.error) {
-		return failed("Couldn’t compute");
-	}
+	if (record.error) return receipt.failed("Couldn’t compute");
+
+	const titled = activityTitleReceipt("completed", toolInput);
+	if (titled) return titled;
 
 	const results = getArray(record.results);
 	const imageCount = results.filter((result) => {
 		const item = asRecord(result);
 		return typeof item.png === "string" || typeof item.jpeg === "string";
 	}).length;
-
-	if (imageCount > 0) {
-		return completed(`Generated ${formatCount(imageCount, "image")}`);
-	}
+	if (imageCount > 0) return receipt.completed(`Generated ${formatCount(imageCount, "image")}`);
 
 	const valueCount = results.filter((result) => {
 		const item = asRecord(result);
 		return typeof item.text === "string" || item.json !== undefined || item.data !== undefined;
 	}).length;
-
-	if (valueCount > 0) {
-		return completed(`Returned ${formatCount(valueCount, "value")}`);
-	}
+	if (valueCount > 0) return receipt.completed(`Returned ${formatCount(valueCount, "value")}`);
 
 	const stdout = getArray(asRecord(record.logs).stdout);
-	if (stdout.length > 0) {
-		return completed(`Wrote ${formatCount(stdout.length, "log line")}`);
-	}
+	if (stdout.length > 0)
+		return receipt.completed(`Wrote ${formatCount(stdout.length, "log line")}`);
 
-	return completed(
+	return receipt.completed(
 		results.length > 0 ? `Returned ${formatCount(results.length, "result")}` : "Computed",
 	);
 }
@@ -406,26 +529,12 @@ function summarizeCompute(output: unknown): AiChatToolReceipt {
 function summarizeUnknownResult(output: unknown, toolName: string) {
 	const record = asRecord(output);
 
-	if (Array.isArray(record.items)) {
-		return `Processed ${formatCount(record.items.length, "item")}`;
-	}
-
-	if (Array.isArray(record.results)) {
-		return `Found ${formatCount(record.results.length, "result")}`;
-	}
-
-	if (Array.isArray(record.papers)) {
-		return `Found ${formatCount(record.papers.length, "paper")}`;
-	}
-
-	if (Array.isArray(record.passages)) {
+	if (Array.isArray(record.items)) return `Processed ${formatCount(record.items.length, "item")}`;
+	if (Array.isArray(record.results)) return `Found ${formatCount(record.results.length, "result")}`;
+	if (Array.isArray(record.papers)) return `Found ${formatCount(record.papers.length, "paper")}`;
+	if (Array.isArray(record.passages))
 		return `Read ${formatCount(record.passages.length, "passage")}`;
-	}
-
-	if (typeof record.content === "string") {
-		return "Read 1 page";
-	}
-
+	if (typeof record.content === "string") return "Read 1 page";
 	return `Ran ${formatToolNameFallback(toolName)}`;
 }
 
@@ -438,44 +547,16 @@ function capitalize(value: string) {
 	return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
-function completed(summary: string): AiChatToolReceipt {
-	return {
-		status: "completed",
-		summary,
-	};
-}
-
-function running(summary: string): AiChatToolReceipt {
-	return { status: "running", summary };
-}
-
-function failed(summary: string): AiChatToolReceipt {
-	return {
-		status: "failed",
-		summary,
-	};
-}
-
-function quoteName(value: string | undefined) {
-	return value ? `“${truncateReceiptValue(value)}”` : "item";
-}
-
-function joinNames(items: unknown[], fallbackNoun: string) {
-	const names: string[] = [];
+function joinNames(items: unknown[], fallbackNoun: string): ReceiptPart[] {
+	const collected: ReceiptPart[][] = [];
 	for (const item of items.slice(0, 2)) {
-		const name = quoteName(getBaseName(getString(asRecord(item).path)));
-		if (name !== "item") names.push(name);
+		const basename = getBaseName(getString(asRecord(item).path));
+		if (basename) collected.push(name(basename));
 	}
 
-	if (names.length === 2) {
-		return `${names[0]} and ${names[1]}`;
-	}
-
-	if (names.length === 1) {
-		return names[0];
-	}
-
-	return formatCount(items.length, fallbackNoun);
+	if (collected.length === 2) return [...collected[0], " and ", ...collected[1]];
+	if (collected.length === 1) return collected[0];
+	return [formatCount(items.length, fallbackNoun)];
 }
 
 function formatCount(count: number, noun: string) {
@@ -483,20 +564,8 @@ function formatCount(count: number, noun: string) {
 	return `${safeCount} ${noun}${safeCount === 1 ? "" : "s"}`;
 }
 
-function appendSubject(summary: string, subject: unknown) {
-	const value = getString(subject);
-	return value ? `${summary} for ${quoteName(value)}` : summary;
-}
-
-function appendFailureCount(summary: string, failedCount: number) {
-	return failedCount > 0 ? `${summary}, ${formatCount(failedCount, "failure")}` : summary;
-}
-
 function getBaseName(path: string | undefined) {
-	if (!path) {
-		return undefined;
-	}
-
+	if (!path) return undefined;
 	const segments = path.split("/").filter(Boolean);
 	return segments.at(-1) ?? path;
 }
@@ -505,61 +574,32 @@ function getPathFromToolInput(input: unknown) {
 	return getString(asRecord(input).path);
 }
 
-function formatToolInputPaths(value: unknown) {
-	const paths = getArray(value)
-		.map((item) => getString(item))
-		.filter((item): item is string => Boolean(item));
-
-	if (paths.length === 1) {
-		return quoteName(getBaseName(paths[0]));
-	}
-
-	return formatCount(paths.length, "item");
-}
-
 function formatUrl(url: string | undefined) {
-	if (!url) {
-		return "page";
-	}
-
+	if (!url) return "page";
 	try {
-		return truncateReceiptValue(new URL(url).hostname.replace(/^www\./, ""));
+		return new URL(url).hostname.replace(/^www\./, "");
 	} catch {
-		return truncateReceiptValue(url);
+		return url;
 	}
 }
 
 function formatUrlWithPath(url: string | undefined) {
-	if (!url) {
-		return "page";
-	}
-
+	if (!url) return "page";
 	try {
 		const parsed = new URL(url);
 		const hostname = parsed.hostname.replace(/^www\./, "");
 		const path = parsed.pathname.replace(/\/$/, "");
-		return truncateReceiptValue(path ? `${hostname}${path}` : hostname);
+		return path ? `${hostname}${path}` : hostname;
 	} catch {
-		return truncateReceiptValue(url);
+		return url;
 	}
 }
 
-function formatDestinationName(path: string | undefined) {
+function getDestinationName(path: string | undefined): ReceiptPart[] | undefined {
 	if (!path) return undefined;
-	if (path === "/") return "workspace root";
-	const name = getBaseName(path);
-	return name ? quoteName(name) : undefined;
-}
-
-function truncateReceiptValue(value: string) {
-	const normalized = value.replace(/\s+/g, " ").trim();
-
-	if (normalized.length <= TOOL_RECEIPT_VALUE_MAX_LENGTH) {
-		return normalized;
-	}
-
-	const edgeLength = Math.floor((TOOL_RECEIPT_VALUE_MAX_LENGTH - 3) / 2);
-	return `${normalized.slice(0, edgeLength)}...${normalized.slice(-edgeLength)}`;
+	if (path === "/") return ["workspace root"];
+	const basename = getBaseName(path);
+	return basename ? name(basename) : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

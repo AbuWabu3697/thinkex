@@ -73,6 +73,12 @@ export function formatWorkspaceAiContextForPrompt(value: unknown) {
 }
 
 function formatWorkspaceAiContextOutline(outline: WorkspaceAiContextOutline) {
+	// Said plainly. Reporting "0 items complete" buries an empty workspace in a
+	// sentence whose grammar reads as a truncation notice.
+	if (outline.totalItems === 0) {
+		return ["- Workspace outline: this workspace is empty. It has no items yet."];
+	}
+
 	const itemLines = limitWorkspaceAiContextOutlineLines(
 		outline.items.map(formatWorkspaceAiContextOutlineItem),
 	);

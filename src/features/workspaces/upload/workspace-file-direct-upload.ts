@@ -137,6 +137,10 @@ async function signUploadClaims(secret: string, claims: WorkspaceDirectUploadCla
 }
 
 function createSigningKey(secret: string, usages: KeyUsage[]) {
+	if (!secret) {
+		throw new Error("WORKSPACE_UPLOAD_TOKEN_SECRET is required.");
+	}
+
 	return crypto.subtle.importKey(
 		"raw",
 		encoder.encode(`thinkex-workspace-upload:${secret}`),

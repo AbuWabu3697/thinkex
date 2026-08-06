@@ -9,66 +9,42 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as CookiesRouteImport } from './routes/cookies'
-import { Route as BlogRouteImport } from './routes/blog'
-import { Route as AccountDeletedRouteImport } from './routes/account-deleted'
-import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as BlogIndexRouteImport } from './routes/blog.index'
-import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
-import { Route as InviteTokenRouteImport } from './routes/invite.$token'
-import { Route as BlogRssRouteImport } from './routes/blog.rss'
-import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
-import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
+import { Route as ProtectedRouteImport } from './routes/_protected'
+import { Route as AccountDeletedRouteImport } from './routes/account-deleted'
+import { Route as BlogRouteImport } from './routes/blog'
+import { Route as CookiesRouteImport } from './routes/cookies'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ProtectedHomeRouteImport } from './routes/_protected/home'
-import { Route as ApiV1WorkspacesRouteImport } from './routes/api/v1/workspaces'
-import { Route as ApiPosthogSurveyFeedbackRouteImport } from './routes/api/posthog/survey-feedback'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as BlogRssRouteImport } from './routes/blog.rss'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as ProtectedWorkspacesWorkspaceIdRouteImport } from './routes/_protected/workspaces.$workspaceId'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiPosthogSurveyFeedbackRouteImport } from './routes/api/posthog/survey-feedback'
+import { Route as ApiV1WorkspacesRouteImport } from './routes/api/v1/workspaces'
+import { Route as ApiV1WorkspacesWorkspaceIdExportRouteImport } from './routes/api/v1/workspaces.$workspaceId.export'
 import { Route as ApiV1WorkspacesWorkspaceIdFileUploadRouteImport } from './routes/api/v1/workspaces.$workspaceId.file-upload'
-import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
-import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
 import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments'
+import { Route as ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport } from './routes/api/v1/workspaces.$workspaceId.documents.$itemId.pdf'
+import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.content'
+import { Route as ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport } from './routes/api/v1/workspaces.$workspaceId.files.$itemId.preview'
 import { Route as ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRouteImport } from './routes/api/v1/workspaces.$workspaceId.ai-threads.$threadId.attachments.$attachmentId'
 
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CookiesRoute = CookiesRouteImport.update({
-  id: '/cookies',
-  path: '/cookies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BlogRoute = BlogRouteImport.update({
-  id: '/blog',
-  path: '/blog',
+const ProtectedRoute = ProtectedRouteImport.update({
+  id: '/_protected',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountDeletedRoute = AccountDeletedRouteImport.update({
@@ -76,33 +52,54 @@ const AccountDeletedRoute = AccountDeletedRouteImport.update({
   path: '/account-deleted',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProtectedRoute = ProtectedRouteImport.update({
-  id: '/_protected',
+const BlogRoute = BlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedHomeRoute = ProtectedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProtectedRoute,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => BlogRoute,
-} as any)
-const OauthConsentRoute = OauthConsentRouteImport.update({
-  id: '/oauth/consent',
-  path: '/oauth/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BlogRssRoute = BlogRssRouteImport.update({
-  id: '/rss',
-  path: '/rss',
   getParentRoute: () => BlogRoute,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
@@ -110,30 +107,19 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => BlogRoute,
 } as any)
-const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => ProtectedRoute,
+const BlogRssRoute = BlogRssRouteImport.update({
+  id: '/rss',
+  path: '/rss',
+  getParentRoute: () => BlogRoute,
 } as any)
-const ProtectedHomeRoute = ProtectedHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => ProtectedRoute,
-} as any)
-const ApiV1WorkspacesRoute = ApiV1WorkspacesRouteImport.update({
-  id: '/api/v1/workspaces',
-  path: '/api/v1/workspaces',
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPosthogSurveyFeedbackRoute =
-  ApiPosthogSurveyFeedbackRouteImport.update({
-    id: '/api/posthog/survey-feedback',
-    path: '/api/posthog/survey-feedback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProtectedWorkspacesWorkspaceIdRoute =
@@ -142,16 +128,44 @@ const ProtectedWorkspacesWorkspaceIdRoute =
     path: '/workspaces/$workspaceId',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPosthogSurveyFeedbackRoute =
+  ApiPosthogSurveyFeedbackRouteImport.update({
+    id: '/api/posthog/survey-feedback',
+    path: '/api/posthog/survey-feedback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1WorkspacesRoute = ApiV1WorkspacesRouteImport.update({
+  id: '/api/v1/workspaces',
+  path: '/api/v1/workspaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1WorkspacesWorkspaceIdExportRoute =
+  ApiV1WorkspacesWorkspaceIdExportRouteImport.update({
+    id: '/$workspaceId/export',
+    path: '/$workspaceId/export',
+    getParentRoute: () => ApiV1WorkspacesRoute,
+  } as any)
 const ApiV1WorkspacesWorkspaceIdFileUploadRoute =
   ApiV1WorkspacesWorkspaceIdFileUploadRouteImport.update({
     id: '/$workspaceId/file-upload',
     path: '/$workspaceId/file-upload',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
-const ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute =
-  ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport.update({
-    id: '/$workspaceId/files/$itemId/preview',
-    path: '/$workspaceId/files/$itemId/preview',
+const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute =
+  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport.update({
+    id: '/$workspaceId/ai-threads/$threadId/attachments',
+    path: '/$workspaceId/ai-threads/$threadId/attachments',
+    getParentRoute: () => ApiV1WorkspacesRoute,
+  } as any)
+const ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute =
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport.update({
+    id: '/$workspaceId/documents/$itemId/pdf',
+    path: '/$workspaceId/documents/$itemId/pdf',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
 const ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute =
@@ -160,10 +174,10 @@ const ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute =
     path: '/$workspaceId/files/$itemId/content',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
-const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute =
-  ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport.update({
-    id: '/$workspaceId/ai-threads/$threadId/attachments',
-    path: '/$workspaceId/ai-threads/$threadId/attachments',
+const ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute =
+  ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport.update({
+    id: '/$workspaceId/files/$itemId/preview',
+    path: '/$workspaceId/files/$itemId/preview',
     getParentRoute: () => ApiV1WorkspacesRoute,
   } as any)
 const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute =
@@ -197,8 +211,10 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -223,8 +239,10 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -252,8 +270,10 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/posthog/survey-feedback': typeof ApiPosthogSurveyFeedbackRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/export': typeof ApiV1WorkspacesWorkspaceIdExportRoute
   '/api/v1/workspaces/$workspaceId/file-upload': typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/content': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   '/api/v1/workspaces/$workspaceId/files/$itemId/preview': typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
   '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsAttachmentIdRoute
@@ -281,8 +301,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -307,8 +329,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -335,8 +359,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/posthog/survey-feedback'
     | '/api/v1/workspaces'
+    | '/api/v1/workspaces/$workspaceId/export'
     | '/api/v1/workspaces/$workspaceId/file-upload'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+    | '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/content'
     | '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
     | '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId'
@@ -362,60 +388,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cookies': {
-      id: '/cookies'
-      path: '/cookies'
-      fullPath: '/cookies'
-      preLoaderRoute: typeof CookiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/blog': {
-      id: '/blog'
-      path: '/blog'
-      fullPath: '/blog'
-      preLoaderRoute: typeof BlogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account-deleted': {
-      id: '/account-deleted'
-      path: '/account-deleted'
-      fullPath: '/account-deleted'
-      preLoaderRoute: typeof AccountDeletedRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_protected': {
@@ -425,39 +402,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/account-deleted': {
+      id: '/account-deleted'
+      path: '/account-deleted'
+      fullPath: '/account-deleted'
+      preLoaderRoute: typeof AccountDeletedRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/blog': {
+      id: '/blog'
+      path: '/blog'
+      fullPath: '/blog'
+      preLoaderRoute: typeof BlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_protected/home': {
+      id: '/_protected/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof ProtectedHomeRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings': {
+      id: '/_protected/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof ProtectedSettingsRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/blog/': {
       id: '/blog/'
       path: '/'
       fullPath: '/blog/'
       preLoaderRoute: typeof BlogIndexRouteImport
-      parentRoute: typeof BlogRoute
-    }
-    '/oauth/consent': {
-      id: '/oauth/consent'
-      path: '/oauth/consent'
-      fullPath: '/oauth/consent'
-      preLoaderRoute: typeof OauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/blog/rss': {
-      id: '/blog/rss'
-      path: '/rss'
-      fullPath: '/blog/rss'
-      preLoaderRoute: typeof BlogRssRouteImport
       parentRoute: typeof BlogRoute
     }
     '/blog/$slug': {
@@ -467,39 +486,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof BlogRoute
     }
-    '/_protected/settings': {
-      id: '/_protected/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof ProtectedSettingsRouteImport
-      parentRoute: typeof ProtectedRoute
+    '/blog/rss': {
+      id: '/blog/rss'
+      path: '/rss'
+      fullPath: '/blog/rss'
+      preLoaderRoute: typeof BlogRssRouteImport
+      parentRoute: typeof BlogRoute
     }
-    '/_protected/home': {
-      id: '/_protected/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof ProtectedHomeRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/api/v1/workspaces': {
-      id: '/api/v1/workspaces'
-      path: '/api/v1/workspaces'
-      fullPath: '/api/v1/workspaces'
-      preLoaderRoute: typeof ApiV1WorkspacesRouteImport
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/posthog/survey-feedback': {
-      id: '/api/posthog/survey-feedback'
-      path: '/api/posthog/survey-feedback'
-      fullPath: '/api/posthog/survey-feedback'
-      preLoaderRoute: typeof ApiPosthogSurveyFeedbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_protected/workspaces/$workspaceId': {
@@ -509,6 +514,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedWorkspacesWorkspaceIdRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/posthog/survey-feedback': {
+      id: '/api/posthog/survey-feedback'
+      path: '/api/posthog/survey-feedback'
+      fullPath: '/api/posthog/survey-feedback'
+      preLoaderRoute: typeof ApiPosthogSurveyFeedbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/workspaces': {
+      id: '/api/v1/workspaces'
+      path: '/api/v1/workspaces'
+      fullPath: '/api/v1/workspaces'
+      preLoaderRoute: typeof ApiV1WorkspacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/workspaces/$workspaceId/export': {
+      id: '/api/v1/workspaces/$workspaceId/export'
+      path: '/$workspaceId/export'
+      fullPath: '/api/v1/workspaces/$workspaceId/export'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdExportRouteImport
+      parentRoute: typeof ApiV1WorkspacesRoute
+    }
     '/api/v1/workspaces/$workspaceId/file-upload': {
       id: '/api/v1/workspaces/$workspaceId/file-upload'
       path: '/$workspaceId/file-upload'
@@ -516,11 +549,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
-    '/api/v1/workspaces/$workspaceId/files/$itemId/preview': {
-      id: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
-      path: '/$workspaceId/files/$itemId/preview'
-      fullPath: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
-      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport
+    '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': {
+      id: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+      path: '/$workspaceId/ai-threads/$threadId/attachments'
+      fullPath: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport
+      parentRoute: typeof ApiV1WorkspacesRoute
+    }
+    '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf': {
+      id: '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
+      path: '/$workspaceId/documents/$itemId/pdf'
+      fullPath: '/api/v1/workspaces/$workspaceId/documents/$itemId/pdf'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
     '/api/v1/workspaces/$workspaceId/files/$itemId/content': {
@@ -530,11 +570,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
-    '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments': {
-      id: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
-      path: '/$workspaceId/ai-threads/$threadId/attachments'
-      fullPath: '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments'
-      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteImport
+    '/api/v1/workspaces/$workspaceId/files/$itemId/preview': {
+      id: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
+      path: '/$workspaceId/files/$itemId/preview'
+      fullPath: '/api/v1/workspaces/$workspaceId/files/$itemId/preview'
+      preLoaderRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRouteImport
       parentRoute: typeof ApiV1WorkspacesRoute
     }
     '/api/v1/workspaces/$workspaceId/ai-threads/$threadId/attachments/$attachmentId': {
@@ -593,17 +633,22 @@ const ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren =
   )
 
 interface ApiV1WorkspacesRouteChildren {
+  ApiV1WorkspacesWorkspaceIdExportRoute: typeof ApiV1WorkspacesWorkspaceIdExportRoute
   ApiV1WorkspacesWorkspaceIdFileUploadRoute: typeof ApiV1WorkspacesWorkspaceIdFileUploadRoute
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute: typeof ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute: typeof ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute: typeof ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute
 }
 
 const ApiV1WorkspacesRouteChildren: ApiV1WorkspacesRouteChildren = {
+  ApiV1WorkspacesWorkspaceIdExportRoute: ApiV1WorkspacesWorkspaceIdExportRoute,
   ApiV1WorkspacesWorkspaceIdFileUploadRoute:
     ApiV1WorkspacesWorkspaceIdFileUploadRoute,
   ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRoute:
     ApiV1WorkspacesWorkspaceIdAiThreadsThreadIdAttachmentsRouteWithChildren,
+  ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute:
+    ApiV1WorkspacesWorkspaceIdDocumentsItemIdPdfRoute,
   ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute:
     ApiV1WorkspacesWorkspaceIdFilesItemIdContentRoute,
   ApiV1WorkspacesWorkspaceIdFilesItemIdPreviewRoute:

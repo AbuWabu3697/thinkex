@@ -1,4 +1,4 @@
-import { convertImageStreamToJpeg } from "#/features/workspaces/conversion/image-file-converter";
+import { normalizeImageToJpeg } from "#/features/workspaces/conversion/image-normalizer";
 import { convertOfficeStreamToPdf } from "#/features/workspaces/conversion/office-pdf-converter";
 import {
 	createWorkspaceFilePreview,
@@ -35,21 +35,6 @@ export interface StoredWorkspaceFileUpload {
 }
 
 type PreparedWorkspaceFileUpload = Omit<StoredWorkspaceFileUpload, "preview">;
-
-type WorkspaceUploadStreamConverter = (
-	env: Cloudflare.Env,
-	input: {
-		body: ReadableStream<Uint8Array>;
-		contentType: string;
-		fileName: string;
-		sizeBytes: number;
-	},
-) => Promise<{ body: ReadableStream<Uint8Array>; sizeBytes: number }>;
-
-const defaultConverters = {
-	heic_to_jpeg: convertImageStreamToJpeg,
-	office_to_pdf: convertOfficeStreamToPdf,
-} satisfies Record<WorkspaceUploadConversion, WorkspaceUploadStreamConverter>;
 
 interface FinalizeWorkspaceFileUploadStorageInput {
 	contentType: string;
@@ -156,13 +141,7 @@ async function convertAndStoreWorkspaceFileUpload(
 		throw new Error("Converted workspace uploads must use a temporary input object.");
 	}
 
-	const response = await defaultConverters[conversion](input.env, {
-		body: input.uploadedObject.body,
-		contentType: input.contentType,
-		fileName: input.fileName,
-		sizeBytes: input.fileSize,
-	});
-	const contentType = getConvertedContentType(conversion);
+	const { contentType, response } = await convertWorkspaceFileUpload(input, conversion);
 	const fileName = getWorkspaceConvertedFileName(input.fileName, conversion);
 	const descriptor = requireWorkspaceFileTypeFromHint({ fileName, contentType });
 	const stored = await putFixedLengthR2Object(
@@ -194,8 +173,30 @@ async function convertAndStoreWorkspaceFileUpload(
 	};
 }
 
-function getConvertedContentType(conversion: WorkspaceUploadConversion) {
-	return conversion === "office_to_pdf" ? "application/pdf" : "image/jpeg";
+async function convertWorkspaceFileUpload(
+	input: FinalizeWorkspaceFileUploadStorageInput,
+	conversion: WorkspaceUploadConversion,
+) {
+	if (conversion === "office_to_pdf") {
+		return {
+			contentType: "application/pdf",
+			response: await convertOfficeStreamToPdf(input.env, {
+				body: input.uploadedObject.body,
+				contentType: input.contentType,
+				fileName: input.fileName,
+				sizeBytes: input.fileSize,
+			}),
+		};
+	}
+
+	return {
+		contentType: "image/jpeg",
+		response: await normalizeImageToJpeg(
+			input.env,
+			input.uploadedObject.body,
+			workspaceFileUploadLimits.maxImageFileBytes,
+		),
+	};
 }
 
 function createConvertedFileSizeError(): WorkspaceFileUploadError {

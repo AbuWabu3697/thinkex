@@ -1,0 +1,23 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+# Keep full port-3000 testing available without making every worktree use it.
+spotlight_testing = true
+
+[scripts]
+setup = """
+pnpm install --frozen-lockfile
+CI=true pnpm db:migrate:local
+"""
+run_mode = "concurrent"
+
+[scripts.run.dev]
+available_in = ["local"]
+command = """
+CI=true pnpm db:migrate:local &&
+env INFISICAL_DISABLE_UPDATE_CHECK=true \
+  infisical run --env=dev --path=/app --watch -- \
+  env BETTER_AUTH_URL="http://localhost:$CONDUCTOR_PORT" \
+  pnpm exec vp dev --host 0.0.0.0 --port "$CONDUCTOR_PORT"
+"""
+default = true
+icon = "play"

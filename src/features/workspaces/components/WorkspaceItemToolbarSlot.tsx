@@ -15,9 +15,13 @@ import { WorkspaceFileToolbar } from "#/features/workspaces/components/Workspace
 
 type WorkspaceItemToolbarRegistration =
 	| {
+			canEdit: boolean;
+			documentPath: string;
 			editor: Editor | null;
+			itemId: string;
 			kind: "document";
 			slotId: string;
+			workspaceId: string;
 	  }
 	| {
 			capture?: {
@@ -49,7 +53,21 @@ export function WorkspaceItemToolbarProvider({ children }: { children: ReactNode
 	);
 }
 
-export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) {
+export function useDocumentEditorToolbar({
+	canEdit,
+	documentPath,
+	editor,
+	itemId,
+	slotId,
+	workspaceId,
+}: {
+	canEdit: boolean;
+	documentPath: string;
+	editor: Editor | null;
+	itemId: string;
+	slotId: string;
+	workspaceId: string;
+}) {
 	const context = use(WorkspaceItemToolbarContext);
 	const setRegistration = context?.setRegistration;
 
@@ -58,13 +76,25 @@ export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) 
 			return;
 		}
 
-		const registration = { editor, kind: "document" as const, slotId };
+		const registration = {
+			canEdit,
+			documentPath,
+			editor,
+			itemId,
+			kind: "document" as const,
+			slotId,
+			workspaceId,
+		};
 		setRegistration((current) => {
 			const existing = current[slotId];
 			if (
 				existing?.kind === "document" &&
+				existing.canEdit === canEdit &&
+				existing.documentPath === documentPath &&
 				existing.editor === editor &&
-				existing.slotId === slotId
+				existing.itemId === itemId &&
+				existing.slotId === slotId &&
+				existing.workspaceId === workspaceId
 			) {
 				return current;
 			}
@@ -87,7 +117,7 @@ export function useDocumentEditorToolbar(slotId: string, editor: Editor | null) 
 				return next;
 			});
 		};
-	}, [editor, slotId, setRegistration]);
+	}, [canEdit, documentPath, editor, itemId, slotId, workspaceId, setRegistration]);
 }
 
 export function useFileItemToolbar({
@@ -178,7 +208,13 @@ export function WorkspaceItemToolbarSlot({
 		<div className="flex min-w-0 shrink-0 items-center overflow-hidden">
 			<TooltipProvider>
 				{registration.kind === "document" ? (
-					<DocumentToolbar editor={registration.editor} />
+					<DocumentToolbar
+						canEdit={registration.canEdit}
+						documentPath={registration.documentPath}
+						editor={registration.editor}
+						itemId={registration.itemId}
+						workspaceId={registration.workspaceId}
+					/>
 				) : (
 					<WorkspaceFileToolbar
 						capture={registration.capture}

@@ -27,6 +27,9 @@ export class AIThreadTelemetryRecorder {
 	private readonly inspector: AIThreadInspectorRecorder;
 	private readonly posthog: AIThreadPostHogRecorder;
 	private readonly tcc: AIThreadTccRecorder;
+	/** Consent arrives per turn because the Durable Object cannot read browser cookies. */
+	private analyticsConsent = false;
+	private sessionReplayConsent = false;
 
 	constructor(input: {
 		env: Cloudflare.Env;
@@ -39,70 +42,113 @@ export class AIThreadTelemetryRecorder {
 		this.tcc = new AIThreadTccRecorder({ schedule: input.schedule });
 	}
 
+	setConsent(input: { analytics: boolean; sessionReplay: boolean }) {
+		this.analyticsConsent = input.analytics;
+		this.sessionReplayConsent = input.analytics && input.sessionReplay;
+	}
+
 	async recordTurnStarted(input: {
 		ctx: TurnContext;
 		modelId: WorkspaceAiChatModelId;
-		system: string;
+		instructions: string;
 		thread: AIThreadContext;
 		tools: unknown;
 	}) {
 		await this.inspector.recordTurnStarted(input);
-		this.posthog.recordTurnStarted(input);
-		this.tcc.recordTurnStarted({
-			...input,
-			env: this.env,
-		});
+		if (!this.analyticsConsent) {
+			return;
+		}
+		this.posthog.recordTurnStarted(input, this.sessionReplayConsent);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordTurnStarted({
+				...input,
+				env: this.env,
+			});
+		}
 	}
 
 	recordStepStarted(ctx: PrepareStepContext) {
 		this.inspector.recordStepStarted(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordStepStarted(ctx);
-		this.tcc.recordStepStarted(ctx);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordStepStarted(ctx);
+		}
 	}
 
 	recordToolStarted(ctx: ToolCallContext) {
 		this.inspector.recordToolStarted(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordToolStarted(ctx);
-		this.tcc.recordToolStarted(ctx);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordToolStarted(ctx);
+		}
 	}
 
 	recordTurnFinished(result: ChatResponseResult) {
 		this.inspector.recordTurnFinished(result);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordTurnFinished(result);
-		this.tcc.recordTurnFinished(result);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordTurnFinished(result);
+		}
 	}
 
 	recordTurnError(error: unknown, ctx?: ChatErrorContext) {
 		this.inspector.recordTurnError(error);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordTurnError(error, {
 			errorClassification: ctx?.classification,
 			errorStage: ctx?.stage,
 			messagesPersisted: ctx?.messagesPersisted,
 			requestId: ctx?.requestId,
 		});
-		this.tcc.recordTurnError(error, {
-			errorClassification: ctx?.classification,
-			errorStage: ctx?.stage,
-			messagesPersisted: ctx?.messagesPersisted,
-			requestId: ctx?.requestId,
-		});
+		if (this.sessionReplayConsent) {
+			this.tcc.recordTurnError(error, {
+				errorClassification: ctx?.classification,
+				errorStage: ctx?.stage,
+				messagesPersisted: ctx?.messagesPersisted,
+				requestId: ctx?.requestId,
+			});
+		}
 	}
 
 	recordToolFinished(ctx: ToolCallResultContext) {
 		const outcome = getAIToolOutcome(ctx);
 		this.inspector.recordToolFinished(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordToolFinished(ctx, outcome);
-		this.tcc.recordToolFinished(ctx, outcome);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordToolFinished(ctx, outcome);
+		}
 	}
 
 	recordStepFinished(ctx: StepContext) {
 		this.inspector.recordStepFinished(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordStepFinished(ctx);
-		this.tcc.recordStepFinished(ctx);
+		if (this.sessionReplayConsent) {
+			this.tcc.recordStepFinished(ctx);
+		}
 	}
 
 	recordChunk(ctx: ChunkContext) {
 		this.inspector.recordChunk(ctx);
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordChunk(ctx);
 	}
 
@@ -115,14 +161,20 @@ export class AIThreadTelemetryRecorder {
 		thread: Pick<AIThreadContext, "id" | "workspaceId" | "userId">;
 		usage?: unknown;
 	}) {
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordAuxiliaryGeneration({
 			...input,
+			captureContent: this.sessionReplayConsent,
 			traceContext: this.posthog.getActiveTraceContext(),
 		});
-		this.tcc.recordAuxiliaryGeneration({
-			...input,
-			env: this.env,
-		});
+		if (this.sessionReplayConsent) {
+			this.tcc.recordAuxiliaryGeneration({
+				...input,
+				env: this.env,
+			});
+		}
 	}
 
 	recordAuxiliaryError(input: {
@@ -133,12 +185,16 @@ export class AIThreadTelemetryRecorder {
 		prompt?: string;
 		thread: Pick<AIThreadContext, "id" | "workspaceId" | "userId">;
 	}) {
+		if (!this.analyticsConsent) {
+			return;
+		}
 		this.posthog.recordAuxiliaryError({
 			...input,
+			captureContent: this.sessionReplayConsent,
 			traceContext: this.posthog.getActiveTraceContext(),
 		});
 
-		if (isAiGenerationAuxiliaryError(input)) {
+		if (this.sessionReplayConsent && isAiGenerationAuxiliaryError(input)) {
 			this.tcc.recordAuxiliaryError({
 				...input,
 				env: this.env,

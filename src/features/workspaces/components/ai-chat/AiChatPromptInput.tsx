@@ -1,5 +1,13 @@
-import { Bug, Mic, Plus } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { Bug, Mic, Paperclip } from "lucide-react";
+import {
+	lazy,
+	type SetStateAction,
+	Suspense,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	type AttachmentsContext,
@@ -16,6 +24,7 @@ import {
 import type { AIInspectorSnapshot } from "#/features/workspaces/ai/ai-inspector";
 import { AiChatAttachmentDropBridge } from "#/features/workspaces/components/ai-chat/AiChatAttachmentDrop";
 import AiChatModelPicker from "#/features/workspaces/components/ai-chat/AiChatModelPicker";
+import { AiChatAllowanceNotice } from "#/features/workspaces/components/ai-chat/AiChatAllowanceNotice";
 import AiChatPromptContextBar from "#/features/workspaces/components/ai-chat/AiChatPromptContextBar";
 import AiChatPromptSubmit from "#/features/workspaces/components/ai-chat/AiChatPromptSubmit";
 import {
@@ -39,6 +48,8 @@ import { workspaceUploadAccept } from "#/features/workspaces/upload/workspace-up
 import {
 	useWorkspaceAiComposerDraftFiles,
 	useWorkspaceAiComposerDraftStore,
+	useWorkspaceAiComposerDraftText,
+	useWorkspaceAiComposerFocusRequest,
 } from "#/features/workspaces/state/workspace-ai-composer-draft-store";
 import { cn } from "#/lib/utils";
 
@@ -47,7 +58,7 @@ import { cn } from "#/lib/utils";
 const PROMPT_INPUT_GROUP_CLASSNAME =
 	"h-auto flex-col border-border/70 bg-muted/30 shadow-none dark:bg-muted/30";
 const PROMPT_INPUT_INLINE_PADDING = "px-3.5";
-const PROMPT_INPUT_HEADER_PADDING = "px-3.5 pt-3 pb-1";
+const PROMPT_INPUT_HEADER_PADDING = "px-3.5 pb-1";
 const PROMPT_INPUT_FOOTER_PADDING = "pl-2 pr-3.5 pt-1 pb-2";
 const CHAT_ATTACHMENT_PICKER_ACCEPT = [
 	...new Set([WORKSPACE_AI_CHAT_ATTACHMENT_POLICY.accept, ...workspaceUploadAccept.split(",")]),
@@ -67,27 +78,29 @@ function AiChatAttachmentButton() {
 		<PromptInputButton
 			aria-label="Add attachments"
 			className={workspaceToolbarIconButtonClass}
-			disabled={attachments.composerReady === false}
+			disabled={!attachments.composerReady}
 			onClick={attachments.openFileDialog}
 		>
-			<Plus className="size-4.5" />
+			<Paperclip />
 		</PromptInputButton>
 	);
 }
 
 interface AiChatPromptInputProps {
 	activeThreadId: string;
+	canSend: boolean;
 	context: WorkspaceAiContextScope;
 	getInspectorSnapshot?: (threadId: string) => Promise<AIInspectorSnapshot>;
 	modelId?: AiChatModelId;
 	onModelChange?: (modelId: AiChatModelId) => void;
-	onSubmit?: (message: PromptInputMessage) => boolean | Promise<boolean>;
+	onSubmit: (message: PromptInputMessage) => void;
 	onStop?: () => void;
 	status?: AiChatStatus;
 }
 
 export default function AiChatPromptInput({
 	activeThreadId,
+	canSend: canSendWhileConnected,
 	context,
 	getInspectorSnapshot,
 	modelId = DEFAULT_WORKSPACE_AI_CHAT_MODEL_ID,
@@ -96,15 +109,22 @@ export default function AiChatPromptInput({
 	onStop,
 	status = "ready",
 }: AiChatPromptInputProps) {
-	const [input, setInput] = useState("");
 	const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const input = useWorkspaceAiComposerDraftText(activeThreadId);
+	const setDraftText = useWorkspaceAiComposerDraftStore((state) => state.setText);
+	const setInput = useCallback(
+		(value: SetStateAction<string>) => setDraftText(activeThreadId, value),
+		[activeThreadId, setDraftText],
+	);
+	const focusRequest = useWorkspaceAiComposerFocusRequest(activeThreadId);
+	const clearFocusRequest = useWorkspaceAiComposerDraftStore((state) => state.clearFocusRequest);
 	const dictation = useAiChatDictation({ input, setInput });
 	const draftFiles = useWorkspaceAiComposerDraftFiles(activeThreadId);
 	const attachmentsReady =
 		draftFiles.length === 0 || draftFiles.every((file) => file.status === "ready");
 	const canType = status !== "error";
-	const canSend = status === "ready" && attachmentsReady;
+	const canSend = canSendWhileConnected && status === "ready" && attachmentsReady;
 	const { capabilities } = useWorkspaceMutationAccess();
 	const { uploadFiles: uploadWorkspaceFiles } = useWorkspaceFileUpload();
 	const addDraftFiles = useWorkspaceAiComposerDraftStore((state) => state.addFiles);
@@ -124,6 +144,25 @@ export default function AiChatPromptInput({
 		setInput,
 		textareaRef,
 	});
+	useEffect(() => {
+		if (focusRequest === 0) {
+			return;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			const textarea = textareaRef.current;
+			if (!textarea) {
+				return;
+			}
+
+			textarea.focus();
+			const caret = textarea.value.length;
+			textarea.setSelectionRange(caret, caret);
+			clearFocusRequest(activeThreadId, focusRequest);
+		});
+
+		return () => cancelAnimationFrame(frame);
+	}, [activeThreadId, clearFocusRequest, focusRequest]);
 
 	const attachments: Omit<AttachmentsContext, "openFileDialog"> = {
 		add: addFiles,
@@ -133,16 +172,12 @@ export default function AiChatPromptInput({
 		remove: (fileId) => removeDraftFile(activeThreadId, fileId),
 	};
 
-	const handleSubmit = async (message: PromptInputMessage) => {
+	const handleSubmit = (message: PromptInputMessage) => {
 		if (!canSend || (!message.text.trim() && message.files.length === 0)) {
 			return false;
 		}
 
-		const accepted = onSubmit ? await onSubmit(message) : false;
-		if (!accepted) {
-			return false;
-		}
-
+		onSubmit(message);
 		dictation.cancel();
 		setInput("");
 		return true;
@@ -164,6 +199,7 @@ export default function AiChatPromptInput({
 				<AiChatAttachmentDropBridge />
 				<PromptInputHeader className={PROMPT_INPUT_HEADER_PADDING}>
 					<AiChatPromptContextBar context={context} />
+					<AiChatAllowanceNotice modelId={modelId} />
 				</PromptInputHeader>
 				<PromptInputBody>
 					<PromptInputTextarea
@@ -214,6 +250,7 @@ export default function AiChatPromptInput({
 						) : null}
 						<AiChatPromptSubmit
 							attachmentsReady={attachmentsReady}
+							canSend={canSend}
 							input={input}
 							onStop={onStop}
 							status={status}

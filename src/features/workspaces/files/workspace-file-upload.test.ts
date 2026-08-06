@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { captureException, toastError, uploadFileDirectlyToR2 } = vi.hoisted(() => ({
+const { captureException, toastDismiss, toastError, uploadFileDirectlyToR2 } = vi.hoisted(() => ({
 	captureException: vi.fn(),
+	toastDismiss: vi.fn(),
 	toastError: vi.fn(),
 	uploadFileDirectlyToR2: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
 	toast: {
+		dismiss: toastDismiss,
 		error: toastError,
 		loading: vi.fn(() => "upload-toast"),
 		success: vi.fn(),
@@ -56,6 +58,7 @@ describe("workspace file upload batch failures", () => {
 
 		await runWorkspaceFileUploadBatch({
 			files: [new File([new Uint8Array([1])], "paper.pdf", { type: "application/pdf" })],
+			onLimitReached: vi.fn(),
 			onSuccess: vi.fn(),
 			parentId: null,
 			workspaceId: "workspace-id",
@@ -76,6 +79,7 @@ describe("workspace file upload batch failures", () => {
 
 		await runWorkspaceFileUploadBatch({
 			files: [new File([new Uint8Array([1])], "paper.pdf", { type: "application/pdf" })],
+			onLimitReached: vi.fn(),
 			onSuccess: vi.fn(),
 			parentId: null,
 			workspaceId: "workspace-id",
@@ -95,6 +99,7 @@ describe("workspace file upload batch failures", () => {
 		await expect(
 			runWorkspaceFileUploadBatch({
 				files: [new File([new Uint8Array([1])], "paper.pdf", { type: "application/pdf" })],
+				onLimitReached: vi.fn(),
 				onSuccess: () => {
 					throw error;
 				},
@@ -104,5 +109,33 @@ describe("workspace file upload batch failures", () => {
 		).rejects.toBe(error);
 
 		expect(captureException).not.toHaveBeenCalled();
+	});
+
+	it("opens the limit flow instead of showing an error toast", async () => {
+		const onLimitReached = vi.fn();
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					code: "upload_limit_reached",
+					message: "You have reached your monthly file upload limit.",
+					requestId: "request-id",
+				}),
+				{ headers: { "content-type": "application/json" }, status: 402 },
+			),
+		);
+
+		await runWorkspaceFileUploadBatch({
+			files: [new File([new Uint8Array([1])], "paper.pdf", { type: "application/pdf" })],
+			onLimitReached,
+			onSuccess: vi.fn(),
+			parentId: null,
+			workspaceId: "workspace-id",
+		});
+
+		expect(onLimitReached).toHaveBeenCalledWith({ successCount: 0, total: 1 });
+		expect(toastDismiss).toHaveBeenCalledWith("upload-toast");
+		expect(toastError).not.toHaveBeenCalled();
+		expect(captureException).not.toHaveBeenCalled();
+		expect(uploadFileDirectlyToR2).not.toHaveBeenCalled();
 	});
 });

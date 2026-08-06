@@ -1,14 +1,4 @@
-import {
-	AlertTriangle,
-	CheckCircle2,
-	ChevronDown,
-	Code2,
-	FileText,
-	Globe2,
-	LoaderCircle,
-	PencilLine,
-	Search,
-} from "lucide-react";
+import { ChevronDown, Code2, FileText, Globe2, PencilLine, Search, Wrench } from "lucide-react";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 
@@ -26,6 +16,7 @@ import {
 	type AiChatToolActivity,
 } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
 import type { AiChatToolChildActivity } from "#/features/workspaces/components/ai-chat/ai-chat-codemode-activity";
+import type { AiChatToolReceiptSegment } from "#/features/workspaces/components/ai-chat/ai-chat-tool-receipts";
 import {
 	getToolSourceHostname,
 	getToolSourcePreviews,
@@ -39,14 +30,16 @@ const DETAIL_SOURCE_LIMIT = 8;
 const EMPTY_TOOL_CHILDREN: AiChatToolChildActivity[] = [];
 
 export function AiChatToolActivityRow({
-	part,
+	interrupted = false,
 	nestedChildren = EMPTY_TOOL_CHILDREN,
+	part,
 }: {
-	part: AiChatToolPart;
+	interrupted?: boolean;
 	nestedChildren?: AiChatToolChildActivity[];
+	part: AiChatToolPart;
 }) {
 	const shouldReduceMotion = useReducedMotion();
-	const activity = getToolActivityForPart(part);
+	const activity = getToolActivityForPart(part, { interrupted });
 
 	if (!activity) {
 		return null;
@@ -69,7 +62,7 @@ export function AiChatToolActivityRow({
 							</CollapsibleTrigger>
 							<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
 						</div>
-						<CollapsibleContent className="mt-2 space-y-3 pl-7">
+						<CollapsibleContent className="mt-2 space-y-3">
 							{details}
 							{sourcePreviews.length > 0 ? <SourceDetailList sources={sourcePreviews} /> : null}
 							{nestedChildren.length > 0 ? (
@@ -90,6 +83,7 @@ export function AiChatToolActivityRow({
 
 	return <ToolActivityMotion disabled={shouldReduceMotion}>{content}</ToolActivityMotion>;
 }
+
 function ToolActivityMotion({
 	children,
 	disabled,
@@ -117,7 +111,11 @@ function ToolActivityMotion({
 }
 
 function getInlineActivityContent(activity: AiChatToolActivity) {
-	if (activity.toolName !== "compute" || activity.status === "running") {
+	if (
+		activity.toolName !== "compute" ||
+		activity.status === "running" ||
+		activity.status === "interrupted"
+	) {
 		return null;
 	}
 
@@ -125,7 +123,11 @@ function getInlineActivityContent(activity: AiChatToolActivity) {
 }
 
 function getActivityDetails(activity: AiChatToolActivity) {
-	if (activity.toolName !== "compute" || activity.status === "running") {
+	if (
+		activity.toolName !== "compute" ||
+		activity.status === "running" ||
+		activity.status === "interrupted"
+	) {
 		return null;
 	}
 
@@ -141,6 +143,7 @@ function ActivitySummary({
 		presentation: AiToolPresentation;
 		status: AiChatToolActivity["status"];
 		summary: string;
+		segments?: AiChatToolReceiptSegment[];
 	};
 	canExpand?: boolean;
 	sourcePreviews: ToolSourcePreview[];
@@ -158,11 +161,12 @@ function ActivitySummary({
 			<span className="grid size-3.5 shrink-0 place-items-center self-center text-muted-foreground/70">
 				<ToolActivityIcon icon={presentation.icon} />
 			</span>
-			<span className={cn("min-w-0 truncate font-medium", isRunning && "shimmer")}>
-				{activity.summary}
-			</span>
+			<ActivitySummaryText
+				summary={activity.summary}
+				segments={activity.segments}
+				isRunning={isRunning}
+			/>
 			<InlineSourceFavicons sources={sourcePreviews.slice(0, INLINE_SOURCE_LIMIT)} />
-			<ToolStatusIcon status={activity.status} />
 			{canExpand ? (
 				<ChevronDown
 					className="size-3.5 shrink-0 self-center text-muted-foreground/70 transition-transform group-data-[panel-open]/collapsible:rotate-180"
@@ -170,6 +174,49 @@ function ActivitySummary({
 				/>
 			) : null}
 		</div>
+	);
+}
+
+function ActivitySummaryText({
+	summary,
+	segments,
+	isRunning,
+}: {
+	summary: string;
+	segments: AiChatToolReceiptSegment[] | undefined;
+	isRunning: boolean;
+}) {
+	if (!segments || segments.length === 0) {
+		return (
+			<span className={cn("min-w-0 truncate font-medium", isRunning && "shimmer")}>{summary}</span>
+		);
+	}
+	// Row-level flex handles the layout: text segments stay their intrinsic
+	// width, name segments take remaining space and truncate first. Wrapping
+	// span binds the segments so cross-segment styling (font-medium, shimmer)
+	// applies uniformly without introducing sibling gaps within the summary.
+	return (
+		<span className={cn("inline-flex min-w-0 items-baseline font-medium", isRunning && "shimmer")}>
+			{segments.map((segment, index) =>
+				segment.kind === "name" ? (
+					<span
+						// biome-ignore lint/suspicious/noArrayIndexKey: segments are index-stable per receipt
+						key={index}
+						className="min-w-0 truncate"
+					>
+						{segment.value}
+					</span>
+				) : (
+					<span
+						// biome-ignore lint/suspicious/noArrayIndexKey: segments are index-stable per receipt
+						key={index}
+						className="shrink-0 whitespace-pre"
+					>
+						{segment.value}
+					</span>
+				),
+			)}
+		</span>
 	);
 }
 
@@ -304,26 +351,10 @@ function ToolActivityIcon({ icon }: { icon: AiToolActivityIconKind }) {
 			return <Search className="size-3.5" aria-hidden="true" />;
 		case "web":
 			return <Globe2 className="size-3.5" aria-hidden="true" />;
+		case "work":
+			return <Wrench className="size-3.5" aria-hidden="true" />;
 		default:
 			icon satisfies never;
 			return null;
 	}
-}
-
-function ToolStatusIcon({ status }: { status: AiChatToolActivity["status"] }) {
-	const className = cn(
-		"size-3.5 shrink-0 text-muted-foreground/70",
-		status === "running" && "animate-spin",
-		status === "completed" && "text-success",
-	);
-
-	if (status === "running") {
-		return <LoaderCircle className={className} aria-hidden="true" />;
-	}
-
-	return status === "failed" ? (
-		<AlertTriangle className={className} aria-hidden="true" />
-	) : (
-		<CheckCircle2 className={className} aria-hidden="true" />
-	);
 }

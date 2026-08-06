@@ -19,7 +19,7 @@ const privacyDocument = {
 				"Workspace information, including workspace names, descriptions, membership roles, invites, documents, notes, folders, uploaded files, generated previews, extracted text, and collaboration activity.",
 				"AI and tool activity, including prompts, selected workspace context, chat thread metadata, model selections, tool calls, tool results, and usage details needed to run and improve AI features.",
 				"Feedback, support, invite, and account-deletion communications that you send to us or ask us to send.",
-				"Usage, analytics, device, browser, error, and diagnostic information collected by the app and by configured analytics services.",
+				"Usage, analytics, device, browser, error, and diagnostic information collected by the app and by configured analytics services. Where session replay is enabled, this may include visible page and AI chat content; form inputs and sensitive areas are masked. Prompts, responses, tool inputs, and tool outputs are included in AI diagnostics only after you explicitly accept or enable session replay.",
 			],
 		},
 		{
@@ -35,7 +35,7 @@ const privacyDocument = {
 		},
 		{
 			title: "Service providers",
-			body: "We use service providers to operate ThinkEx. Depending on the feature and environment, these may include Cloudflare for hosting, storage, databases, Durable Objects, Workers AI, Browser Rendering, email delivery, and sandboxed compute; Google for sign-in; Vercel AI Gateway and AI model providers such as OpenAI, Anthropic, and Google for AI responses; LlamaParse, Firecrawl, and Cloudflare Workers AI for file, web, and research extraction; PostHog for analytics, feedback, error reporting, session replay in deployed builds, and AI observability; and Autumn for AI usage tracking. These providers process data only as needed to provide their services to ThinkEx Inc.",
+			body: "We use service providers to operate ThinkEx. Depending on the feature and environment, these may include Cloudflare for hosting, storage, databases, Durable Objects, Workers AI, Browser Rendering, email delivery, and sandboxed compute; Google for sign-in; Vercel AI Gateway and AI model providers such as OpenAI, Anthropic, and Google for AI responses; LlamaParse, Firecrawl, and Cloudflare Workers AI for file, web, and research extraction; PostHog for analytics, feedback, error reporting, session replay in deployed builds, and AI observability; The Context Company for AI observability; and Autumn for AI usage tracking. These providers process data only as needed to provide their services to ThinkEx Inc.",
 		},
 		{
 			title: "Workspace content and AI",

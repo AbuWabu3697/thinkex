@@ -68,14 +68,14 @@ describe("workspace citations", () => {
 			references: [first],
 			results: [
 				{
-					content: "# Notes",
-					format: "markdown",
+					content: '<h1 data-edit-ref="b_abcdefghijkl.r_0123456789">Notes</h1>',
+					format: "html",
 					itemId: "item-1",
 					location: {
-						endLine: 1,
-						kind: "lines",
-						startLine: 1,
-						totalLines: 1,
+						endBlock: 1,
+						kind: "blocks",
+						startBlock: 1,
+						totalBlocks: 1,
 					},
 					path: "/Notes",
 					status: "ready",

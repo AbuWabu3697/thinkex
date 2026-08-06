@@ -5,9 +5,12 @@ import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
 
 const workspacePathSchema = z.string().min(1);
+const workspaceEditRefSchema = z.string().trim().min(1).max(64);
 
 const readWorkspaceItemsFailureCodes = [
 	"content_changed",
+	"extraction_failed",
+	"extraction_stalled",
 	"invalid_cursor",
 	"invalid_selection",
 	"page_range_out_of_range",
@@ -17,6 +20,7 @@ const readWorkspaceItemsFailureCodes = [
 	"path_not_absolute",
 	"path_not_found",
 	"projection_failed",
+	"edit_ref_not_found",
 	"unsupported_item_type",
 ] as const;
 
@@ -48,6 +52,13 @@ const workspaceContentReadRequestSchema = z.union([
 		cursor: z.string().min(1).max(4_096).describe("Opaque cursor returned by a previous read."),
 		mode: z.literal("continue"),
 	}),
+	z.strictObject({
+		...workspaceContentReadRequestBase,
+		editRef: workspaceEditRefSchema.describe(
+			"editRef of one block from an earlier document read. The result returns the block in full with its current editRef.",
+		),
+		mode: z.literal("block"),
+	}),
 ]);
 
 export const workspaceReadItemsInputSchema = z.object({
@@ -55,7 +66,7 @@ export const workspaceReadItemsInputSchema = z.object({
 		.array(workspaceContentReadRequestSchema)
 		.min(1)
 		.max(20)
-		.describe("Ordered workspace content reads."),
+		.describe("Ordered workspace content reads, at most 20."),
 });
 
 const workspaceReadPagesSchema = z.object({
@@ -76,13 +87,13 @@ const workspaceReadRelationsSchema = z.array(
 const workspaceContentReadResultSchema = z.union([
 	z.object({
 		content: z.string(),
-		format: z.literal("markdown"),
+		format: z.literal("html"),
 		itemId: z.string().min(1),
 		location: z.object({
-			endLine: z.number().int().nonnegative(),
-			kind: z.literal("lines"),
-			startLine: z.number().int().nonnegative(),
-			totalLines: z.number().int().nonnegative(),
+			endBlock: z.number().int().positive(),
+			kind: z.literal("blocks"),
+			startBlock: z.number().int().positive(),
+			totalBlocks: z.number().int().positive(),
 		}),
 		nextCursor: z.string().optional(),
 		path: workspacePathSchema,
@@ -93,22 +104,58 @@ const workspaceContentReadResultSchema = z.union([
 	z.object({
 		assetKind: workspaceFileAssetKindSchema,
 		content: z.string(),
+		emptyPages: z
+			.array(z.number().int().min(1))
+			.optional()
+			.describe(
+				"Returned pages that extracted no text. Expect these to fill in later while provisional is true.",
+			),
 		format: z.literal("markdown"),
 		itemId: z.string().min(1),
 		location: workspaceReadPagesSchema.extend({ kind: z.literal("pages") }),
 		nextCursor: z.string().optional(),
 		path: workspacePathSchema,
+		provisional: z
+			.boolean()
+			.optional()
+			.describe(
+				"True when this content came from the fast extraction pass and a higher-quality pass is still running.",
+			),
 		relations: workspaceReadRelationsSchema.optional(),
 		status: z.literal("ready"),
 		type: z.literal("file"),
 	}),
 	z.object({
+		elapsedSeconds: z
+			.number()
+			.int()
+			.nonnegative()
+			.describe("How long extraction has been running."),
 		path: workspacePathSchema,
+		phase: z
+			.enum(["queued", "extracting"])
+			.describe("Whether extraction has started yet for this file."),
+		retryAfterSeconds: z
+			.number()
+			.int()
+			.positive()
+			.describe("Suggested wait before reading this path again."),
 		status: z.literal("pending"),
 		type: z.literal("file"),
 	}),
 	z.object({
+		content: z.string(),
+		editRef: workspaceEditRefSchema,
+		format: z.literal("html"),
+		itemId: z.string().min(1),
+		path: workspacePathSchema,
+		relations: workspaceReadRelationsSchema.optional(),
+		status: z.literal("ready"),
+		type: z.literal("block"),
+	}),
+	z.object({
 		code: z.enum(readWorkspaceItemsFailureCodes),
+		message: z.string().optional().describe("Why extraction failed, when known."),
 		path: workspacePathSchema,
 		status: z.literal("failed"),
 		type: z.literal("file").optional(),

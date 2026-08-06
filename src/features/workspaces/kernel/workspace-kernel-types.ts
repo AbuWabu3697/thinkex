@@ -103,6 +103,8 @@ export type WorkspaceKernelMutationOutcome<T> =
 			status: "conflict";
 	  };
 
+export type WorkspaceKernelPublishOutcome = "applied" | "discarded";
+
 export function requireAppliedWorkspaceKernelMutation<T>(
 	outcome: WorkspaceKernelMutationOutcome<T>,
 ): WorkspaceCommandResult<T> {
@@ -180,12 +182,7 @@ export interface WorkspaceKernelFileSource {
 
 export type WorkspaceKernelFileProjectionFormat = "pages" | "preview";
 
-export type WorkspaceKernelFileProjectionStatus =
-	| "not_started"
-	| "queued"
-	| "processing"
-	| "ready"
-	| "failed";
+export type WorkspaceKernelFileProjectionStatus = "processing" | "ready" | "failed";
 
 interface WorkspaceKernelFileProjectionMutationBase {
 	itemId: string;

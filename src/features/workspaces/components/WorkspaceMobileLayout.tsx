@@ -1,9 +1,9 @@
-import { MessageSquare, Share2 } from "lucide-react";
-import { type ReactElement, type ReactNode, useState } from "react";
+import { Ellipsis, MessageSquare } from "lucide-react";
+import type { ReactElement, ReactNode } from "react";
 
 import UserProfileDropdown from "#/components/UserProfileDropdown";
 import WorkspaceMobileFrame from "#/features/workspaces/components/WorkspaceMobileFrame";
-import { WorkspaceShareDialog } from "#/features/workspaces/components/WorkspaceShareDialog";
+import WorkspaceRootActionsMenu from "#/features/workspaces/components/WorkspaceRootActionsMenu";
 import {
 	WorkspaceToolbarIconButton,
 	WorkspaceToolbarTextButton,
@@ -28,45 +28,40 @@ export default function WorkspaceMobileLayout({
 	chatSurfaceMode,
 	onOpenChat,
 }: WorkspaceMobileLayoutProps) {
-	const [shareOpen, setShareOpen] = useState(false);
 	const isChatOpen = chatSurfaceMode !== "hidden";
 
 	return (
-		<>
-			<WorkspaceMobileFrame
-				actions={
-					<>
-						<WorkspaceToolbarIconButton
-							aria-label="Share workspace"
-							onClick={() => setShareOpen(true)}
-						>
-							<Share2 />
-						</WorkspaceToolbarIconButton>
+		<WorkspaceMobileFrame
+			actions={
+				<>
+					<div className="flex items-center gap-1">
+						<WorkspaceRootActionsMenu
+							workspace={workspace}
+							align="end"
+							trigger={
+								<WorkspaceToolbarIconButton aria-label="Open workspace actions">
+									<Ellipsis />
+								</WorkspaceToolbarIconButton>
+							}
+						/>
 						<UserProfileDropdown />
-						{!isChatOpen ? (
-							<WorkspaceToolbarTextButton
-								variant="outline"
-								className="border-border bg-background shadow-xs hover:bg-muted"
-								onClick={onOpenChat}
-							>
-								<MessageSquare />
-								<span>Chat</span>
-							</WorkspaceToolbarTextButton>
-						) : null}
-					</>
-				}
-				chatPanel={chatPanel}
-				chatSurfaceMode={chatSurfaceMode}
-				contextBar={contextBar}
-				content={content}
-			/>
-			<WorkspaceShareDialog
-				membershipRole={workspace.membershipRole}
-				onOpenChange={setShareOpen}
-				open={shareOpen}
-				workspaceId={workspace.id}
-				workspaceName={workspace.name}
-			/>
-		</>
+					</div>
+					{!isChatOpen ? (
+						<WorkspaceToolbarTextButton
+							variant="outline"
+							className="border-border bg-background shadow-xs hover:bg-muted"
+							onClick={onOpenChat}
+						>
+							<MessageSquare />
+							<span>Chat</span>
+						</WorkspaceToolbarTextButton>
+					) : null}
+				</>
+			}
+			chatPanel={chatPanel}
+			chatSurfaceMode={chatSurfaceMode}
+			contextBar={contextBar}
+			content={content}
+		/>
 	);
 }

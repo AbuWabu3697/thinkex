@@ -43,7 +43,7 @@ Instead of uploading sources into a chat, you keep the actual materials in view:
 
 ## Built On
 
-ThinkEx is a full-stack TypeScript app hosted on Cloudflare. The frontend is React, TanStack Start, Tailwind CSS, Tiptap, EmbedPDF/PDFium, Yjs, and AI SDK. The backend runs on Cloudflare Workers with Durable Objects, D1, R2, Workflows, Containers, Workers AI, Browser Rendering, and Email.
+ThinkEx is a full-stack TypeScript app hosted on Cloudflare. The frontend is React, TanStack Start, Tailwind CSS, Tiptap, EmbedPDF/PDFium, Yjs, and AI SDK. The backend runs on Cloudflare Workers with Durable Objects, D1, R2, Vectorize, Workflows, Containers, Workers AI, Images, Browser Run, and Email.
 
 <details>
 <summary>Tech stack</summary>
@@ -53,11 +53,14 @@ ThinkEx is a full-stack TypeScript app hosted on Cloudflare. The frontend is Rea
 - **Workers** for the application server.
 - **Durable Objects** for workspace, document, AI, sandbox, and conversion coordination.
 - **D1** for relational app data with Drizzle migrations.
-- **R2** for workspace file storage.
+- **R2** for workspace file storage, with presigned direct uploads over `aws4fetch`.
+- **Vectorize** for workspace semantic search indexes.
 - **Workflows** for file extraction.
-- **Containers** for code execution, office conversion, and image conversion.
-- **Workers AI** and **AI Gateway** for model access.
-- **Browser Rendering** for web browsing workflows.
+- **Containers** for code execution (Sandbox), office conversion (Gotenberg), and file processing (LiteParse).
+- **Workers AI** and **AI Gateway** for model and embedding access.
+- **Images** for image transforms and conversion.
+- **Worker Loaders** for dynamic code execution behind Codemode.
+- **Browser Run** for page reads, agent-driven CDP sessions, Live View, and human handoff.
 - **Email** for workspace invites.
 - **Observability** for logs, traces, and source maps.
 - **Wrangler**, **Cloudflare Vite plugin**, and **Workers Vitest pool** for local runtime, deploys, types, and tests.
@@ -67,13 +70,21 @@ ThinkEx is a full-stack TypeScript app hosted on Cloudflare. The frontend is Rea
 - **React 19**, **TanStack Start/Router/Query**, **TypeScript**, **Vite+**, and **Tailwind CSS v4**.
 - **Base UI**, **lucide-react**, **motion**, **sonner**, and local shadcn-style components.
 - **Tiptap 3**, **ProseMirror**, **Yjs**, **y-partyserver**, and **PartyServer** for collaborative documents.
-- **EmbedPDF**, **PDFium**, **Photon**, **Gotenberg**, and image conversion containers for rich source handling.
+- **EmbedPDF**, **PDFium**, **Gotenberg**, and **LiteParse** for rich source handling.
+- **Content Collections** for the Markdown-backed blog.
 
 ### AI, data, and product systems
 
-- **AI SDK**, **Cloudflare Think**, **Cloudflare Sandbox**, **Cloudflare Shell**, and **Cloudflare Codemode**.
-- **Better Auth**, **Drizzle ORM**, **Zod**, **PostHog**, **The Context Company**, **Autumn**, **Firecrawl**, and **LlamaCloud** integrations.
+- **AI SDK**, **Cloudflare Think**, **Cloudflare Sandbox**, **Cloudflare Shell**, **Cloudflare Codemode**, and **Cloudflare Agents**.
+- **MCP** via the **Model Context Protocol SDK** and **Better Auth OAuth provider**, so agents can drive workspaces.
+- **Better Auth**, **Drizzle ORM**, **Zod**, **PostHog** (product analytics and LLM analytics), **The Context Company**, **Autumn** (plans, usage, and billing), **Firecrawl**, and **LlamaCloud** integrations.
 - **Streamdown**, **KaTeX**, **Shiki**, **PapaParse**, **dnd-kit**, **react-resizable-panels**, and **Zustand** for workspace interactions.
+
+### Toolchain
+
+- **pnpm**, **Node 24**, and **Vite+** (`vp`) for dependency management, dev, build, lint, format, and test.
+- **Vitest** with a browser-free node project and a **Workers** pool project.
+- **Infisical** for shared secrets, **Drizzle Kit** for migrations, **knip** and **react-doctor** for dead code and React checks, and **commitlint** for conventional commits.
 
 See [`package.json`](package.json), [`wrangler.jsonc`](wrangler.jsonc), and [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) for deeper implementation details.
 

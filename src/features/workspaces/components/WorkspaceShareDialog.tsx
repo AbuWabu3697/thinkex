@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, Link2, Loader2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AnimatedIconSwap } from "#/components/ui/animated-icon-swap";
@@ -30,10 +30,7 @@ import {
 	useWorkspaceShareDialogQueries,
 } from "#/features/workspaces/components/workspace-share-queries";
 import { type WorkspaceMembershipRole, workspaceRoleLabels } from "#/features/workspaces/contracts";
-import {
-	defaultInviteLinkExpiryMs,
-	getGrantableInviteRoles,
-} from "#/features/workspaces/invites/workspace-invite-rules";
+import { defaultInviteLinkExpiryMs } from "#/features/workspaces/invites/workspace-invite-rules";
 import { useCopyToClipboard } from "#/hooks/use-copy-to-clipboard";
 import { buildWorkspaceInviteLinkCopiedEventProperties } from "#/integrations/posthog/events";
 import { capturePostHogClientEvent } from "#/integrations/posthog/provider";
@@ -61,12 +58,11 @@ export function WorkspaceShareDialog({
 	const [copyingRole, setCopyingRole] = useState<WorkspaceMembershipRole | null>(null);
 	const [copiedRole, setCopiedRole] = useState<WorkspaceMembershipRole | null>(null);
 	const copyFeedbackTimeoutRef = useRef<number | null>(null);
-	const grantableRoles = useMemo(() => getGrantableInviteRoles(membershipRole), [membershipRole]);
 	const { copy } = useCopyToClipboard({
 		onError: () => toast.error("Could not copy invite link"),
 	});
-	const { emailInvites, isLoading, members } = useWorkspaceShareDialogQueries({
-		grantableRoles,
+	const { emailInvites, grantableRoles, isLoading, members } = useWorkspaceShareDialogQueries({
+		membershipRole,
 		open,
 		workspaceId,
 	});

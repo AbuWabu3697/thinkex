@@ -5,7 +5,6 @@ import { workspaceItemTypeSchema } from "#/features/workspaces/contracts";
 import {
 	buildWorkspaceItemCreateBootstrap,
 	persistDocumentItemContentUpdate,
-	touchWorkspaceItemUpdatedAt,
 } from "#/features/workspaces/documents/document-item-content";
 import type { WorkspaceKernelEventBus } from "#/features/workspaces/kernel/workspace-kernel-events";
 import {
@@ -23,7 +22,6 @@ import type { WorkspaceKernelStore } from "#/features/workspaces/kernel/workspac
 import type {
 	CreateWorkspaceKernelItemArgs,
 	DeleteWorkspaceKernelItemsArgs,
-	DeleteWorkspaceKernelItemsResult,
 	MoveWorkspaceKernelItemsArgs,
 	MoveWorkspaceKernelItemsResult,
 	ReadWorkspaceDocumentCheckpointArgs,
@@ -31,6 +29,7 @@ import type {
 	UpdateWorkspaceKernelItemColorArgs,
 	CommitWorkspaceDocumentCheckpointArgs,
 	WorkspaceKernelMutationOutcome,
+	WorkspaceKernelPublishOutcome,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
 import {
 	resolveWorkspaceItemColorForCreate,
@@ -279,9 +278,7 @@ export class WorkspaceKernelItemCommands {
 		});
 	}
 
-	async deleteItems(
-		input: DeleteWorkspaceKernelItemsArgs,
-	): Promise<WorkspaceCommandResult<DeleteWorkspaceKernelItemsResult>> {
+	tombstoneItems(input: DeleteWorkspaceKernelItemsArgs) {
 		const roots = this.getUniqueRootRows(input.itemIds);
 		const rootIds = roots.map((root) => root.id);
 		const deleteIds = this.getDeleteItemIds(roots);
@@ -303,10 +300,17 @@ export class WorkspaceKernelItemCommands {
 			payload: { itemIds: rootIds, deletedItemIds: deleteIds, itemFacts },
 		});
 
+		return {
+			command: { result, event },
+			shellPaths: rowsToRemove.map((row) => row.shell_path),
+		};
+	}
+
+	async deleteShellPaths(shellPaths: string[]) {
 		try {
 			await Promise.all(
-				rowsToRemove.map((row) =>
-					this.workspace.rm(row.shell_path, {
+				shellPaths.map((shellPath) =>
+					this.workspace.rm(shellPath, {
 						recursive: true,
 						force: true,
 					}),
@@ -317,13 +321,11 @@ export class WorkspaceKernelItemCommands {
 				error,
 				event: "workspace_shell_cleanup",
 				fields: {
-					item_count: rowsToRemove.length,
+					item_count: shellPaths.length,
 					workspace_id: this.workspaceId(),
 				},
 			});
 		}
-
-		return { result, event };
 	}
 
 	async readDocumentCheckpoint(input: ReadWorkspaceDocumentCheckpointArgs) {
@@ -340,8 +342,11 @@ export class WorkspaceKernelItemCommands {
 
 	async commitDocumentCheckpoint(
 		input: CommitWorkspaceDocumentCheckpointArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemSummary>> {
-		const item = this.store.assertActiveItem(input.itemId);
+	): Promise<WorkspaceKernelPublishOutcome> {
+		const item = this.store.getActiveItemRow(input.itemId);
+		if (!item) {
+			return "discarded";
+		}
 		const type = workspaceItemTypeSchema.parse(item.type);
 
 		if (type !== "document") {
@@ -354,30 +359,28 @@ export class WorkspaceKernelItemCommands {
 			getWorkspaceKernelContentMimeType(type),
 		);
 
-		const now = Date.now();
-
-		if (type === "document") {
-			persistDocumentItemContentUpdate({
-				content: input.content,
-				itemId: input.itemId,
-				metadataJson: item.metadata_json,
-				sql: this.sql,
-				updatedAt: now,
-			});
-		} else {
-			touchWorkspaceItemUpdatedAt({
-				itemId: input.itemId,
-				sql: this.sql,
-				updatedAt: now,
-			});
+		const currentItem = this.store.getActiveItemRow(input.itemId);
+		if (!currentItem) {
+			await this.workspace.rm(item.shell_path, { force: true });
+			return "discarded";
 		}
+		const updatedAt = Math.max(Date.now(), currentItem.updated_at + 1);
 
-		return this.commitItemEvent({
+		persistDocumentItemContentUpdate({
+			content: input.content,
+			itemId: input.itemId,
+			metadataJson: currentItem.metadata_json,
+			sql: this.sql,
+			updatedAt,
+		});
+
+		this.commitItemEvent({
 			type: "workspace.item.content.updated",
 			itemId: input.itemId,
 			actorUserId: input.actorUserId,
 			clientMutationId: input.clientMutationId,
 		});
+		return "applied";
 	}
 
 	private async createWorkspaceFile(input: {

@@ -47,7 +47,6 @@ export async function summarizeInspectorTools(tools: unknown) {
 				outputSchema: await getInspectableSchema(record.outputSchema),
 				inputExamples: record.inputExamples,
 				metadata: record.metadata,
-				strict: record.strict,
 				title: record.title,
 			});
 		}),

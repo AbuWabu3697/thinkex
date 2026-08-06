@@ -14,22 +14,23 @@ ThinkEx deploys from GitHub Actions to Cloudflare Workers. Deploy, migration, an
 
 ## CI
 
-The `CI` workflow runs on pull requests, pushes to `main`, and manual dispatch. It installs with Vite+ and runs:
+The `CI` workflow runs on pull requests, pushes to `main`, and manual dispatch.
+
+On pull requests (and non-`main` pushes), it installs with Vite+ and runs check, test, and a staging-shaped build:
 
 ```bash
-vp run verify
+vp run ciCheck && vp run ciTest && vp run ciBuildStaging
 ```
 
-`verify` runs the repo's check, test, and build tasks using Vite Task caching.
+`ciBuildStaging` compiles with `CLOUDFLARE_ENV=staging` so PR CI exercises real Wrangler env flattening. PostHog build secrets are optional for that path (analytics stays off when unset); production deploy still requires the full production PostHog set, including the feedback survey id. Local `vp run verify` stays on the generic `ciBuild` (`build:app`) so contributors without Infisical are unaffected. When changes go through a pull request, the `validate` check must be green before merge.
 
 The separate `React Doctor` workflow runs on pull requests and pushes to `main`. It scans changed React files on pull requests, posts inline diagnostics, and records the React Doctor score without folding those comments into the main Vite+ verification job.
 
 ## Production Deploy
 
-The production workflow checks out the successful `main` commit, installs dependencies, runs quality gates, builds the production bundle, applies remote D1 migrations, and deploys the production Worker.
+Production deploy trusts PR `validate` when present and ships the production artifact: build, remote D1 migrations, then Worker deploy. Concurrent production and staging deploys queue instead of cancelling mid-flight. Direct pushes to `main` are still allowed.
 
 ```bash
-vp run check && vp run test
 vp run build:production
 vp run db:migrate
 vp run deploy:worker
@@ -37,10 +38,9 @@ vp run deploy:worker
 
 ## Staging Deploy
 
-The staging workflow follows the same shape against staging bindings and routes:
+The staging workflow follows the same ship shape against staging bindings and routes:
 
 ```bash
-vp run check && vp run test
 vp run build:staging
 vp run db:migrate:staging
 vp run deploy:worker:staging
@@ -49,6 +49,24 @@ vp run deploy:worker:staging
 <Warning>
   Remote migrations and deploy commands affect shared environments. Run them only when you are intentionally doing release work.
 </Warning>
+
+## Workspace Search Vector Indexes
+
+Workspace search uses 1,024-dimension BGE-M3 embeddings with cosine distance. Vectorize indexes and their metadata indexes are persistent infrastructure, so create them before deploying the Worker:
+
+```bash
+wrangler vectorize create thinkex-workspace-search-staging --dimensions 1024 --metric cosine
+wrangler vectorize create-metadata-index thinkex-workspace-search-staging --propertyName itemId --type string
+wrangler vectorize create-metadata-index thinkex-workspace-search-staging --propertyName parentId --type string
+wrangler vectorize create-metadata-index thinkex-workspace-search-staging --propertyName type --type string
+
+wrangler vectorize create thinkex-workspace-search --dimensions 1024 --metric cosine
+wrangler vectorize create-metadata-index thinkex-workspace-search --propertyName itemId --type string
+wrangler vectorize create-metadata-index thinkex-workspace-search --propertyName parentId --type string
+wrangler vectorize create-metadata-index thinkex-workspace-search --propertyName type --type string
+```
+
+Create metadata indexes before inserting vectors. Vectors written first are not retroactively indexed for metadata filtering.
 
 ## Secrets
 

@@ -5,11 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Skeleton } from "#/components/ui/skeleton";
+import { stageComposerPrompt } from "#/features/workspaces/composer/workspace-composer-actions";
 import { DocumentAskSelectionMenu } from "#/features/workspaces/components/document-editor/DocumentAskSelectionMenu";
 import { DocumentWordCount } from "#/features/workspaces/components/document-editor/DocumentWordCount";
 import { useDocumentEditorToolbar } from "#/features/workspaces/components/WorkspaceItemToolbarSlot";
 import { useWorkspacePaneRuntime } from "#/features/workspaces/components/WorkspacePaneRuntime";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
+import { DocumentEditReviewExtension } from "#/features/workspaces/documents/document-edit-review-extension";
+import { DocumentWidgetActionProvider } from "#/features/workspaces/documents/document-widget-node";
 import {
 	getTiptapDocumentBaseExtensions,
 	tiptapDocumentYjsField,
@@ -18,15 +21,18 @@ import {
 	type DocumentCollaborationSession,
 	useDocumentCollaborationSession,
 } from "#/features/workspaces/documents/use-document-collaboration-session";
+import { useDocumentEditReviewOverlay } from "#/features/workspaces/documents/use-document-edit-review-overlay";
 import type { WorkspaceItem } from "#/features/workspaces/model/types";
 import { DEFAULT_COLLABORATION_COLOR } from "#/lib/design-system-colors";
 import { getAuthSessionQueryOptions } from "#/lib/session-query";
 
 export function DocumentEditorSurface({
+	documentPath,
 	item,
 	viewInstanceId,
 	workspaceId,
 }: {
+	documentPath: string;
 	item: WorkspaceItem;
 	viewInstanceId: string;
 	workspaceId: string;
@@ -48,6 +54,7 @@ export function DocumentEditorSurface({
 	return (
 		<DocumentEditorInstance
 			collaborationSession={collaborationSession}
+			documentPath={documentPath}
 			item={item}
 			viewInstanceId={viewInstanceId}
 			workspaceId={workspaceId}
@@ -57,11 +64,13 @@ export function DocumentEditorSurface({
 
 function DocumentEditorInstance({
 	collaborationSession,
+	documentPath,
 	item,
 	viewInstanceId,
 	workspaceId,
 }: {
 	collaborationSession: DocumentCollaborationSession;
+	documentPath: string;
 	item: WorkspaceItem;
 	viewInstanceId: string;
 	workspaceId: string;
@@ -83,7 +92,7 @@ function DocumentEditorInstance({
 				"aria-label": capabilities.canMutateContent
 					? `${item.name} editor`
 					: `${item.name} document`,
-				class: "workspace-document-prose min-h-full p-4 outline-none",
+				class: "workspace-document-prose min-h-full py-4 outline-none",
 			},
 			handleKeyDown: (_view, event) => {
 				if (event.key !== "Escape" || !paneRuntime?.onCloseItemView) {
@@ -98,7 +107,19 @@ function DocumentEditorInstance({
 		},
 	});
 
-	useDocumentEditorToolbar(viewInstanceId, capabilities.canMutateContent ? editor : null);
+	useDocumentEditorToolbar({
+		canEdit: capabilities.canMutateContent,
+		documentPath,
+		editor: capabilities.canMutateContent ? editor : null,
+		itemId: item.id,
+		slotId: viewInstanceId,
+		workspaceId,
+	});
+	useDocumentEditReviewOverlay({
+		canEdit: capabilities.canMutateContent,
+		editor,
+		itemId: item.id,
+	});
 
 	return (
 		<section className="relative flex h-full min-h-0 flex-col bg-background">
@@ -110,7 +131,19 @@ function DocumentEditorInstance({
 						scrollTarget={scrollTarget}
 						workspaceId={workspaceId}
 					/>
-					<EditorContent className="min-h-full" editor={editor} />
+					<DocumentWidgetActionProvider
+						onAskAiToFix={
+							capabilities.canMutateContent
+								? (error) =>
+										stageComposerPrompt(
+											workspaceId,
+											`A widget in ${documentPath} hit this error. Please fix it:\n\n${error}`,
+										)
+								: undefined
+						}
+					>
+						<EditorContent className="min-h-full" editor={editor} />
+					</DocumentWidgetActionProvider>
 				</div>
 			</div>
 			<DocumentWordCount editor={editor} />
@@ -123,6 +156,7 @@ function getDocumentEditorExtensions(collaborationSession: DocumentCollaboration
 
 	return [
 		...baseExtensions,
+		DocumentEditReviewExtension,
 		Collaboration.configure({
 			document: collaborationSession.ydoc,
 			field: tiptapDocumentYjsField,

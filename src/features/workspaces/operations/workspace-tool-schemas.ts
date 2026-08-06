@@ -4,23 +4,52 @@ import {
 	workspaceReadItemsInputSchema,
 	workspaceReadItemsOutputSchema,
 } from "#/features/workspaces/content/workspace-content-contract";
-import { createWorkspaceItemsFailureCodes } from "#/features/workspaces/operations/create-items";
-import { deleteWorkspaceItemsFailureCodes } from "#/features/workspaces/operations/delete-items";
-import { editWorkspaceItemFailureCodes } from "#/features/workspaces/operations/edit-item";
-import { linkWorkspaceItemsFailureCodes } from "#/features/workspaces/operations/link-items";
-import { moveWorkspaceItemsFailureCodes } from "#/features/workspaces/operations/move-items";
-import { renameWorkspaceItemFailureCodes } from "#/features/workspaces/operations/rename-item";
 import {
+	createWorkspaceItemsFailureCodes,
+	deleteWorkspaceItemsFailureCodes,
+	editWorkspaceItemFailureCodes,
+	linkWorkspaceItemsFailureCodes,
+	moveWorkspaceItemsFailureCodes,
+	renameWorkspaceItemFailureCodes,
+} from "#/features/workspaces/operations/workspace-operation-failure-codes";
+import {
+	WORKSPACE_ITEM_NAME_MAX_LENGTH,
 	workspaceItemTypeSchema,
 	workspaceRelationKindSchema,
 } from "#/features/workspaces/contracts";
-import { documentMarkdownEditSchema } from "#/features/workspaces/documents/document-markdown-edits";
+import { workspaceReferenceRecordSchema } from "#/features/workspaces/locations/workspace-location";
+import {
+	documentAiEditSchema,
+	documentAiHtmlSchema,
+} from "#/features/workspaces/documents/document-ai-edits";
 import { workspaceFileAssetKindSchema } from "#/features/workspaces/model/workspace-file";
+import {
+	workspaceSearchInputSchema,
+	workspaceSearchOutputSchema,
+} from "#/features/workspaces/search/workspace-search-contract";
 
-export { workspaceReadItemsInputSchema, workspaceReadItemsOutputSchema };
+export {
+	workspaceReadItemsInputSchema,
+	workspaceReadItemsOutputSchema,
+	workspaceSearchInputSchema,
+	workspaceSearchOutputSchema,
+};
 
-export const workspaceDocumentMarkdownMathInstruction =
-	"For document Markdown math, use `$...$` for inline math and `$$...$$` on separate lines for block math. Escape literal currency dollar signs as `\\$`.";
+/**
+ * Math, chemistry, and money for the HTML surfaces. Documents and widgets are
+ * both HTML, so they share one rule and the model tracks "Markdown or HTML?"
+ * rather than three per-surface dialects — chat keeps the `$…$` Markdown form.
+ */
+const workspaceHtmlMathInstruction =
+	'This is HTML, so math is markup rather than delimiters: use <span data-type="inline-math" data-latex="..."></span> or <div data-type="block-math" data-latex="..."></div>, and keep dollar signs out of the data-latex value. Put every subscript and superscript (exponents like 10^8, indices like x_1) inside math rather than <sub>/<sup> tags. Chemistry renders with \\ce{...} (e.g. \\ce{CH4 + 2 O2 -> CO2 + 2 H2O}) and quantities with units render with \\pu{...} (e.g. \\pu{9.81 m/s^2}), both inside data-latex. Write literal money as plain text ($30, never \\$30) — a backslash before a dollar sign shows on screen in HTML.';
+
+/**
+ * Keep discovery and serialization beside the document tool. The activated
+ * skill owns the authoring contract so the two prompts cannot drift apart.
+ */
+const workspaceWidgetHtmlInstruction = `A widget is one interactive block inside a document. Use one when the user explicitly asks for a widget, asks for interaction or live computation, or wants a document visual that ordinary blocks cannot express. Keep ordinary content in ordinary blocks. Before authoring or editing widget source, activate the "widget-authoring" skill and follow its HTML, sandbox, layout, and editing contract. Serialize the result as <div data-type="widget" title="Short title">…HTML-escaped fragment…</div>.`;
+
+export const workspaceDocumentHtmlInstruction = `Use semantic HTML with paragraphs, h1-h4, blockquotes, lists, code blocks, horizontal rules, tables, links, and standard text marks. ${workspaceHtmlMathInstruction} For checkboxes, use <ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>Item</p></div></li></ul>. Documents cannot hold images: never use <img> or <figure>, and describe the visual in words instead. Cite workspace sources in documents exactly as in a chat reply, with <citation ref="wr_7Kp2Qa9x"></citation> placed after the claim it supports. ${workspaceWidgetHtmlInstruction}`;
 
 const workspacePathSchema = z.string().min(1);
 const workspaceIndexSchema = z.number().int().nonnegative();
@@ -91,13 +120,6 @@ export const workspaceListItemsInputSchema = z.object({
 		.min(0)
 		.optional()
 		.describe("Zero-based item offset. Use nextOffset from the previous result to continue."),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(200)
-		.optional()
-		.describe("Maximum number of workspace items to return. Defaults to 100."),
 	path: z
 		.string()
 		.min(1)
@@ -112,11 +134,11 @@ export const workspaceListItemsInputSchema = z.object({
 export const workspaceEditItemInputSchema = z.object({
 	path: z.string().min(1).describe("Absolute path of one actual ThinkEx workspace item to edit."),
 	edits: z
-		.array(documentMarkdownEditSchema)
+		.array(documentAiEditSchema)
 		.min(1)
 		.max(40)
 		.describe(
-			`Ordered text edits to apply to a document projection. ${workspaceDocumentMarkdownMathInstruction}`,
+			"Ordered edits, at most 40. Target a block with the exact editRef from a document or block read. A block read returns the exact content that replace_text matches. Use overwrite only to discard the entire document and write a new one.",
 		),
 });
 
@@ -126,11 +148,16 @@ export const workspaceLinkItemsInputSchema = z.object({
 		.array(workspaceRelationInputSchema)
 		.min(1)
 		.max(20)
-		.describe("Relationships from this item to other workspace items."),
+		.describe("Relationships from this item to other workspace items, at most 20."),
 });
 
 export const workspaceRenameItemInputSchema = z.object({
-	name: z.string().trim().min(1).max(160).describe("New user-visible item name."),
+	name: z
+		.string()
+		.trim()
+		.min(1)
+		.max(WORKSPACE_ITEM_NAME_MAX_LENGTH)
+		.describe("New user-visible item name."),
 	path: z.string().min(1).describe("Absolute path of one actual ThinkEx workspace item to rename."),
 });
 
@@ -143,13 +170,13 @@ export const workspaceMoveItemsInputSchema = z.object({
 		.array(z.string().min(1))
 		.min(1)
 		.max(20)
-		.describe("Absolute paths of one or more actual ThinkEx workspace items to move."),
+		.describe("Absolute paths of one or more actual ThinkEx workspace items to move, at most 20."),
 });
 
 export const workspaceCreateItemsInputSchema = z.object({
 	items: z
 		.array(
-			z.discriminatedUnion("type", [
+			z.union([
 				z.object({
 					type: z.literal("folder"),
 					path: z.string().min(1).describe("Final absolute path for the folder to create."),
@@ -157,7 +184,9 @@ export const workspaceCreateItemsInputSchema = z.object({
 						.array(workspaceRelationInputSchema)
 						.max(20)
 						.optional()
-						.describe("Optional relationships from this new folder to other workspace items."),
+						.describe(
+							"Optional relationships from this new folder to other workspace items, at most 20.",
+						),
 				}),
 				z.object({
 					type: z.literal("document"),
@@ -166,12 +195,13 @@ export const workspaceCreateItemsInputSchema = z.object({
 						.array(workspaceRelationInputSchema)
 						.max(20)
 						.optional()
-						.describe("Optional relationships from this new document to other workspace items."),
-					initialContent: z
-						.string()
 						.describe(
-							`Optional initial Markdown content for the document. ${workspaceDocumentMarkdownMathInstruction}`,
-						)
+							"Optional relationships from this new document to other workspace items, at most 20.",
+						),
+					initialContent: documentAiHtmlSchema
+						// Doc HTML rules live in the create tool description (see
+						// workspace-tool-definitions), so they are not repeated here.
+						.describe("Optional initial HTML content for the document.")
 						.optional(),
 				}),
 			]),
@@ -179,7 +209,7 @@ export const workspaceCreateItemsInputSchema = z.object({
 		.min(1)
 		.max(20)
 		.describe(
-			"One or more folders or documents to create in order. Parent folders must already exist or be created earlier in the same request.",
+			"One or more folders or documents to create in order, at most 20. Parent folders must already exist or be created earlier in the same request.",
 		),
 });
 
@@ -188,14 +218,15 @@ export const workspaceDeleteItemsInputSchema = z.object({
 		.array(z.string().min(1))
 		.min(1)
 		.max(20)
-		.describe("Absolute paths of one or more actual ThinkEx workspace items to delete."),
+		.describe(
+			"Absolute paths of one or more actual ThinkEx workspace items to delete, at most 20.",
+		),
 });
 
 export const workspaceListItemsInputExamples = createInputExamples<
 	z.input<typeof workspaceListItemsInputSchema>
 >({
 	path: "/",
-	limit: 50,
 	recursive: false,
 });
 
@@ -213,6 +244,28 @@ export const workspaceReadItemsInputExamples = createInputExamples<
 				range: "1-3",
 			},
 		],
+	},
+	{
+		requests: [
+			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				mode: "block",
+				path: "/Demo Folder/Demo Document",
+			},
+		],
+	},
+);
+
+export const workspaceSearchInputExamples = createInputExamples<
+	z.input<typeof workspaceSearchInputSchema>
+>(
+	{
+		query: "What does the market report say about adoption?",
+		path: "/Research",
+		types: ["document", "file"],
+	},
+	{
+		query: "photosynthesis experiment results",
 	},
 );
 
@@ -241,7 +294,8 @@ export const workspaceCreateItemsInputExamples = createInputExamples<
 		{
 			type: "document",
 			path: "/Demo Folder/Demo Document",
-			initialContent: "# Demo Document\nThis document was created as part of a tool demo.",
+			initialContent:
+				"<h1>Demo Document</h1><p>This document was created as part of a tool demo.</p>",
 			relations: [
 				{
 					kind: "derived_from",
@@ -261,15 +315,38 @@ export const workspaceDeleteItemsInputExamples = createInputExamples<
 
 export const workspaceEditItemInputExamples = createInputExamples<
 	z.input<typeof workspaceEditItemInputSchema>
->({
-	path: "/Demo Folder/Demo Document",
-	edits: [
-		{
-			type: "overwrite",
-			content: "# Demo Document\nThis document was updated as part of the demo.",
-		},
-	],
-});
+>(
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				op: "replace",
+				html: "<p>Updated paragraph.</p>",
+			},
+		],
+	},
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				op: "overwrite",
+				html: "<h1>Demo Document</h1><p>This document was updated as part of the demo.</p>",
+			},
+		],
+	},
+	{
+		path: "/Demo Folder/Demo Document",
+		edits: [
+			{
+				editRef: "b_JQrkL4Neurv2.r_6sNqkQxDdy",
+				op: "replace_text",
+				find: "gravity = 9.8",
+				replace: "gravity = 3.7",
+			},
+		],
+	},
+);
 
 export const workspaceLinkItemsInputExamples = createInputExamples<
 	z.input<typeof workspaceLinkItemsInputSchema>
@@ -297,15 +374,15 @@ export const workspaceListItemsOutputSchema = z.object({
 });
 
 export const workspaceCreateItemsOutputSchema = createWorkspaceItemsResultSchema({
-	itemSchema: z.object({
-		path: workspacePathSchema,
+	itemSchema: workspacePathItemSchema.extend({
+		itemId: z.string().min(1),
+		// Creation makes these two and nothing else; the shared item type covers
+		// files and study items this tool cannot produce.
 		type: z.enum(["document", "folder"]),
-		warnings: z
-			.array(z.string())
-			.optional()
-			.describe("Content projection warnings for created documents."),
 	}),
 	failureSchema: createFailureSchema(createWorkspaceItemsFailureCodes),
+}).extend({
+	references: z.array(workspaceReferenceRecordSchema),
 });
 
 export const workspaceDeleteItemsOutputSchema = createWorkspaceItemsResultSchema({
@@ -330,16 +407,20 @@ export const workspaceRenameItemOutputSchema = z.object({
 export const workspaceEditItemOutputSchema = z.object({
 	path: workspacePathSchema,
 	applied: z.number().int().min(0),
+	itemId: z.string().optional(),
+	lineChanges: z
+		.object({ added: z.number().int().min(0), removed: z.number().int().min(0) })
+		.optional(),
 	failed: z.array(
 		z.object({
 			code: z.enum(editWorkspaceItemFailureCodes),
+			detail: z
+				.string()
+				.optional()
+				.describe("Why this edit was refused, when the reason is known."),
 			index: workspaceIndexSchema,
 		}),
 	),
-	warnings: z
-		.array(z.string())
-		.describe("Content projection warnings after applying edits.")
-		.optional(),
 });
 
 export const workspaceLinkItemsOutputSchema = z.object({

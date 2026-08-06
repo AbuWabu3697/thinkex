@@ -2,6 +2,7 @@ import type { FilePart, ModelMessage, TextPart } from "ai";
 
 import { WORKSPACE_AI_CHAT_ATTACHMENT_POLICY } from "#/features/workspaces/ai/chat-attachment-policy";
 import {
+	type ChatAttachmentIdentity,
 	getChatAttachmentObjectKey,
 	parseChatAttachmentContentUrl,
 } from "#/features/workspaces/ai/chat-attachment-storage";
@@ -35,15 +36,21 @@ export async function resolveChatAttachmentModelMessages(input: {
 				continue;
 			}
 
-			if (part.type !== "file" || typeof part.data !== "string") {
+			if (part.type !== "file") {
 				continue;
 			}
-			if (remainingBytes <= 0 && parseChatAttachmentContentUrl(part.data)) {
+
+			const identity = getChatAttachmentIdentity(part);
+			if (!identity) {
+				continue;
+			}
+
+			if (remainingBytes <= 0) {
 				content[partIndex] = omitChatAttachmentPart(part);
 				continue;
 			}
 
-			const resolved = await resolveChatAttachmentPart(part, input, remainingBytes);
+			const resolved = await resolveChatAttachmentPart(part, identity, input, remainingBytes);
 			content[partIndex] = resolved.part;
 			remainingBytes -= resolved.bytes;
 		}
@@ -56,6 +63,7 @@ export async function resolveChatAttachmentModelMessages(input: {
 
 async function resolveChatAttachmentPart(
 	part: FilePart,
+	identity: ChatAttachmentIdentity,
 	input: {
 		bucket: R2Bucket;
 		threadId: string;
@@ -64,12 +72,6 @@ async function resolveChatAttachmentPart(
 	},
 	remainingBytes: number,
 ): Promise<{ bytes: number; part: FilePart | TextPart }> {
-	const identity = parseChatAttachmentContentUrl(part.data as string);
-
-	if (!identity) {
-		return { bytes: 0, part };
-	}
-
 	if (identity.threadId !== input.threadId || identity.workspaceId !== input.workspaceId) {
 		throw new Error("Chat attachment does not belong to this thread.");
 	}
@@ -93,10 +95,23 @@ async function resolveChatAttachmentPart(
 		bytes: object.size,
 		part: {
 			...part,
-			data: new Uint8Array(await object.arrayBuffer()),
+			data: {
+				data: new Uint8Array(await object.arrayBuffer()),
+				type: "data",
+			},
 			mediaType: object.httpMetadata?.contentType ?? part.mediaType,
 		},
 	};
+}
+
+function getChatAttachmentIdentity(part: FilePart): ChatAttachmentIdentity | null {
+	const { data } = part;
+
+	if (typeof data === "object" && data !== null && "type" in data && data.type === "url") {
+		return parseChatAttachmentContentUrl(data.url.href);
+	}
+
+	return null;
 }
 
 function omitChatAttachmentPart(part: FilePart): TextPart {

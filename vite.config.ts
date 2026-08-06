@@ -6,11 +6,15 @@ import {
 
 export default defineConfig(({ command }) => {
 	assertRequiredPostHogBuildEnv(command);
+	const cloudflareEnvironment = process.env.CLOUDFLARE_ENV?.trim();
+	const shouldGenerateSourceMaps =
+		command === "build" &&
+		(cloudflareEnvironment === "staging" || cloudflareEnvironment === "production");
 
 	return {
 		resolve: { tsconfigPaths: true },
 		build: {
-			sourcemap: command === "build",
+			sourcemap: shouldGenerateSourceMaps,
 		},
 		run: {
 			tasks: {
@@ -18,6 +22,12 @@ export default defineConfig(({ command }) => {
 				ciTest: "vp test --run",
 				ciBuild: {
 					command: "node --run build:app",
+					untrackedEnv: ["INIT_CWD"],
+					input: [{ auto: true }, "!dist/**"],
+					output: ["dist/**"],
+				},
+				ciBuildStaging: {
+					command: "node --run build:staging",
 					untrackedEnv: ["INIT_CWD"],
 					input: [{ auto: true }, "!dist/**"],
 					output: ["dist/**"],

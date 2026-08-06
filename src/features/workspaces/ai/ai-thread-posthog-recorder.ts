@@ -58,6 +58,7 @@ function parseGatewayModel(gatewayModel: string) {
 
 interface PostHogTurnState {
 	availableTools: unknown[] | null;
+	captureContent: boolean;
 	distinctId: string;
 	sessionId: string;
 	traceId: string;
@@ -140,18 +141,22 @@ export class AIThreadPostHogRecorder {
 		};
 	}
 
-	recordTurnStarted(input: {
-		ctx: TurnContext;
-		modelId: WorkspaceAiChatModelId;
-		thread: AIThreadContext;
-		tools?: unknown;
-	}) {
+	recordTurnStarted(
+		input: {
+			ctx: TurnContext;
+			modelId: WorkspaceAiChatModelId;
+			thread: AIThreadContext;
+			tools?: unknown;
+		},
+		captureContent: boolean,
+	) {
 		const traceId = crypto.randomUUID();
 		const turnRootSpanId = crypto.randomUUID();
 		const gatewayModel = getWorkspaceAiChatModel(input.modelId);
 
 		const turn: PostHogTurnState = {
 			availableTools: buildAiTelemetryToolDefinitions(input.tools),
+			captureContent,
 			distinctId: input.thread.userId,
 			sessionId: input.thread.id,
 			traceId,
@@ -210,6 +215,7 @@ export class AIThreadPostHogRecorder {
 		if (!activeToolSpan) {
 			return;
 		}
+		const computeError = getComputeErrorTelemetry(ctx);
 
 		capturePostHogAiSpan({
 			distinctId: turn.distinctId,
@@ -218,13 +224,14 @@ export class AIThreadPostHogRecorder {
 			spanId: activeToolSpan.spanId,
 			spanName: ctx.toolName,
 			parentId: turn.currentGenerationSpanId ?? turn.turnRootSpanId,
-			inputState: ctx.input,
-			outputState: ctx.success
-				? getAIThreadToolTelemetryOutput(ctx.toolName, ctx.output)
-				: undefined,
+			inputState: turn.captureContent ? ctx.input : undefined,
+			outputState:
+				turn.captureContent && ctx.success
+					? getAIThreadToolTelemetryOutput(ctx.toolName, ctx.output)
+					: undefined,
 			latencySeconds: ctx.durationMs / 1000,
 			isError: outcome.status !== "success",
-			error: ctx.success ? undefined : ctx.error,
+			error: ctx.success ? computeError?.summary : ctx.error,
 			properties: {
 				...turnTelemetryProperties(turn),
 				failure_codes: outcome.failureCodes,
@@ -233,6 +240,7 @@ export class AIThreadPostHogRecorder {
 				runtime_success: ctx.success,
 				tool_call_id: ctx.toolCallId,
 				step_number: ctx.stepNumber,
+				...computeError?.properties,
 			},
 			schedule: this.schedule,
 		});
@@ -249,6 +257,7 @@ export class AIThreadPostHogRecorder {
 				runtime_success: ctx.success,
 				success: outcome.status === "success",
 				duration_ms: ctx.durationMs,
+				...computeError?.properties,
 			},
 			...this.serverEventRuntime,
 		});
@@ -288,6 +297,7 @@ export class AIThreadPostHogRecorder {
 			timeToFirstToken,
 			stopReason: ctx.finishReason,
 			tools: turn.availableTools,
+			privacyMode: !turn.captureContent,
 			properties: {
 				...turnTelemetryProperties(turn),
 				model_id: turn.modelId,
@@ -437,6 +447,7 @@ export class AIThreadPostHogRecorder {
 	}
 
 	recordAuxiliaryGeneration(input: {
+		captureContent: boolean;
 		feature: "compaction" | "thread-title";
 		gatewayModel: string;
 		prompt: string;
@@ -467,6 +478,7 @@ export class AIThreadPostHogRecorder {
 			output: buildAiTelemetryOutputFromText(input.text),
 			usage: extractAiTelemetryTokenUsage(input.usage),
 			latency: input.latencySeconds,
+			privacyMode: !input.captureContent,
 			properties: {
 				thread_id: input.thread.id,
 				workspace_id: workspaceId,
@@ -477,6 +489,7 @@ export class AIThreadPostHogRecorder {
 	}
 
 	recordAuxiliaryError(input: {
+		captureContent: boolean;
 		error: unknown;
 		feature: "chat-recovery" | "compaction" | "thread-title" | "session-prompt-refresh";
 		gatewayModel?: string;
@@ -509,6 +522,7 @@ export class AIThreadPostHogRecorder {
 				output: [],
 				latency: input.latencySeconds,
 				error: input.error,
+				privacyMode: !input.captureContent,
 				properties: {
 					thread_id: input.thread.id,
 					workspace_id: workspaceId,
@@ -539,4 +553,34 @@ export class AIThreadPostHogRecorder {
 
 function getAIThreadToolTelemetryOutput(toolName: string, output: unknown) {
 	return toolName === "orchestrate" ? getAIThreadOrchestrationTelemetryOutput(output) : output;
+}
+
+function getComputeErrorTelemetry(ctx: ToolCallResultContext) {
+	if (ctx.toolName !== "compute" || !ctx.success || !isRecord(ctx.output)) {
+		return null;
+	}
+
+	const error = isRecord(ctx.output.error) ? ctx.output.error : null;
+	if (!error) {
+		return null;
+	}
+
+	const name = typeof error.name === "string" ? error.name : null;
+	const code = typeof error.code === "string" ? error.code : null;
+	const retryable = typeof error.retryable === "boolean" ? error.retryable : null;
+	const lineNumber = typeof error.line_number === "number" ? error.line_number : null;
+
+	return {
+		summary: [name, code].filter(Boolean).join(": ") || "compute_error",
+		properties: {
+			compute_error_name: name,
+			compute_error_code: code,
+			compute_error_retryable: retryable,
+			compute_error_line_number: lineNumber,
+		},
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
 }

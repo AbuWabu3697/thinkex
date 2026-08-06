@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Toaster } from "#/components/ui/sonner";
+
 import { TooltipProvider } from "#/components/ui/tooltip";
 import { WorkspacePersistedStoresHydrator } from "#/features/workspaces/state/persisted-store-hydration";
 import type { AuthSession } from "#/lib/auth.functions";
@@ -94,6 +95,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<ThemeProvider defaultTheme="system" storageKey="theme">
 					<AuthSessionRefresher />
 					<PostHogProvider>
+						{/* useBetterAuth points the client at /api/auth/autumn, where the
+						    better-auth plugin mounts, and sends session cookies with it. */}
 						<AppHotkeysProvider>
 							<TooltipProvider>
 								<WorkspacePersistedStoresHydrator />

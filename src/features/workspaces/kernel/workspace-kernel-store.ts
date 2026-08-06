@@ -5,6 +5,7 @@ import type {
 } from "#/features/workspaces/contracts";
 import {
 	getAvailableWorkspaceItemName,
+	getWorkspaceItemNameKey,
 	normalizeWorkspaceItemName,
 } from "#/features/workspaces/defaults";
 import {
@@ -200,11 +201,10 @@ export class WorkspaceKernelStore {
 			...this.getActiveSiblingNames(input.parentId, input.excludeItemId),
 			...(input.reservedNames ?? []),
 		];
-		const requestedName = input.requestedName
-			? normalizeWorkspaceItemName(input.requestedName, "")
-			: "";
-
 		if (input.onNameConflict === "error") {
+			const requestedName = input.requestedName
+				? normalizeWorkspaceItemName(input.requestedName, "")
+				: "";
 			if (!requestedName) {
 				return {
 					conflict: {
@@ -216,7 +216,12 @@ export class WorkspaceKernelStore {
 				};
 			}
 
-			if (existingNames.includes(requestedName)) {
+			if (
+				existingNames.some(
+					(existingName) =>
+						getWorkspaceItemNameKey(existingName) === getWorkspaceItemNameKey(requestedName),
+				)
+			) {
 				return {
 					conflict: {
 						code: "name_conflict",
@@ -245,13 +250,24 @@ export class WorkspaceKernelStore {
 	}
 
 	assertActiveItem(itemId: string) {
-		const row = this.getItemRow(itemId);
+		const row = this.getActiveItemRow(itemId);
 
 		if (!row) {
 			throw new Error("Workspace item not found.");
 		}
 
 		return row;
+	}
+
+	getActiveItemRow(itemId: string) {
+		return (
+			this.sql<KernelItemRow>`
+				SELECT *
+				FROM kernel_items
+				WHERE id = ${itemId} AND deleted_at IS NULL
+				LIMIT 1
+			`[0] ?? null
+		);
 	}
 
 	getItemRowIncludingDeleted(itemId: string) {
@@ -278,16 +294,5 @@ export class WorkspaceKernelStore {
 		`;
 
 		return rows.map((row) => row.name);
-	}
-
-	private getItemRow(itemId: string) {
-		return (
-			this.sql<KernelItemRow>`
-				SELECT *
-				FROM kernel_items
-				WHERE id = ${itemId} AND deleted_at IS NULL
-				LIMIT 1
-			`[0] ?? null
-		);
 	}
 }

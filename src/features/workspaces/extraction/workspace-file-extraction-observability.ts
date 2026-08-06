@@ -1,9 +1,11 @@
 import type {
 	LiteParseStageOutcome,
-	MarkdownExtractionProviderId,
-	MarkdownExtractionProviderMode,
 	WorkspaceFileExtractionWorkflowParams,
 } from "#/features/workspaces/extraction/types";
+import type {
+	WorkspaceFileExtractionMode,
+	WorkspaceFileExtractionProviderId,
+} from "#/features/workspaces/model/workspace-file/types";
 import {
 	logOperationalEvent,
 	recordOperationalFailure,
@@ -30,10 +32,11 @@ type WorkspaceFileExtractionOutcome = WorkspaceFileExtractionOutcomeBase &
 				outcome: "error";
 		  }
 		| {
+				creditsUsed: number | null;
 				outcome: "partial" | "success";
 				pageCount: number;
-				provider: MarkdownExtractionProviderId | "liteparse";
-				providerMode: MarkdownExtractionProviderMode;
+				provider: WorkspaceFileExtractionProviderId | "liteparse";
+				providerMode: WorkspaceFileExtractionMode;
 				routeReason: string;
 		  }
 	);
@@ -48,6 +51,9 @@ export function recordWorkspaceFileExtractionOutcome(input: WorkspaceFileExtract
 	const outcomeFields =
 		input.outcome !== "error"
 			? {
+					// provider_mode is the tier we asked for; credits_used is what the cost
+					// optimizer actually billed, so the two disagree on mixed-complexity files.
+					credits_used: input.creditsUsed,
 					error_type: null,
 					page_count: input.pageCount,
 					provider: input.provider,
@@ -55,6 +61,7 @@ export function recordWorkspaceFileExtractionOutcome(input: WorkspaceFileExtract
 					route_reason: input.routeReason,
 				}
 			: {
+					credits_used: null,
 					error_type: input.error instanceof Error ? input.error.name : "UnknownError",
 					page_count: null,
 					provider: null,
@@ -105,6 +112,10 @@ export function recordWorkspaceFileExtractionOutcome(input: WorkspaceFileExtract
 	capturePostHogServerEvent({
 		distinctId: input.params.actorUserId ?? input.instanceId,
 		event: "workspace_file_extraction_completed",
+		// Legitimate interest: operational pipeline telemetry (runs in a Workflow,
+		// no request scope). No email/name/content.
+		consentExempt: true,
+		processPerson: input.params.actorUserId !== null,
 		properties: fields,
 		requestContext,
 		schedule: input.schedule,

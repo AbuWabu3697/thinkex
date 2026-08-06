@@ -1,6 +1,7 @@
 import { PostHog } from "posthog-node";
 
 import { isPostHogEnabled, posthogHost, posthogProjectToken } from "#/integrations/posthog/config";
+import { hasServerAnalyticsConsent } from "#/integrations/posthog/consent.server";
 import type {
 	PostHogEventPropertiesByName,
 	PostHogServerEventName,
@@ -31,6 +32,21 @@ interface PostHogServerEvent<TEvent extends PostHogServerEventName> {
 	event: TEvent;
 	/** Person properties PostHog must set atomically with this event. */
 	personProperties?: Record<string, unknown>;
+	/**
+	 * Set false for background work with no real user. The caller still has to pass
+	 * some distinct id, and a synthetic one (workflow instance, request id) would
+	 * otherwise register a brand new person per run and inflate user counts.
+	 */
+	processPerson?: boolean;
+	/**
+	 * Skip the analytics-consent gate for telemetry that rests on a lawful basis
+	 * other than consent — operational reliability (legitimate interest) or
+	 * billing/usage enforcement (contractual necessity). These carry only
+	 * pseudonymous ids and operational metrics — no email, name, or content — and
+	 * often run outside request scope where the consent cookie isn't readable.
+	 * The lawful basis is stated per call site.
+	 */
+	consentExempt?: boolean;
 	properties: PostHogEventPropertiesByName[TEvent];
 	requestContext?: TelemetryRequestContext;
 	request?: TelemetryRequestDetails;
@@ -58,6 +74,13 @@ export function capturePostHogServerEvent<TEvent extends PostHogServerEventName>
 		return;
 	}
 
+	// Product analytics require consent; operational/billing telemetry (flagged
+	// consentExempt) and exception capture are exempt as they carry no
+	// email/name/content and rely on a different lawful basis.
+	if (!input.consentExempt && !hasServerAnalyticsConsent(input.request?.headers)) {
+		return;
+	}
+
 	const requestContext = input.requestContext ?? getTelemetryRequestContext(input.request);
 	const timestamp =
 		input.timestamp instanceof Date
@@ -80,6 +103,7 @@ export function capturePostHogServerEvent<TEvent extends PostHogServerEventName>
 					...requestContext.properties,
 					...input.properties,
 					...(input.personProperties ? { $set: input.personProperties } : {}),
+					...(input.processPerson === false ? { $process_person_profile: false } : {}),
 				},
 				...(timestamp ? { timestamp } : {}),
 			})

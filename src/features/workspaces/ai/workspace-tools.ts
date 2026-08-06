@@ -2,13 +2,11 @@ import type { ToolSet } from "ai";
 
 import type { AIThreadContext } from "#/features/workspaces/ai/ai-thread-metadata";
 import { defineAIThreadTool } from "#/features/workspaces/ai/ai-thread-tool";
-import { workspaceReadItemsOutputSchema } from "#/features/workspaces/content/workspace-content-contract";
-import { createWorkspaceReadItemsModelOutput } from "#/features/workspaces/content/workspace-read-references";
+import { getWorkspaceToolResultAdapter } from "#/features/workspaces/ai/workspace-tool-result-adapters";
 import type { WorkspaceReferenceRecord } from "#/features/workspaces/locations/workspace-location";
 import {
 	workspaceToolDefinitions,
 	getWorkspaceToolScopes,
-	type WorkspaceToolDefinition,
 } from "#/features/workspaces/operations/workspace-tool-definitions";
 import {
 	createWorkspaceAccessContext,
@@ -17,48 +15,45 @@ import {
 } from "#/features/workspaces/operations/workspace-access-context";
 
 type WorkspaceThreadToolConfig = {
-	definition: WorkspaceToolDefinition;
+	definition: (typeof workspaceToolDefinitions)[number];
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 };
 
 function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 	const { definition } = input;
-	const isWorkspaceRead = definition.name === "workspace_read_items";
+	const resultAdapter = getWorkspaceToolResultAdapter(definition.name);
 
 	return defineAIThreadTool({
 		description: definition.description,
 		inputSchema: definition.inputSchema,
 		inputExamples: definition.inputExamples,
 		outputSchema: definition.outputSchema,
-		strict: true,
-		...(isWorkspaceRead
+		...(resultAdapter
 			? {
 					toModelOutput: ({ output }) => ({
 						type: "json" as const,
-						value: createWorkspaceReadItemsModelOutput(
-							workspaceReadItemsOutputSchema.parse(output),
-						),
+						value: resultAdapter.projectOutput(output),
 					}),
 				}
 			: {}),
 		execute: async (args, context) => {
 			const thread = await requireThreadContext(input.getThreadContext);
 
-			const output = await definition.execute(
+			const output = await definition.executeUnknown(
 				args,
 				createThreadWorkspaceAccessContext(
 					thread,
 					getWorkspaceToolScopes(definition.access),
 					context.invocationId,
+					input.resolveWorkspaceReferences,
 				),
 			);
 
-			if (isWorkspaceRead && input.onWorkspaceReferences) {
-				const parsed = workspaceReadItemsOutputSchema.safeParse(output);
-				if (parsed.success) {
-					input.onWorkspaceReferences(parsed.data.references);
-				}
+			const references = resultAdapter?.collectReferences(output) ?? [];
+			if (references.length > 0 && input.onWorkspaceReferences) {
+				input.onWorkspaceReferences(references);
 			}
 
 			return output;
@@ -69,6 +64,7 @@ function createWorkspaceThreadTool(input: WorkspaceThreadToolConfig) {
 export function createAIThreadWorkspaceTools(input: {
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 }): ToolSet {
 	return Object.fromEntries(
 		workspaceToolDefinitions.map((definition) => [
@@ -77,6 +73,7 @@ export function createAIThreadWorkspaceTools(input: {
 				definition,
 				getThreadContext: input.getThreadContext,
 				onWorkspaceReferences: input.onWorkspaceReferences,
+				resolveWorkspaceReferences: input.resolveWorkspaceReferences,
 			}),
 		]),
 	) as ToolSet;
@@ -96,9 +93,11 @@ function createThreadWorkspaceAccessContext(
 	thread: AIThreadContext,
 	scopes: readonly WorkspaceAccessScope[],
 	operationId: string,
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>,
 ): WorkspaceAccessContext {
 	return createWorkspaceAccessContext({
 		operationId,
+		...(resolveWorkspaceReferences ? { resolveWorkspaceReferences } : {}),
 		scopes,
 		userId: thread.userId,
 		workspaceId: thread.workspaceId,

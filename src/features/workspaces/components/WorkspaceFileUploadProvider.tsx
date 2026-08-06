@@ -1,6 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type ChangeEvent, createContext, type ReactNode, use, useRef } from "react";
+import { Link } from "@tanstack/react-router";
+import { type ChangeEvent, createContext, type ReactNode, use, useRef, useState } from "react";
 
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "#/components/ui/alert-dialog";
+import { useBillingState } from "#/features/account/use-billing-state";
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import { applyWorkspaceEventToCache } from "#/features/workspaces/cache";
 import { useWorkspaceMutationAccess } from "#/features/workspaces/components/workspace-mutation-access";
 import { runWorkspaceFileUploadBatch } from "#/features/workspaces/files/workspace-file-upload";
@@ -24,6 +37,9 @@ export function WorkspaceFileUploadProvider({
 	const { capabilities } = useWorkspaceMutationAccess();
 	const inputRef = useRef<HTMLInputElement>(null);
 	const onSelectFilesRef = useRef<((files: File[]) => void) | null>(null);
+	const [limitResult, setLimitResult] = useState<{ successCount: number; total: number } | null>(
+		null,
+	);
 
 	const uploadFiles = (files: Iterable<File>, parentId: string | null) => {
 		if (!capabilities.canMutateContent) {
@@ -40,6 +56,7 @@ export function WorkspaceFileUploadProvider({
 			workspaceId,
 			parentId,
 			files: fileList,
+			onLimitReached: setLimitResult,
 			onSuccess: (command) => {
 				applyWorkspaceEventToCache(queryClient, command.event);
 			},
@@ -69,19 +86,64 @@ export function WorkspaceFileUploadProvider({
 	};
 
 	return (
-		<WorkspaceFileUploadContext.Provider value={{ requestFileSelection, uploadFiles }}>
-			<input
-				ref={inputRef}
-				type="file"
-				multiple
-				accept={workspaceUploadAccept}
-				aria-label="Upload files"
-				className="hidden"
-				tabIndex={-1}
-				onChange={handleInputChange}
+		<>
+			<WorkspaceFileUploadContext.Provider value={{ requestFileSelection, uploadFiles }}>
+				<input
+					ref={inputRef}
+					type="file"
+					multiple
+					accept={workspaceUploadAccept}
+					aria-label="Upload files"
+					className="hidden"
+					tabIndex={-1}
+					onChange={handleInputChange}
+				/>
+				{children}
+			</WorkspaceFileUploadContext.Provider>
+			<WorkspaceFileLimitDialog
+				result={limitResult}
+				onOpenChange={(open) => !open && setLimitResult(null)}
 			/>
-			{children}
-		</WorkspaceFileUploadContext.Provider>
+		</>
+	);
+}
+
+function WorkspaceFileLimitDialog({
+	onOpenChange,
+	result,
+}: {
+	onOpenChange: (open: boolean) => void;
+	result: { successCount: number; total: number } | null;
+}) {
+	const { isPending, isPro } = useBillingState();
+	const partialUpload = result && result.successCount > 0;
+
+	return (
+		<AlertDialog open={Boolean(result)} onOpenChange={onOpenChange}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>You&rsquo;ve reached your file upload limit</AlertDialogTitle>
+					<AlertDialogDescription>
+						{partialUpload ? `Uploaded ${result.successCount} of ${result.total} files. ` : null}
+						{isPending
+							? "Your file upload allowance resets monthly."
+							: `${isPro ? "Pro" : "Free"} includes ${isPro ? "500" : "50"} file uploads each month.`}{" "}
+						Markdown, CSV, and text files still import.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>{isPro ? "Close" : "Maybe later"}</AlertDialogCancel>
+					{!isPending && !isPro ? (
+						<AlertDialogAction
+							nativeButton={false}
+							render={<Link replace search={showUpgradeDialog} to="." />}
+						>
+							View plans
+						</AlertDialogAction>
+					) : null}
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
 	);
 }
 

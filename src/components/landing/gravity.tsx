@@ -1,8 +1,25 @@
-import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
-import type Matter from "matter-js";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 import { cn } from "#/lib/utils";
+
+import {
+	FIXED_STEP,
+	pointInsideBody,
+	stepSimulation,
+	type PhysicsBody,
+	type PhysicsDrag,
+} from "./gravity-physics";
 
 type GravityProps = {
 	children: ReactNode;
@@ -11,152 +28,135 @@ type GravityProps = {
 	topBoundaryOffset?: number;
 };
 
-type MatterBodyProps = {
+type GravityBodyProps = {
 	children: ReactNode;
 	className?: string;
-	isDraggable?: boolean;
-	matterBodyOptions?: Matter.IChamferableBodyDefinition;
 	x?: number | string;
 	y?: number | string;
 	angle?: number;
 };
 
-type MatterBodyPhysicsOptions = Pick<
-	MatterBodyProps,
-	"angle" | "isDraggable" | "matterBodyOptions" | "x" | "y"
->;
+type GravityBodyOptions = Pick<GravityBodyProps, "angle" | "x" | "y">;
 
-type RegisteredBody = {
-	body: Matter.Body;
-	element: HTMLElement;
-};
+type Body = PhysicsBody & { element: HTMLElement };
 
-type ScrollCapturingMatterMouse = Matter.Mouse & {
-	mousewheel: EventListener;
-};
+type DragState = PhysicsDrag & { body: Body; pointerId: number };
 
-type MatterRuntime = typeof Matter;
+const MAX_FRAME_DELTA = 0.05;
+const MAX_STEPS_PER_FRAME = 8;
 
 const GravityContext = createContext<{
-	registerElement: (id: string, element: HTMLElement, options: MatterBodyPhysicsOptions) => void;
+	registerElement: (id: string, element: HTMLElement, options: GravityBodyOptions) => void;
 	unregisterElement: (id: string) => void;
 } | null>(null);
 
-export function MatterBody({
-	children,
-	className,
-	isDraggable = true,
-	matterBodyOptions,
-	x = "50%",
-	y = "50%",
-	angle = 0,
-}: MatterBodyProps) {
-	const elementRef = useRef<HTMLDivElement | null>(null);
-	const id = useId();
-	const context = useContext(GravityContext);
-
-	useEffect(() => {
-		if (!context || !elementRef.current) {
-			return;
-		}
-
-		context.registerElement(id, elementRef.current, {
-			isDraggable,
-			matterBodyOptions,
-			x,
-			y,
-			angle,
-		});
-
-		return () => context.unregisterElement(id);
-	}, [angle, context, id, isDraggable, matterBodyOptions, x, y]);
-
-	return (
-		<div
-			ref={elementRef}
-			className={cn(
-				"absolute top-0 left-0 will-change-transform",
-				isDraggable && "pointer-events-none",
-				className,
-			)}
-		>
-			{children}
-		</div>
-	);
-}
-
+/**
+ * Lightweight rigid-body motion inspired by Superlogical's playful 404 page:
+ * https://www.superlogical.com/secret
+ *
+ * This is an independent, rectangle-only implementation for ThinkEx cards. It
+ * uses the same broad ideas: fixed time steps, impulse collisions, spring
+ * dragging, damping, and sleeping bodies.
+ */
 export function Gravity({
 	children,
 	className,
 	gravity = { x: 0, y: 1 },
 	topBoundaryOffset = 0,
 }: GravityProps) {
+	const gravityX = gravity.x;
+	const gravityY = gravity.y;
 	const sceneRef = useRef<HTMLDivElement | null>(null);
-	const engineRef = useRef<Matter.Engine | null>(null);
-	const matterRef = useRef<typeof Matter | null>(null);
+	const bodiesRef = useRef(new Map<string, Body>());
+	const dragRef = useRef<DragState | null>(null);
 	const frameRef = useRef<number | null>(null);
-	const bodiesRef = useRef(new Map<string, RegisteredBody>());
 	const [isReady, setIsReady] = useState(false);
 	const [isNearViewport, setIsNearViewport] = useState(false);
+	const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+	const renderBody = useCallback((body: Body) => {
+		if (!body.dirty) return;
+
+		body.element.style.transform = `translate3d(${body.x - body.width / 2}px, ${
+			body.y - body.height / 2
+		}px, 0) rotate(${body.angle}rad)`;
+		body.element.style.opacity = "1";
+		body.dirty = false;
+	}, []);
 
 	const registerElement = useCallback(
-		(id: string, element: HTMLElement, options: MatterBodyPhysicsOptions) => {
+		(id: string, element: HTMLElement, options: GravityBodyOptions) => {
 			const scene = sceneRef.current;
-			const engine = engineRef.current;
-			const Matter = matterRef.current;
 
-			if (!scene || !engine || !Matter) {
+			if (!scene) {
 				return;
 			}
 
+			const sceneWidth = scene.clientWidth;
+			const sceneHeight = scene.clientHeight;
 			const width = element.offsetWidth;
 			const height = element.offsetHeight;
-			const body = Matter.Bodies.rectangle(
-				calculatePosition(options.x, scene.offsetWidth),
-				calculatePosition(options.y, scene.offsetHeight),
+			const mass = Math.max((width * height) / 10_000, 0.1);
+			const body: Body = {
+				element,
+				x: calculatePosition(options.x, sceneWidth),
+				y: calculatePosition(options.y, sceneHeight),
+				angle: ((options.angle ?? 0) * Math.PI) / 180,
+				vx: 0,
+				vy: 0,
+				angularVelocity: 0,
 				width,
 				height,
-				{
-					...options.matterBodyOptions,
-					angle: ((options.angle ?? 0) * Math.PI) / 180,
-					render: { visible: false },
-				},
-			);
+				invMass: 1 / mass,
+				invInertia: 12 / (mass * (width * width + height * height)),
+				idleFor: 0,
+				asleep: prefersReducedMotion,
+				touching: false,
+				dirty: true,
+			};
 
-			Matter.Composite.add(engine.world, body);
-			bodiesRef.current.set(id, { body, element });
+			bodiesRef.current.set(id, body);
+			renderBody(body);
 		},
-		[],
+		[prefersReducedMotion, renderBody],
 	);
 
 	const unregisterElement = useCallback((id: string) => {
-		const engine = engineRef.current;
-		const Matter = matterRef.current;
-		const registeredBody = bodiesRef.current.get(id);
+		const body = bodiesRef.current.get(id);
 
-		if (Matter && engine && registeredBody) {
-			Matter.Composite.remove(engine.world, registeredBody.body);
+		if (dragRef.current?.body === body) {
+			dragRef.current = null;
 		}
 
 		bodiesRef.current.delete(id);
 	}, []);
 
 	useEffect(() => {
+		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const update = () => setPrefersReducedMotion(media.matches);
+
+		update();
+		media.addEventListener("change", update);
+
+		return () => media.removeEventListener("change", update);
+	}, []);
+
+	useEffect(() => {
+		const frame = window.requestAnimationFrame(() => setIsReady(true));
+
+		return () => window.cancelAnimationFrame(frame);
+	}, []);
+
+	useEffect(() => {
 		const scene = sceneRef.current;
 
-		if (!scene) {
+		if (!scene || typeof window.IntersectionObserver === "undefined") {
+			setIsNearViewport(true);
 			return;
 		}
 
-		if (typeof window.IntersectionObserver === "undefined") {
-			const frame = window.requestAnimationFrame(() => setIsNearViewport(true));
-			return () => window.cancelAnimationFrame(frame);
-		}
-
 		const observer = new IntersectionObserver(
-			([entry]) => {
-				setIsNearViewport(entry?.isIntersecting ?? false);
-			},
+			([entry]) => setIsNearViewport(entry?.isIntersecting ?? false),
 			{
 				root: scene.closest("[data-scroll-root]"),
 				rootMargin: "240px",
@@ -169,138 +169,221 @@ export function Gravity({
 	}, []);
 
 	useEffect(() => {
-		if (!isNearViewport) {
-			return;
-		}
-
 		const scene = sceneRef.current;
 
 		if (!scene) {
 			return;
 		}
 
-		const sceneElement = scene;
+		let previousWidth = scene.clientWidth;
+		let previousHeight = scene.clientHeight;
+		const observer = new ResizeObserver(() => {
+			const width = scene.clientWidth;
+			const height = scene.clientHeight;
+
+			if (width === previousWidth && height === previousHeight) {
+				return;
+			}
+
+			const scaleX = previousWidth > 0 ? width / previousWidth : 1;
+			const scaleY = previousHeight > 0 ? height / previousHeight : 1;
+
+			for (const body of bodiesRef.current.values()) {
+				body.x *= scaleX;
+				body.y *= scaleY;
+				body.width = body.element.offsetWidth;
+				body.height = body.element.offsetHeight;
+				body.dirty = true;
+				body.asleep = prefersReducedMotion;
+				body.idleFor = 0;
+				renderBody(body);
+			}
+
+			previousWidth = width;
+			previousHeight = height;
+		});
+
+		observer.observe(scene);
+
+		return () => observer.disconnect();
+	}, [prefersReducedMotion, renderBody]);
+
+	useEffect(() => {
+		if (!isNearViewport || prefersReducedMotion) {
+			if (frameRef.current !== null) {
+				window.cancelAnimationFrame(frameRef.current);
+				frameRef.current = null;
+			}
+			return;
+		}
+
+		let previousTime = 0;
+		let accumulator = 0;
 		let cancelled = false;
-		let cleanupScene: (() => void) | undefined;
 
-		async function startScene() {
-			const Matter = (await import("matter-js")).default;
-
+		const tick = (time: number) => {
 			if (cancelled) {
 				return;
 			}
 
-			matterRef.current = Matter;
-
-			const width = sceneElement.offsetWidth;
-			const height = sceneElement.offsetHeight;
-			const engine = Matter.Engine.create();
-			engine.gravity.x = gravity.x;
-			engine.gravity.y = gravity.y;
-
-			const render = Matter.Render.create({
-				element: sceneElement,
-				engine,
-				options: {
-					background: "transparent",
-					height,
-					pixelRatio: Math.min(window.devicePixelRatio, 2),
-					wireframes: false,
-					width,
-				},
-			});
-			render.canvas.style.position = "absolute";
-			render.canvas.style.inset = "0";
-			render.canvas.style.height = "100%";
-			render.canvas.style.opacity = "0";
-			render.canvas.style.width = "100%";
-
-			const mouse = Matter.Mouse.create(render.canvas) as ScrollCapturingMatterMouse;
-			render.canvas.removeEventListener("wheel", mouse.mousewheel);
-			const mouseConstraint = Matter.MouseConstraint.create(engine, {
-				mouse,
-				constraint: {
-					render: { visible: false },
-					stiffness: 0.2,
-				},
-			});
-			const walls = createWalls(Matter, width, height, topBoundaryOffset);
-
-			Matter.Composite.add(engine.world, [...walls, mouseConstraint]);
-
-			const runner = Matter.Runner.create({ delta: 1000 / 60 });
-			Matter.Render.run(render);
-			Matter.Runner.run(runner, engine);
-
-			engineRef.current = engine;
-			const bodies = bodiesRef.current;
-
-			function updateElements() {
-				for (const { body, element } of bodies.values()) {
-					element.style.transform = `translate3d(${body.position.x - element.offsetWidth / 2}px, ${
-						body.position.y - element.offsetHeight / 2
-					}px, 0) rotate(${body.angle}rad)`;
-				}
-
-				frameRef.current = window.requestAnimationFrame(updateElements);
+			if (previousTime === 0) {
+				previousTime = time;
 			}
 
-			frameRef.current = window.requestAnimationFrame(updateElements);
-			setIsReady(true);
+			accumulator += Math.min((time - previousTime) / 1_000, MAX_FRAME_DELTA);
+			previousTime = time;
 
-			function releaseMouse() {
-				mouse.button = -1;
+			let steps = 0;
+			while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
+				stepSimulation(
+					bodiesRef.current.values(),
+					dragRef.current,
+					sceneRef.current?.clientWidth ?? 0,
+					sceneRef.current?.clientHeight ?? 0,
+					topBoundaryOffset,
+					{ x: gravityX, y: gravityY },
+				);
+				accumulator -= FIXED_STEP;
+				steps += 1;
 			}
 
-			window.addEventListener("mouseup", releaseMouse);
-			window.addEventListener("touchend", releaseMouse);
+			for (const body of bodiesRef.current.values()) {
+				renderBody(body);
+			}
 
-			cleanupScene = () => {
-				window.removeEventListener("mouseup", releaseMouse);
-				window.removeEventListener("touchend", releaseMouse);
+			frameRef.current = window.requestAnimationFrame(tick);
+		};
 
-				if (frameRef.current) {
-					window.cancelAnimationFrame(frameRef.current);
-				}
-
-				Matter.Mouse.clearSourceEvents(mouse);
-				Matter.Render.stop(render);
-				Matter.Runner.stop(runner);
-				Matter.World.clear(engine.world, false);
-				Matter.Engine.clear(engine);
-				render.canvas.remove();
-				bodies.clear();
-				engineRef.current = null;
-				matterRef.current = null;
-				setIsReady(false);
-			};
-		}
-
-		void startScene();
+		frameRef.current = window.requestAnimationFrame(tick);
 
 		return () => {
 			cancelled = true;
-			cleanupScene?.();
+			if (frameRef.current !== null) {
+				window.cancelAnimationFrame(frameRef.current);
+				frameRef.current = null;
+			}
 		};
-	}, [gravity.x, gravity.y, isNearViewport, topBoundaryOffset]);
+	}, [gravityX, gravityY, isNearViewport, prefersReducedMotion, renderBody, topBoundaryOffset]);
 
-	const contextValue = {
-		registerElement,
-		unregisterElement,
-	};
+	const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+		const scene = sceneRef.current;
+
+		if (!scene) {
+			return;
+		}
+
+		const bounds = scene.getBoundingClientRect();
+		const x = event.clientX - bounds.left;
+		const y = event.clientY - bounds.top;
+		const bodies = [...bodiesRef.current.values()];
+
+		for (let index = bodies.length - 1; index >= 0; index -= 1) {
+			const body = bodies[index];
+
+			if (!body || !pointInsideBody(x, y, body)) {
+				continue;
+			}
+
+			const cos = Math.cos(body.angle);
+			const sin = Math.sin(body.angle);
+			const offsetX = x - body.x;
+			const offsetY = y - body.y;
+			dragRef.current = {
+				body,
+				pointerId: event.pointerId,
+				localX: offsetX * cos + offsetY * sin,
+				localY: -offsetX * sin + offsetY * cos,
+				x,
+				y,
+			};
+			body.asleep = false;
+			body.idleFor = 0;
+			body.dirty = true;
+			event.currentTarget.setPointerCapture(event.pointerId);
+			event.preventDefault();
+			return;
+		}
+	}, []);
+
+	const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+		const scene = sceneRef.current;
+		const drag = dragRef.current;
+
+		if (!scene || !drag || drag.pointerId !== event.pointerId) {
+			return;
+		}
+
+		const bounds = scene.getBoundingClientRect();
+		drag.x = event.clientX - bounds.left;
+		drag.y = event.clientY - bounds.top;
+	}, []);
+
+	const releasePointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+		if (dragRef.current?.pointerId !== event.pointerId) {
+			return;
+		}
+
+		dragRef.current = null;
+		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+			event.currentTarget.releasePointerCapture(event.pointerId);
+		}
+	}, []);
+
+	const contextValue = useMemo(
+		() => ({ registerElement, unregisterElement }),
+		[registerElement, unregisterElement],
+	);
 
 	return (
 		<GravityContext.Provider value={contextValue}>
 			<div
 				ref={sceneRef}
 				className={cn(
-					"relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing",
+					"relative h-full w-full touch-pan-y cursor-grab overflow-hidden active:cursor-grabbing",
 					className,
 				)}
+				onPointerDown={handlePointerDown}
+				onPointerMove={handlePointerMove}
+				onPointerUp={releasePointer}
+				onPointerCancel={releasePointer}
 			>
 				{isReady ? children : null}
 			</div>
 		</GravityContext.Provider>
+	);
+}
+
+export function GravityBody({
+	children,
+	className,
+	x = "50%",
+	y = "50%",
+	angle = 0,
+}: GravityBodyProps) {
+	const elementRef = useRef<HTMLDivElement | null>(null);
+	const id = useId();
+	const context = useContext(GravityContext);
+
+	useLayoutEffect(() => {
+		if (!context || !elementRef.current) {
+			return;
+		}
+
+		context.registerElement(id, elementRef.current, { angle, x, y });
+
+		return () => context.unregisterElement(id);
+	}, [angle, context, id, x, y]);
+
+	return (
+		<div
+			ref={elementRef}
+			className={cn(
+				"pointer-events-auto absolute top-0 left-0 touch-none opacity-0 will-change-transform",
+				className,
+			)}
+		>
+			{children}
+		</div>
 	);
 }
 
@@ -314,45 +397,4 @@ function calculatePosition(value: number | string | undefined, containerSize: nu
 	}
 
 	return containerSize / 2;
-}
-
-function createWalls(
-	Matter: MatterRuntime,
-	width: number,
-	height: number,
-	topBoundaryOffset: number,
-) {
-	const wallOptions: Matter.IChamferableBodyDefinition = {
-		friction: 1,
-		isStatic: true,
-		render: { visible: false },
-	};
-	const thickness = 96;
-	const sideWallHeight = height + topBoundaryOffset + thickness * 2;
-	const sideWallY = (height - topBoundaryOffset) / 2;
-
-	return [
-		Matter.Bodies.rectangle(
-			width / 2,
-			height + thickness / 2,
-			width + thickness * 2,
-			thickness,
-			wallOptions,
-		),
-		Matter.Bodies.rectangle(
-			width / 2,
-			-topBoundaryOffset - thickness / 2,
-			width + thickness * 2,
-			thickness,
-			wallOptions,
-		),
-		Matter.Bodies.rectangle(-thickness / 2, sideWallY, thickness, sideWallHeight, wallOptions),
-		Matter.Bodies.rectangle(
-			width + thickness / 2,
-			sideWallY,
-			thickness,
-			sideWallHeight,
-			wallOptions,
-		),
-	];
 }

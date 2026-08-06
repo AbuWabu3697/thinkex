@@ -1,4 +1,7 @@
 const defaultFirecrawlApiUrl = "https://api.firecrawl.dev";
+const firecrawlRetryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
+const maxFirecrawlAttempts = 3;
+const maxFirecrawlRetryDelayMs = 10_000;
 
 export async function firecrawlJsonRequest(input: {
 	env: Cloudflare.Env;
@@ -15,20 +18,48 @@ export async function firecrawlJsonRequest(input: {
 		headers.set(key, value);
 	});
 
-	const response = await fetch(getFirecrawlUrl(input.env, input.path), {
-		method: input.method ?? "GET",
-		headers,
-		body: input.body,
-	});
-	const responseJson = (await response.json().catch(() => null)) as unknown;
+	for (let attempt = 0; attempt < maxFirecrawlAttempts; attempt += 1) {
+		const response = await fetch(getFirecrawlUrl(input.env, input.path), {
+			method: input.method ?? "GET",
+			headers,
+			body: input.body,
+		});
+		const responseJson = (await response.json().catch(() => null)) as unknown;
 
-	if (!response.ok) {
+		if (response.ok) {
+			return responseJson;
+		}
+
+		const retryDelayMs = getFirecrawlRetryDelayMs(response, attempt);
+		if (attempt < maxFirecrawlAttempts - 1 && retryDelayMs !== null) {
+			await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+			continue;
+		}
+
+		const requestId =
+			response.headers.get("x-request-id") ?? getStringValue(responseJson, "requestId");
 		throw new Error(
-			`${input.operation} failed (${response.status}): ${getFirecrawlErrorMessage(responseJson)}`,
+			`${input.operation} failed (${response.status}${requestId ? `, request ${requestId}` : ""}): ${getFirecrawlErrorMessage(responseJson)}`,
 		);
 	}
 
-	return responseJson;
+	throw new Error(`${input.operation} failed after ${maxFirecrawlAttempts} attempts`);
+}
+
+function getFirecrawlRetryDelayMs(response: Response, attempt: number) {
+	if (!firecrawlRetryableStatuses.has(response.status)) {
+		return null;
+	}
+
+	const retryAfter = response.headers.get("Retry-After");
+	if (retryAfter !== null) {
+		const delayMs = Number(retryAfter) * 1000;
+		return Number.isFinite(delayMs) && delayMs >= 0 && delayMs <= maxFirecrawlRetryDelayMs
+			? delayMs
+			: null;
+	}
+
+	return Math.min(2 ** attempt * 1000 + Math.random() * 250, maxFirecrawlRetryDelayMs);
 }
 
 export function getFirecrawlApiUrl(env: Cloudflare.Env) {

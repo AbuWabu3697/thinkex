@@ -16,10 +16,21 @@ import type {
 	TurnContext,
 } from "@cloudflare/think";
 import { defaultContextOverflowClassifier, Think } from "@cloudflare/think";
+import bundledSkills from "agents:skills";
+import { callable } from "agents";
 import { generateText, type LanguageModel, type ToolSet } from "ai";
 
 import {
+	createAIThreadBrowserConnector,
+	getAIThreadBrowserHandoff,
+	getAIThreadBrowserPresence,
+	getAIThreadBrowserLiveView,
+	type AIThreadBrowserLiveView,
+	type AIThreadBrowserState,
+} from "#/features/workspaces/ai/ai-thread-browser";
+import {
 	AI_THREAD_COMPACTION_SYSTEM_PROMPT,
+	AI_THREAD_COMPACTION_TOKEN_THRESHOLD,
 	createAIThreadCompactFunction,
 } from "#/features/workspaces/ai/ai-compaction";
 import {
@@ -52,6 +63,7 @@ import {
 	trackWorkspaceAiMessageUsage,
 } from "#/integrations/autumn/workspace-ai-usage";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
+import { getAppOrigin } from "#/lib/app-origin";
 
 const AI_THREAD_CHAT_RECOVERY_NO_PROGRESS_TIMEOUT_MS = 90_000;
 const AI_THREAD_CHAT_RECOVERY_TERMINAL_MESSAGE =
@@ -96,6 +108,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		override contextOverflow = { reactive: true } as const;
 		override classifyChatError = defaultContextOverflowClassifier;
 		override sendReasoning = false;
+		override modelMessageUrlBase = getAppOrigin();
 		private shouldRefreshSessionPrompt = false;
 		private activeRunStartedAt: number | undefined;
 		private activeUsageContext: AIThreadUsageContext | undefined;
@@ -118,8 +131,12 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			);
 		}
 
-		getSystemPrompt(): string {
-			return getAIThreadSoulPrompt();
+		// On-demand instruction bundles (progressive disclosure). The model sees
+		// only each skill's name/description until a task matches, then calls
+		// activate_skill to load the full guide. Bundled from ./skills via the
+		// agents Vite plugin (agents:skills virtual module).
+		getSkills() {
+			return [bundledSkills];
 		}
 
 		configureSession(session: Session) {
@@ -139,7 +156,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						summarize: (prompt) => this._summarizeCompactionPrompt(prompt),
 					}),
 				)
-				.compactAfter(100_000)
+				.compactAfter(AI_THREAD_COMPACTION_TOKEN_THRESHOLD)
 				.onCompactionError((error) => {
 					void this.keepAliveWhile(() =>
 						this._recordAuxiliaryError({
@@ -160,10 +177,51 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				onWorkspaceReferences: (records) => {
 					this._recordWorkspaceReferences(records);
 				},
+				resolveWorkspaceReferences: (refs) => this._resolveWorkspaceReferences(refs),
 			});
 		}
 
+		/**
+		 * Everything the chat's browser card polls for, in one call: the card
+		 * needs presence and handoff together to decide what it shows, and
+		 * narrowing the handoff here keeps every other pending action's raw
+		 * arguments off the wire.
+		 */
+		@callable()
+		async getBrowserState(): Promise<AIThreadBrowserState> {
+			const [handoff, presence] = await Promise.all([
+				this._getBrowserHandoff(),
+				getAIThreadBrowserPresence(this.ctx.storage),
+			]);
+			return { handoff, presence };
+		}
+
+		@callable()
+		async getBrowserLiveView(): Promise<AIThreadBrowserLiveView | null> {
+			return getAIThreadBrowserLiveView(this._browserConnector());
+		}
+
+		@callable()
+		async resolveBrowserHandoff(executionId: string, approved: boolean): Promise<void> {
+			await this._resolveBrowserHandoff(
+				executionId,
+				approved,
+				"The user could not complete the requested browser handoff.",
+			);
+		}
+
+		@callable()
+		async stopBrowserSession(): Promise<void> {
+			await this._endBrowserSession("Browser handoff was stopped by the user.");
+		}
+
 		async beforeTurn(ctx: TurnContext): Promise<TurnConfig | undefined> {
+			// Consent travels in the chat body because the DO can't see the browser cookie.
+			this.telemetry.setConsent({
+				analytics: ctx.body?.analyticsConsent === true,
+				sessionReplay: ctx.body?.sessionReplayConsent === true,
+			});
+
 			const directory = await this.parentAgent(getUserAIStore());
 			const thread = await directory.getThreadContext(this.name);
 
@@ -180,9 +238,16 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				void this.keepAliveWhile(() => this._maybeGenerateThreadTitle());
 			}
 
-			const modelId = resolveWorkspaceAiChatModelId(ctx.body?.modelId);
+			let modelId = resolveWorkspaceAiChatModelId(ctx.body?.modelId);
 
-			if (!ctx.continuation) {
+			if (ctx.continuation) {
+				// A continuation resumes a turn that was already gated on its first
+				// step, and possibly downgraded there. The body still carries whatever
+				// the user picked, so re-reading it would put the rejected model back
+				// for every tool round-trip after the first — running on a tier with no
+				// balance and billing it as the model the gate actually allowed.
+				modelId = this.activeUsageContext?.modelId ?? modelId;
+			} else {
 				const access = await checkWorkspaceAiMessageAccess({
 					env: this.env,
 					modelId,
@@ -190,8 +255,21 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				});
 
 				if (!access.allowed) {
-					throw new Error("Usage limit reached");
+					// Carries the reset date because this is the stale-client backstop:
+					// the composer warns before sending, so anyone who reaches here got
+					// no warning and an unexplained failure would be the whole story.
+					// ISO date rather than a locale format — this is formatted on the
+					// server, which has no idea where the reader is.
+					throw new Error(
+						access.resetsAt
+							? `Usage limit reached. Resets ${new Date(access.resetsAt).toISOString().slice(0, 10)}.`
+							: "Usage limit reached.",
+					);
 				}
+
+				// May differ from what was selected: an empty tier falls through to the
+				// other one rather than failing the turn.
+				modelId = access.modelId;
 
 				this.activeUsageContext = {
 					modelId,
@@ -199,22 +277,14 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				};
 			}
 
-			const system = getAIThreadSystemPromptForWorkspace(ctx.system, thread.promptScope, {
+			const instructions = getAIThreadSystemPromptForWorkspace(ctx.system, thread.promptScope, {
 				timeZone: getBodyString(ctx.body, "timeZone"),
 				workspaceAiContext: ctx.body?.workspaceAiContext,
 			});
-			const turnToolConfig = createAIThreadTurnToolConfig({
-				env: this.env,
-				ctx: this.ctx,
-				threadId: this.name,
-				workspace: this.workspace,
-				getThreadContext: () => this._getThreadContext(),
-				canMutate: thread.promptScope.canMutate,
-				onWorkspaceReferences: (records) => {
-					this._recordWorkspaceReferences(records);
-				},
-				timeZone: getBodyString(ctx.body, "timeZone"),
-			});
+			const turnToolConfig = this._createTurnToolConfig(
+				thread,
+				getBodyString(ctx.body, "timeZone"),
+			);
 			const activeTools = filterToolSetByNames(
 				{ ...ctx.tools, ...turnToolConfig.tools },
 				turnToolConfig.activeTools,
@@ -223,7 +293,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			await this.telemetry.recordTurnStarted({
 				ctx,
 				modelId,
-				system,
+				instructions,
 				thread,
 				tools: activeTools,
 			});
@@ -242,7 +312,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 					modelId,
 					thread,
 				}),
-				system,
+				instructions,
 				...turnToolConfig,
 			};
 		}
@@ -270,12 +340,18 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 				return;
 			}
 
+			if (result.status !== "completed") {
+				await this._cleanupBrowserSession(
+					result.status === "aborted" ? "turn_aborted" : "turn_failed",
+				);
+			}
 			await this._settleActiveRun({ kind: "finished", result });
 		}
 
 		override onChatError(error: unknown, ctx?: ChatErrorContext) {
 			this.telemetry.recordTurnError(error, ctx);
 			void this.keepAliveWhile(async () => {
+				await this._cleanupBrowserSession("turn_failed");
 				await this._settleActiveRun({
 					error,
 					errorClassification: ctx?.classification,
@@ -310,6 +386,98 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 		private async _getThreadContext() {
 			const directory = await this.parentAgent(getUserAIStore());
 			return directory.getThreadContext(this.name);
+		}
+
+		private _createTurnToolConfig(thread: AIThreadContext, timeZone?: string) {
+			return createAIThreadTurnToolConfig({
+				env: this.env,
+				ctx: this.ctx,
+				threadId: this.name,
+				workspace: this.workspace,
+				getThreadContext: () => this._getThreadContext(),
+				canMutate: thread.promptScope.canMutate,
+				onOrchestrationRuntime: (runtime) => {
+					this.codemode = runtime;
+				},
+				onWorkspaceReferences: (records) => {
+					this._recordWorkspaceReferences(records);
+				},
+				timeZone,
+			});
+		}
+
+		private async _ensureOrchestrationRuntime() {
+			if (this.codemode) {
+				return;
+			}
+
+			const thread = await this._getThreadContext();
+			if (!thread) {
+				throw new Error("Chat thread not found");
+			}
+
+			this._createTurnToolConfig(thread);
+		}
+
+		private async _getBrowserHandoff(executionId?: string) {
+			await this._ensureOrchestrationRuntime();
+			return getAIThreadBrowserHandoff(await super.pendingExecutions(executionId));
+		}
+
+		private async _resolveBrowserHandoff(
+			executionId: string,
+			approved: boolean,
+			rejectionReason: string,
+		) {
+			const handoff = await this._getBrowserHandoff(executionId);
+			if (!handoff || handoff.executionId !== executionId) {
+				throw new Error("The browser handoff is no longer waiting for input.");
+			}
+
+			const result = approved
+				? await super.approveExecution(executionId)
+				: await super.rejectExecution(executionId, rejectionReason);
+			assertAIThreadExecutionResolved(result);
+		}
+
+		private _browserConnector() {
+			return createAIThreadBrowserConnector(this.ctx, this.env.BROWSER);
+		}
+
+		/**
+		 * Ending a session always resolves whatever handoff it parked. Leaving one
+		 * pending keeps the chat polling and offering "Done, continue" for a run
+		 * whose browser is already gone, and the agent is the only party that can
+		 * name the pending execution without racing its own poll.
+		 */
+		private async _endBrowserSession(rejectionReason: string) {
+			try {
+				const handoff = await this._getBrowserHandoff();
+				if (handoff) {
+					await this._resolveBrowserHandoff(handoff.executionId, false, rejectionReason);
+				}
+			} finally {
+				await this._browserConnector().closeSession();
+			}
+		}
+
+		private async _cleanupBrowserSession(reason: "turn_aborted" | "turn_failed") {
+			try {
+				await this._endBrowserSession(
+					reason === "turn_aborted"
+						? "The run was stopped before the browser handoff could be completed."
+						: "The run failed before the browser handoff could be completed.",
+				);
+			} catch (error) {
+				recordOperationalFailure({
+					error,
+					event: "ai_browser_cleanup",
+					fields: {
+						reason,
+						thread_id: this.name,
+					},
+				});
+			}
 		}
 
 		private _shouldSettleRunAfterResponse(result: ChatResponseResult) {
@@ -379,6 +547,21 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 
 		private _recordWorkspaceReferences(records: readonly WorkspaceReferenceRecord[]) {
 			this.activeWorkspaceReferences.push(...records);
+		}
+
+		/**
+		 * Looks up the refs a read handed the assistant, so a tool can turn one
+		 * into the location it stands for. Reads from this turn are not in the
+		 * transcript yet, which is exactly when a document usually cites them.
+		 */
+		private async _resolveWorkspaceReferences(refs: readonly string[]) {
+			const wanted = new Set(refs);
+			const records = [
+				...collectWorkspaceReferenceRecords(await this.getMessages()),
+				...this.activeWorkspaceReferences,
+			];
+
+			return records.filter((record) => wanted.has(record.ref));
 		}
 
 		private async _reconcileWorkspaceCitations(message: ChatResponseResult["message"]) {
@@ -459,7 +642,7 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 						tags: ["task:compaction"],
 					}),
 					prompt,
-					system: AI_THREAD_COMPACTION_SYSTEM_PROMPT,
+					instructions: AI_THREAD_COMPACTION_SYSTEM_PROMPT,
 				});
 			} catch (error) {
 				await this._recordAuxiliaryError({
@@ -584,6 +767,14 @@ export function createAIThreadClass(getUserAIStore: () => typeof UserAIStore) {
 			});
 		}
 	};
+}
+
+function assertAIThreadExecutionResolved(result: unknown) {
+	if (result && typeof result === "object" && "status" in result && result.status === "error") {
+		const message =
+			"error" in result && typeof result.error === "string" ? result.error : undefined;
+		throw new Error(message ?? "The browser handoff could not be resolved.");
+	}
 }
 
 function filterToolSetByNames(tools: ToolSet, activeToolNames: string[] | undefined): ToolSet {

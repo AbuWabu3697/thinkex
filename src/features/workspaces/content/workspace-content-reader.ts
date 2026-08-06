@@ -4,10 +4,15 @@ import type {
 	WorkspaceContentReadResult,
 } from "#/features/workspaces/content/workspace-content-contract";
 import type {
-	DocumentMarkdownChunkReadInput,
-	DocumentMarkdownChunkReadResult,
-} from "#/features/workspaces/documents/document-markdown-chunk";
+	DocumentHtmlChunkReadInput,
+	DocumentHtmlChunkReadResult,
+} from "#/features/workspaces/documents/document-html-chunk";
+import type { DocumentAiBlockSnapshot } from "#/features/workspaces/documents/document-ai-html";
 import { readWorkspacePageProjection } from "#/features/workspaces/extraction/workspace-page-projection";
+import {
+	resolveWorkspaceProjectionReadiness,
+	type WorkspaceProjectionReadiness,
+} from "#/features/workspaces/extraction/workspace-projection-readiness";
 import type { WorkspaceKernelClient } from "#/features/workspaces/kernel/workspace-kernel-access";
 import { resolveWorkspaceFileTypeFromItem } from "#/features/workspaces/model/workspace-file";
 import { serializeWorkspaceRelations } from "#/features/workspaces/operations/relations";
@@ -20,20 +25,21 @@ import {
 const maxWorkspaceContentBatchBytes = 2 * 1024 * 1024 + 64 * 1024;
 
 interface DocumentContentReader {
-	readMarkdownChunk(
-		input: DocumentMarkdownChunkReadInput,
-	): Promise<DocumentMarkdownChunkReadResult>;
+	readHtmlChunk(input: DocumentHtmlChunkReadInput): Promise<DocumentHtmlChunkReadResult>;
+	readBlock(input: {
+		editRef: string;
+	}): Promise<(DocumentAiBlockSnapshot & { status: "ready" }) | { status: "edit_ref_not_found" }>;
 }
 
 interface PendingReadyResult {
 	item: WorkspaceItemSummary;
 	read: Extract<WorkspaceContentReadResult, { status: "ready" }>;
-	relations: Awaited<ReturnType<WorkspaceKernelClient["listItemRelations"]>>;
+	relations: ReturnType<WorkspaceKernelClient["listItemRelations"]>;
 }
 
 export async function readWorkspaceContent(input: {
 	bucket: R2Bucket;
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	kernel: WorkspaceKernelClient;
 	requests: WorkspaceContentReadRequest[];
 }): Promise<WorkspaceContentReadResult[]> {
@@ -45,6 +51,7 @@ export async function readWorkspaceContent(input: {
 	const results: WorkspaceContentReadResult[] = [];
 	const readyResults: PendingReadyResult[] = [];
 	let returnedContentBytes = 0;
+	let readBudgetExhausted = false;
 
 	// Reads stay ordered so each body is consumed before the shared byte budget advances.
 	for (const [index, resolution] of resolutions.entries()) {
@@ -68,6 +75,16 @@ export async function readWorkspaceContent(input: {
 			results.push({ code: "path_is_folder", path: resolution.path, status: "failed" });
 			continue;
 		}
+		const readBudgetFailure = {
+			code: "read_budget_exceeded" as const,
+			path: resolution.path,
+			status: "failed" as const,
+			...(resolution.item.type === "file" ? { type: "file" as const } : {}),
+		};
+		if (readBudgetExhausted) {
+			results.push(readBudgetFailure);
+			continue;
+		}
 
 		try {
 			const read = await readWorkspaceItem({
@@ -82,12 +99,8 @@ export async function readWorkspaceContent(input: {
 			}
 			const contentBytes = encoder.encode(read.content).byteLength;
 			if (returnedContentBytes + contentBytes > maxWorkspaceContentBatchBytes) {
-				results.push({
-					code: "read_budget_exceeded",
-					path: resolution.path,
-					status: "failed",
-					...(resolution.item.type === "file" ? { type: "file" as const } : {}),
-				});
+				readBudgetExhausted = true;
+				results.push(readBudgetFailure);
 				continue;
 			}
 			returnedContentBytes += contentBytes;
@@ -95,7 +108,7 @@ export async function readWorkspaceContent(input: {
 			const pending = {
 				item: resolution.item,
 				read,
-				relations: await input.kernel.listItemRelations({ itemId: resolution.item.id }),
+				relations: input.kernel.listItemRelations({ itemId: resolution.item.id }),
 			};
 			readyResults.push(pending);
 			results.push(read);
@@ -114,23 +127,60 @@ export async function readWorkspaceContent(input: {
 
 async function readWorkspaceItem(input: {
 	bucket: R2Bucket;
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	item: WorkspaceItemSummary;
 	kernel: WorkspaceKernelClient;
 	path: string;
 	request: WorkspaceContentReadRequest;
 }): Promise<WorkspaceContentReadResult> {
 	if (input.item.type === "document") {
-		return readDocument(input);
+		return input.request.mode === "block"
+			? readDocumentBlock(input, input.request.editRef)
+			: readDocument(input);
 	}
 	if (input.item.type === "file") {
+		if (input.request.mode === "block") {
+			return { code: "invalid_selection", path: input.path, status: "failed" };
+		}
 		return readFile(input);
 	}
 	return { code: "unsupported_item_type", path: input.path, status: "failed" };
 }
 
+/**
+ * One block of a document in full.
+ *
+ * Reads elide a widget's source so it does not crowd the prose out of a chunk;
+ * this is how the assistant fetches that source before editing it. It works for
+ * any block, so a long table or code block can be pulled up on its own too.
+ */
+async function readDocumentBlock(
+	input: {
+		getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
+		item: WorkspaceItemSummary;
+		path: string;
+	},
+	editRef: string,
+): Promise<WorkspaceContentReadResult> {
+	const documentSession = await input.getDocumentSession(input.item.id);
+	const block = await documentSession.readBlock({ editRef });
+	if (block.status !== "ready") {
+		return { code: "edit_ref_not_found", path: input.path, status: "failed" };
+	}
+
+	return {
+		content: block.content,
+		editRef: block.editRef,
+		format: "html",
+		itemId: input.item.id,
+		path: input.path,
+		status: "ready",
+		type: "block",
+	};
+}
+
 async function readDocument(input: {
-	getDocumentSession: (itemId: string) => DocumentContentReader;
+	getDocumentSession: (itemId: string) => DocumentContentReader | Promise<DocumentContentReader>;
 	item: WorkspaceItemSummary;
 	path: string;
 	request: WorkspaceContentReadRequest;
@@ -145,7 +195,8 @@ async function readDocument(input: {
 		return { code: "invalid_cursor", path: input.path, status: "failed" };
 	}
 
-	const chunk = await input.getDocumentSession(input.item.id).readMarkdownChunk({
+	const documentSession = await input.getDocumentSession(input.item.id);
+	const chunk = await documentSession.readHtmlChunk({
 		expectedRevision: cursor?.kind === "document" ? cursor.revision : undefined,
 		offset: cursor?.kind === "document" ? cursor.offset : 0,
 	});
@@ -158,9 +209,9 @@ async function readDocument(input: {
 
 	return {
 		content: chunk.content,
-		format: "markdown",
+		format: "html",
 		itemId: input.item.id,
-		location: { kind: "lines", ...chunk.location },
+		location: { kind: "blocks", ...chunk.location },
 		...(chunk.nextOffset === undefined
 			? {}
 			: {
@@ -169,7 +220,7 @@ async function readDocument(input: {
 						offset: chunk.nextOffset,
 						path: input.path,
 						revision: chunk.revision,
-						version: 2,
+						version: 3,
 					}),
 				}),
 		path: input.path,
@@ -190,24 +241,12 @@ async function readFile(input: {
 		return { code: "unsupported_item_type", path: input.path, status: "failed" };
 	}
 
-	const projection = await input.kernel.readFileProjection({
-		itemId: input.item.id,
-		format: "pages",
-	});
-	if (
-		!projection ||
-		projection.status === "not_started" ||
-		projection.status === "queued" ||
-		projection.status === "processing"
-	) {
-		return { path: input.path, status: "pending", type: "file" };
-	}
-	if (
-		projection.status !== "ready" ||
-		projection.objectKey === null ||
-		projection.sourceHash === null
-	) {
-		return { code: "projection_failed", path: input.path, status: "failed", type: "file" };
+	const projection = resolveWorkspaceProjectionReadiness(
+		await input.kernel.readFileProjection({ itemId: input.item.id, format: "pages" }),
+		Date.now(),
+	);
+	if (projection.state !== "ready") {
+		return describeUnreadableProjection(projection, input.path);
 	}
 
 	const encodedCursor = input.request.mode === "continue" ? input.request.cursor : undefined;
@@ -223,7 +262,7 @@ async function readFile(input: {
 		pageRead = await readWorkspacePageProjection({
 			bucket: input.bucket,
 			expectedSourceHash: projection.sourceHash,
-			manifestObjectKey: projection.objectKey,
+			manifestObjectKey: projection.manifestObjectKey,
 			pages:
 				cursor?.kind === "file"
 					? String(cursor.nextPage)
@@ -241,6 +280,7 @@ async function readFile(input: {
 	return {
 		assetKind: fileType.assetKind,
 		content: pageRead.content,
+		...(pageRead.emptyPages.length > 0 ? { emptyPages: pageRead.emptyPages } : {}),
 		format: "markdown",
 		itemId: input.item.id,
 		location: { kind: "pages", ...pageRead.pages },
@@ -256,9 +296,49 @@ async function readFile(input: {
 					}),
 				}),
 		path: input.path,
+		...(projection.provisional ? { provisional: true } : {}),
 		status: "ready",
 		type: "file",
 	};
+}
+
+/**
+ * Maps a non-ready projection onto the read result the model sees.
+ *
+ * @param projection - Readiness for a projection that is not serving content.
+ * @param path - Absolute workspace path that was read.
+ * @returns The pending or failed read result for that path.
+ */
+function describeUnreadableProjection(
+	projection: Exclude<WorkspaceProjectionReadiness, { state: "ready" }>,
+	path: string,
+): WorkspaceContentReadResult {
+	if (projection.state === "pending") {
+		return {
+			elapsedSeconds: projection.elapsedSeconds,
+			path,
+			phase: projection.phase,
+			retryAfterSeconds: projection.retryAfterSeconds,
+			status: "pending",
+			type: "file",
+		};
+	}
+
+	if (projection.state === "stalled") {
+		return { code: "extraction_stalled", path, status: "failed", type: "file" };
+	}
+
+	if (projection.state === "failed") {
+		return {
+			code: "extraction_failed",
+			...(projection.message ? { message: projection.message } : {}),
+			path,
+			status: "failed",
+			type: "file",
+		};
+	}
+
+	return { code: "projection_failed", path, status: "failed", type: "file" };
 }
 
 async function attachRelationPaths(
@@ -268,8 +348,14 @@ async function attachRelationPaths(
 	if (readyResults.length === 0) {
 		return;
 	}
+	const resolvedResults = await Promise.all(
+		readyResults.map(async ({ relations, ...result }) => ({
+			...result,
+			relations: await relations,
+		})),
+	);
 	const relatedItemIds = new Set<string>();
-	for (const result of readyResults) {
+	for (const result of resolvedResults) {
 		relatedItemIds.add(result.item.id);
 		for (const relation of result.relations) {
 			relatedItemIds.add(relation.fromItemId);
@@ -279,7 +365,7 @@ async function attachRelationPaths(
 	const itemPaths = await kernel.getItemPaths({ itemIds: Array.from(relatedItemIds) });
 	const pathsByItemId = new Map(itemPaths.map((item) => [item.itemId, item.path]));
 
-	for (const result of readyResults) {
+	for (const result of resolvedResults) {
 		const relations = serializeWorkspaceRelations({
 			item: result.item,
 			pathsByItemId,

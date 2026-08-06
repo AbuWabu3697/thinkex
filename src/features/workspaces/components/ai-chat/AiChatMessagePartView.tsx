@@ -9,7 +9,10 @@ import {
 	getFileAttachmentData,
 	getSourceDocumentAttachmentData,
 } from "#/features/workspaces/components/ai-chat/ai-chat-attachments";
-import type { AiChatToolGroupPart } from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
+import {
+	type AiChatToolGroupPart,
+	isAiChatToolGroupPart,
+} from "#/features/workspaces/components/ai-chat/ai-chat-display-state";
 import { AiChatMessageResponse } from "#/features/workspaces/components/ai-chat/AiChatMessageResponse";
 import { AiChatToolActivityRow } from "#/features/workspaces/components/ai-chat/AiChatToolActivityRow";
 import type { AiChatMessagePart } from "#/features/workspaces/components/ai-chat/types";
@@ -19,11 +22,13 @@ import type {
 } from "#/features/workspaces/locations/workspace-location";
 
 export function AiChatMessagePartView({
+	interruptUnfinishedTools = false,
 	isStreaming = false,
 	part,
 	preserveWhitespace = false,
 	workspaceCitationLocations,
 }: {
+	interruptUnfinishedTools?: boolean;
 	isStreaming?: boolean;
 	part: AiChatMessagePart | AiChatToolGroupPart;
 	preserveWhitespace?: boolean;
@@ -42,11 +47,17 @@ export function AiChatMessagePartView({
 	}
 
 	if (isAiChatToolGroupPart(part)) {
-		return <AiChatToolActivityRow part={part.part} nestedChildren={part.children} />;
+		return (
+			<AiChatToolActivityRow
+				interrupted={interruptUnfinishedTools}
+				nestedChildren={part.children}
+				part={part.part}
+			/>
+		);
 	}
 
 	if (isToolUIPart(part)) {
-		return <AiChatToolActivityRow part={part} />;
+		return <AiChatToolActivityRow interrupted={interruptUnfinishedTools} part={part} />;
 	}
 
 	if (part.type === "file") {
@@ -84,10 +95,4 @@ export function AiChatMessagePartView({
 	}
 
 	return null;
-}
-
-function isAiChatToolGroupPart(
-	part: AiChatMessagePart | AiChatToolGroupPart,
-): part is AiChatToolGroupPart {
-	return part.type === "data-tool-group" && "part" in part && "children" in part;
 }

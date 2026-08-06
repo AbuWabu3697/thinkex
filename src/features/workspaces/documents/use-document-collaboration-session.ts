@@ -1,14 +1,15 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { IndexeddbPersistence } from "y-indexeddb";
 import { WebsocketProvider } from "y-partyserver/provider";
 import * as Y from "yjs";
 
 import { getDocumentSessionBaseUrl } from "#/features/workspaces/agent-routes";
+import { tiptapDocumentYjsField } from "#/features/workspaces/documents/tiptap-schema";
 import { getCollaborationUserColor } from "#/lib/design-system-colors";
 
-const idleDestroyDelayMs = 300_000;
-const maxIdleSessions = 8;
-
-export type DocumentCollaborationStatus = "connecting" | "connected" | "disconnected";
+const localDocumentReadyKey = "server-synced";
+const localDocumentReadyValue = "true";
+const localDocumentStorePrefix = "thinkex-document";
 
 interface DocumentCollaborationUser {
 	id: string;
@@ -17,26 +18,24 @@ interface DocumentCollaborationUser {
 }
 
 export interface DocumentCollaborationSession {
-	itemId: string;
 	provider: WebsocketProvider;
-	ready: boolean;
-	status: DocumentCollaborationStatus;
-	workspaceId: string;
 	ydoc: Y.Doc;
 }
 
-interface CachedDocumentCollaborationSession extends DocumentCollaborationSession {
+interface ActiveDocumentCollaborationSession {
 	destroy(): void;
-	destroyTimer: ReturnType<typeof setTimeout> | null;
 	key: string;
-	lastUsedAt: number;
+	persistence: IndexeddbPersistence;
+	provider: WebsocketProvider;
 	publicSession: DocumentCollaborationSession | null;
+	ready: boolean;
 	refs: number;
 	subscribe(listener: () => void): () => void;
 	subscribers: Set<() => void>;
+	ydoc: Y.Doc;
 }
 
-const documentSessionCache = new Map<string, CachedDocumentCollaborationSession>();
+const activeDocumentSessions = new Map<string, ActiveDocumentCollaborationSession>();
 
 export function useDocumentCollaborationSession(input: {
 	itemId: string;
@@ -47,7 +46,7 @@ export function useDocumentCollaborationSession(input: {
 }) {
 	const { itemId, userId, userImage, userName, workspaceId } = input;
 	const sessionKey =
-		userId && userName ? getDocumentSessionCacheKey({ itemId, workspaceId }) : null;
+		userId && userName ? getDocumentSessionKey({ itemId, userId, workspaceId }) : null;
 
 	const subscribe = useCallback(
 		(listener: () => void) => {
@@ -55,7 +54,7 @@ export function useDocumentCollaborationSession(input: {
 				return () => {};
 			}
 
-			const cachedSession = acquireDocumentSession({
+			const activeSession = acquireDocumentSession({
 				itemId,
 				user: {
 					id: userId,
@@ -64,35 +63,24 @@ export function useDocumentCollaborationSession(input: {
 				},
 				workspaceId,
 			});
-			const unsubscribe = cachedSession.subscribe(listener);
+			const unsubscribe = activeSession.subscribe(listener);
 
 			queueMicrotask(listener);
 
 			return () => {
 				unsubscribe();
-				releaseDocumentSession(cachedSession);
+				releaseDocumentSession(activeSession);
 			};
 		},
 		[itemId, userId, userImage, userName, workspaceId],
 	);
 
-	const getSnapshot = useCallback(() => {
-		if (!userId || !userName) {
-			return null;
-		}
+	const getSnapshot = useCallback(
+		() => (sessionKey ? (activeDocumentSessions.get(sessionKey)?.publicSession ?? null) : null),
+		[sessionKey],
+	);
 
-		return sessionKey ? (documentSessionCache.get(sessionKey)?.publicSession ?? null) : null;
-	}, [sessionKey, userId, userName]);
-
-	const session = useSyncExternalStore(subscribe, getSnapshot, () => null);
-
-	return session?.workspaceId === input.workspaceId &&
-		session.itemId === input.itemId &&
-		input.userId &&
-		input.userName &&
-		session.ready
-		? session
-		: null;
+	return useSyncExternalStore(subscribe, getSnapshot, () => null);
 }
 
 function acquireDocumentSession(input: {
@@ -100,21 +88,28 @@ function acquireDocumentSession(input: {
 	user: DocumentCollaborationUser;
 	workspaceId: string;
 }) {
-	const key = getDocumentSessionCacheKey(input);
-	const cachedSession = documentSessionCache.get(key);
+	const key = getDocumentSessionKey({
+		itemId: input.itemId,
+		userId: input.user.id,
+		workspaceId: input.workspaceId,
+	});
+	const activeSession = activeDocumentSessions.get(key);
 
-	if (cachedSession) {
-		cachedSession.refs += 1;
-		cachedSession.lastUsedAt = Date.now();
-		if (cachedSession.destroyTimer) {
-			clearTimeout(cachedSession.destroyTimer);
-			cachedSession.destroyTimer = null;
-		}
-		cachedSession.provider.awareness.setLocalStateField("user", getCollaborationUser(input.user));
-		return cachedSession;
+	if (activeSession) {
+		activeSession.refs += 1;
+		activeSession.provider.awareness.setLocalStateField("user", getCollaborationUser(input.user));
+		return activeSession;
 	}
 
 	const ydoc = new Y.Doc();
+	const persistence = new IndexeddbPersistence(
+		getDocumentLocalStoreName({
+			itemId: input.itemId,
+			userId: input.user.id,
+			workspaceId: input.workspaceId,
+		}),
+		ydoc,
+	);
 	const provider = new WebsocketProvider(
 		getDocumentSessionBaseUrl(input.workspaceId),
 		encodeURIComponent(input.itemId),
@@ -124,45 +119,39 @@ function acquireDocumentSession(input: {
 			resyncInterval: 10_000,
 		},
 	);
-	const session = createCachedDocumentSession({
+	const session = createActiveDocumentSession({
 		key,
-		itemId: input.itemId,
+		persistence,
 		provider,
-		workspaceId: input.workspaceId,
 		ydoc,
 	});
 
 	provider.awareness.setLocalStateField("user", getCollaborationUser(input.user));
-	documentSessionCache.set(key, session);
-	pruneIdleDocumentSessions();
+	activeDocumentSessions.set(key, session);
 
 	return session;
 }
 
-function createCachedDocumentSession(input: {
-	itemId: string;
+function createActiveDocumentSession(input: {
 	key: string;
+	persistence: IndexeddbPersistence;
 	provider: WebsocketProvider;
-	workspaceId: string;
 	ydoc: Y.Doc;
-}): CachedDocumentCollaborationSession {
-	const session: CachedDocumentCollaborationSession = {
+}): ActiveDocumentCollaborationSession {
+	const session: ActiveDocumentCollaborationSession = {
 		destroy() {
-			input.provider.off("status", handleStatus);
 			input.provider.off("sync", handleSync);
+			void input.persistence.destroy();
 			input.provider.destroy();
 			input.ydoc.destroy();
-			documentSessionCache.delete(input.key);
+			activeDocumentSessions.delete(input.key);
 		},
-		destroyTimer: null,
-		itemId: input.itemId,
 		key: input.key,
-		lastUsedAt: Date.now(),
+		persistence: input.persistence,
 		provider: input.provider,
 		publicSession: null,
 		ready: input.provider.synced,
 		refs: 1,
-		status: input.provider.wsconnected ? "connected" : "connecting",
 		subscribe(listener: () => void) {
 			session.subscribers.add(listener);
 			return () => {
@@ -170,76 +159,96 @@ function createCachedDocumentSession(input: {
 			};
 		},
 		subscribers: new Set<() => void>(),
-		workspaceId: input.workspaceId,
 		ydoc: input.ydoc,
 	};
-	session.publicSession = session.ready ? getPublicSession(session) : null;
-	const handleStatus = (event: { status: DocumentCollaborationStatus }) => {
-		session.status = event.status;
-		session.publicSession = session.ready ? getPublicSession(session) : null;
+
+	const markReady = () => {
+		if (session.ready) {
+			return;
+		}
+
+		session.ready = true;
+		session.publicSession = {
+			provider: session.provider,
+			ydoc: session.ydoc,
+		};
 		notifyDocumentSessionSubscribers(session);
+	};
+	/**
+	 * Persistence is an optimization, so a failed write must stay silent rather
+	 * than surfacing as an unhandled rejection on every sync — IndexedDB is
+	 * unavailable in private windows and can be over quota anywhere.
+	 */
+	const rememberServerSync = () => {
+		void session.persistence.set(localDocumentReadyKey, localDocumentReadyValue).catch(() => {
+			// The live collaboration session remains canonical.
+		});
 	};
 	const handleSync = (synced: boolean) => {
-		session.ready ||= synced;
-		session.publicSession = session.ready ? getPublicSession(session) : null;
-		notifyDocumentSessionSubscribers(session);
+		if (!synced) {
+			return;
+		}
+
+		rememberServerSync();
+		markReady();
 	};
 
-	input.provider.on("status", handleStatus);
+	if (session.ready) {
+		session.publicSession = {
+			provider: session.provider,
+			ydoc: session.ydoc,
+		};
+		rememberServerSync();
+	}
+
+	void session.persistence.whenSynced
+		.then(() => session.persistence.get(localDocumentReadyKey))
+		.then((wasServerSynced) => {
+			if (
+				wasServerSynced === localDocumentReadyValue &&
+				session.ydoc.getXmlFragment(tiptapDocumentYjsField).length > 0
+			) {
+				markReady();
+			}
+		})
+		.catch(() => {
+			// IndexedDB is an optimization. The live collaboration session remains canonical.
+		});
+
 	input.provider.on("sync", handleSync);
 
 	return session;
 }
 
-function releaseDocumentSession(session: CachedDocumentCollaborationSession) {
+function releaseDocumentSession(session: ActiveDocumentCollaborationSession) {
 	session.refs = Math.max(0, session.refs - 1);
-	session.lastUsedAt = Date.now();
 
 	if (session.refs > 0) {
 		return;
 	}
 
 	session.provider.awareness.setLocalState(null);
-	session.destroyTimer = setTimeout(() => {
+	queueMicrotask(() => {
 		if (session.refs === 0) {
 			session.destroy();
 		}
-	}, idleDestroyDelayMs);
-}
-
-function pruneIdleDocumentSessions() {
-	const idleSessions = Array.from(documentSessionCache.values())
-		.filter((session) => session.refs === 0)
-		.sort((a, b) => a.lastUsedAt - b.lastUsedAt);
-
-	while (documentSessionCache.size > maxIdleSessions && idleSessions.length) {
-		idleSessions.shift()?.destroy();
-	}
+	});
 }
 
 function notifyDocumentSessionSubscribers(
-	session: Pick<CachedDocumentCollaborationSession, "subscribers">,
+	session: Pick<ActiveDocumentCollaborationSession, "subscribers">,
 ) {
 	for (const subscriber of session.subscribers) {
 		subscriber();
 	}
 }
 
-function getPublicSession(
-	session: CachedDocumentCollaborationSession,
-): DocumentCollaborationSession {
-	return {
-		itemId: session.itemId,
-		provider: session.provider,
-		ready: session.ready,
-		status: session.status,
-		workspaceId: session.workspaceId,
-		ydoc: session.ydoc,
-	};
+function getDocumentSessionKey(input: { itemId: string; userId: string; workspaceId: string }) {
+	return `${input.userId}:${input.workspaceId}:${input.itemId}`;
 }
 
-function getDocumentSessionCacheKey(input: { itemId: string; workspaceId: string }) {
-	return `${input.workspaceId}:${input.itemId}`;
+function getDocumentLocalStoreName(input: { itemId: string; userId: string; workspaceId: string }) {
+	return `${localDocumentStorePrefix}:${getDocumentSessionKey(input)}`;
 }
 
 function getCollaborationUser(user: DocumentCollaborationUser) {

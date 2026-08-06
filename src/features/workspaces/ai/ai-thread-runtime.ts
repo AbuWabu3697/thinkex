@@ -2,7 +2,14 @@ import { createWorkspaceStateBackend, type WorkspaceFsLike } from "@cloudflare/s
 import type { WorkspaceLike } from "@cloudflare/think/tools/workspace";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
-import { addToolInputExamplesMiddleware, createGateway, generateText, wrapLanguageModel } from "ai";
+import {
+	addToolInputExamplesMiddleware,
+	createGateway,
+	generateText,
+	Output,
+	wrapLanguageModel,
+} from "ai";
+import { z } from "zod";
 
 import type {
 	AIThreadContext,
@@ -23,6 +30,11 @@ import {
 	type resolveWorkspaceAiChatModelId,
 } from "#/features/workspaces/ai/models";
 import { createAIThreadCodeRunTools } from "#/features/workspaces/ai/code-run-tools";
+import {
+	AI_THREAD_BROWSER_POLICY,
+	createAIThreadBrowserHandoffTool,
+	AI_THREAD_BROWSER_HANDOFF_TOOL_NAME,
+} from "#/features/workspaces/ai/ai-thread-browser";
 import { createAIThreadOrchestrationTool } from "#/features/workspaces/ai/ai-thread-orchestration";
 import { createAIThreadResearchTools } from "#/features/workspaces/ai/research-tools";
 import { createAIThreadTimeTools } from "#/features/workspaces/ai/time-tools";
@@ -49,6 +61,8 @@ const AI_THREAD_WORKSPACE_CITATION_PROMPT = [
 	'- When a direct quote or important factual claim depends on workspace material with a ref, place `<citation ref="wr_7Kp2Qa9x"></citation>` immediately after the supported text.',
 	"- Copy the ref exactly. Never invent, alter, or reuse a ref for different material, and never use workspace citation tags for web sources or unsupported claims.",
 	"- Cite selectively: important claims, conclusions, summaries, and direct quotations—not every sentence, reasoning step, transition, or common knowledge.",
+	"- When you mention a successfully created workspace item and its creation result provides a ref, cite the item name with that ref.",
+	"- Workspace names and paths are not URLs. Never construct Markdown links to workspace items from a name, path, or the current app origin.",
 	"- The citation element must be empty and contain only the `ref` attribute. If no supporting ref was provided, omit the citation.",
 ].join("\n");
 const WORKSPACE_FS_METHOD_NAMES = [
@@ -76,6 +90,7 @@ export function createAIThreadTools(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 	timeZone?: string;
 }): ToolSet {
 	return createAIThreadToolCatalog(input).tools;
@@ -88,6 +103,7 @@ export function createAIThreadTurnToolConfig(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	canMutate: boolean;
+	onOrchestrationRuntime?: Parameters<typeof createAIThreadOrchestrationTool>[0]["onRuntime"];
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
 	timeZone?: string;
 }) {
@@ -96,16 +112,22 @@ export function createAIThreadTurnToolConfig(input: {
 	const state = workspaceFs ? createWorkspaceStateBackend(workspaceFs) : undefined;
 	const hasState = workspaceFs !== undefined;
 	const activeToolNames = toolCatalog.getActiveToolNames(input.canMutate);
+	const codemodeTools = {
+		...toolCatalog.getCodemodeTools(input.canMutate),
+		[AI_THREAD_BROWSER_HANDOFF_TOOL_NAME]: createAIThreadBrowserHandoffTool(),
+	} satisfies ToolSet;
 
 	return {
 		activeTools: activeToolNames,
 		tools: {
 			orchestrate: createAIThreadOrchestrationTool({
+				browser: input.env.BROWSER,
 				ctx: input.ctx,
 				loader: input.env.LOADER,
 				state,
-				tools: toolCatalog.getCodemodeTools(input.canMutate),
+				tools: codemodeTools,
 				name: AI_THREAD_ORCHESTRATE_TOOL_NAME,
+				onRuntime: input.onOrchestrationRuntime,
 				description: getAIThreadOrchestrateDescription(hasState),
 			}),
 		} satisfies ToolSet,
@@ -123,6 +145,7 @@ function createAIThreadToolCatalog(input: {
 	workspace: WorkspaceLike;
 	getThreadContext: () => Promise<AIThreadContext | null>;
 	onWorkspaceReferences?: (records: readonly WorkspaceReferenceRecord[]) => void;
+	resolveWorkspaceReferences?: (refs: readonly string[]) => Promise<WorkspaceReferenceRecord[]>;
 	timeZone?: string;
 }) {
 	const sandboxTools = createSandboxTools(input.workspace);
@@ -138,6 +161,7 @@ function createAIThreadToolCatalog(input: {
 	const workspaceTools = createAIThreadWorkspaceTools({
 		getThreadContext: input.getThreadContext,
 		onWorkspaceReferences: input.onWorkspaceReferences,
+		resolveWorkspaceReferences: input.resolveWorkspaceReferences,
 	});
 	const entries: AIThreadToolEntry[] = [];
 
@@ -189,11 +213,14 @@ function createSandboxTools(workspace: WorkspaceLike): ToolSet {
 	const sandboxTools: ToolSet = {};
 
 	if (tools.bash) {
+		// v7 typed description as string | ((options) => string) — the widened
+		// tool union in ToolSet does not narrow the intersection cleanly, so
+		// cast the override object back to the runtime tool shape.
 		sandboxTools.sandbox_bash = {
 			...tools.bash,
 			description:
 				"Run a sandboxed Bash script against private sandbox files. Use this for shell-style scratch work inside the assistant sandbox only. This does not run against the actual ThinkEx workspace.",
-		};
+		} as ToolSet[string];
 	}
 
 	return sandboxTools;
@@ -207,8 +234,8 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		? "3. Call the method shown by the docs, for example `await tools.workspace_list_items(args)` or `await state.readFile(args)`."
 		: "3. Call the method shown by the docs, for example `await tools.workspace_list_items(args)`.";
 	const globalsLine = hasState
-		? "- The only globals are `state`, `tools`, and `codemode` plus standard JavaScript. There is no `host`, `fs`, `require`, `process`, or Node.js API."
-		: "- The only globals are `tools` and `codemode` plus standard JavaScript. There is no `host`, `fs`, `require`, `process`, or Node.js API.";
+		? "- The only globals are `state`, `tools`, `cdp`, and `codemode` plus standard JavaScript. There is no `host`, `fs`, `require`, `process`, or Node.js API."
+		: "- The only globals are `tools`, `cdp`, and `codemode` plus standard JavaScript. There is no `host`, `fs`, `require`, `process`, or Node.js API.";
 
 	return [
 		"Orchestrate multi-step work by running JavaScript in a private assistant sandbox with access to ThinkEx connector SDKs.",
@@ -216,9 +243,9 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		"## Boundaries",
 		"",
 		stateLine,
-		"- `tools.*` exposes read-only ThinkEx workspace operations plus web, research, and time operations.",
-		"- Workspace mutations are direct tools outside Code Mode so each call retains its durable idempotency key.",
+		"- `tools.*` exposes ThinkEx workspace reads and mutations plus web, research, and time operations.",
 		"- `tools.compute` executes private Python for calculations, data analysis, and charts.",
+		"- `cdp.*` controls one task-scoped browser session through the Chrome DevTools Protocol.",
 		"",
 		"## Workflow",
 		"",
@@ -234,10 +261,12 @@ function getAIThreadOrchestrateDescription(hasState: boolean) {
 		"- Use `codemode.step(name, fn)` for nondeterministic work outside connector calls.",
 		"- Some methods may require approval. If the run pauses, tell the user what is pending and wait. Do not re-issue the code.",
 		"- Keep non-connector logic deterministic so resume can replay it.",
+		...AI_THREAD_BROWSER_POLICY.map((instruction) => `- ${instruction}`),
 		"- Do not use `fetch`. Use connector SDKs.",
 		"",
 		"## Snippets",
 		"",
+		'- Browser navigation: `const created = await cdp.send({ method: "Target.createTarget", params: { url } }); const { sessionId } = await cdp.attachToTarget({ targetId: created.targetId }); const page = await cdp.send({ method: "Runtime.evaluate", params: { expression: "({ readyState: document.readyState, title: document.title, url: location.href })", returnByValue: true }, sessionId });`',
 		'- `codemode.run("name", input)` runs a saved snippet.',
 		"- If a script may be reused later, write it as `async (input) => { ... }`.",
 	].join("\n");
@@ -352,7 +381,7 @@ function getWorkspaceAiReasoningOptions(
 					thinkingConfig: { thinkingLevel: "low" },
 				},
 			};
-		case "chatgpt":
+		case "gpt-terra":
 			return {
 				openai: {
 					reasoningEffort: "none",
@@ -381,13 +410,7 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 		return undefined;
 	}
 
-	const prompt = [
-		"Write a concise chat title for this first user message.",
-		"Return only the title. No quotes. No punctuation at the end.",
-		"Use 2 to 6 words.",
-		"",
-		firstUserMessage,
-	].join("\n");
+	const prompt = firstUserMessage;
 	const startedAt = Date.now();
 	const result = await generateText({
 		model: getWorkspaceAiLanguageModelForGatewayModel(AI_THREAD_TITLE_GATEWAY_MODEL, input.env),
@@ -409,18 +432,34 @@ export async function generateAIThreadTitle(input: { env: Cloudflare.Env; messag
 				thinkingConfig: { thinkingLevel: "low" },
 			},
 		} as WorkspaceAiProviderOptions,
+		instructions:
+			"Produce a concise chat title for the user message. Two to six words. No quotes, no trailing punctuation.",
 		prompt,
 		temperature: 0.2,
+		output: Output.object({
+			schema: AI_THREAD_TITLE_OUTPUT_SCHEMA,
+			name: "chat_title",
+			description: "A concise 2-6 word title summarizing the chat.",
+		}),
 	});
 
 	return {
-		title: result.text,
+		title: result.output?.title ?? "",
 		gatewayModel: AI_THREAD_TITLE_GATEWAY_MODEL,
 		prompt,
 		usage: result.usage,
 		latencySeconds: (Date.now() - startedAt) / 1000,
 	};
 }
+
+const AI_THREAD_TITLE_OUTPUT_SCHEMA = z.object({
+	title: z
+		.string()
+		.trim()
+		.min(1)
+		.max(80)
+		.describe("Two to six word chat title. No quotes, no trailing punctuation."),
+});
 
 export { getAIThreadSoulPrompt } from "#/features/workspaces/ai/ai-thread-soul-prompt";
 

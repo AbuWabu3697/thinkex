@@ -12,7 +12,6 @@ import {
 
 const researchDiscoverInputSchema = z.object({
 	query: z.string().trim().min(1).describe("Research topic or question."),
-	limit: z.number().int().min(1).max(25).optional().describe("Maximum results to return."),
 	include_github: z
 		.boolean()
 		.optional()
@@ -24,7 +23,6 @@ const researchDeepenInputSchema = z.discriminatedUnion("mode", [
 		mode: z.literal("passages"),
 		paper_id: z.string().trim().min(1).describe("Paper identifier."),
 		question: z.string().trim().min(1).describe("Question to answer from the paper."),
-		limit: z.number().int().min(1).max(40).optional().describe("Maximum passages to return."),
 	}),
 	z.object({
 		mode: z.literal("related"),
@@ -33,9 +31,20 @@ const researchDeepenInputSchema = z.discriminatedUnion("mode", [
 			.enum(["similar", "citers", "references"])
 			.describe("Which related papers to return."),
 		intent: z.string().trim().min(1).describe("What kind of related work to prioritize."),
-		limit: z.number().int().min(1).max(50).optional().describe("Maximum papers to return."),
 	}),
 ]);
+
+/** Gemini requires custom-tool parameters to be a top-level object. */
+const researchDeepenModelInputSchema = z.object({
+	mode: z.enum(["passages", "related"]),
+	paper_id: z.string().trim().min(1).describe("Paper identifier."),
+	question: z.string().trim().min(1).optional().describe("Required for passage retrieval."),
+	relation: z
+		.enum(["similar", "citers", "references"])
+		.optional()
+		.describe("Required for related work."),
+	intent: z.string().trim().min(1).optional().describe("Required for related work."),
+});
 
 const researchDiscoverInputExamples = [
 	{
@@ -47,7 +56,6 @@ const researchDiscoverInputExamples = [
 		input: {
 			query: "vision-language model implementation bugs",
 			include_github: true,
-			limit: 3,
 		},
 	},
 ];
@@ -60,27 +68,24 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 			inputSchema: researchDiscoverInputSchema,
 			inputExamples: researchDiscoverInputExamples,
 			outputSchema: researchDiscoverResultSchema,
-			strict: true,
-			execute: async ({ query, limit, include_github }) =>
+			execute: async ({ query, include_github }) =>
 				discoverResearch({
 					env,
 					query,
-					limit: limit ?? 8,
 					includeGithub: include_github ?? false,
 				}),
 		}),
 		research_deepen: defineAIThreadTool({
 			description: "Go deeper on one paper by reading relevant passages or finding related work.",
 			inputSchema: zodSchema(researchDeepenInputSchema),
+			modelInputSchema: researchDeepenModelInputSchema,
 			outputSchema: researchDeepenResultSchema,
-			strict: true,
 			execute: async (input: z.infer<typeof researchDeepenInputSchema>) => {
 				if (input.mode === "passages") {
 					return deepenResearchWithPassages({
 						env,
 						paperId: input.paper_id,
 						question: input.question,
-						limit: Math.min(input.limit ?? 6, 40),
 					});
 				}
 
@@ -89,7 +94,6 @@ export function createAIThreadResearchTools(env: Cloudflare.Env): ToolSet {
 					paperId: input.paper_id,
 					relation: input.relation,
 					intent: input.intent,
-					limit: input.limit ?? 10,
 				});
 			},
 		}),

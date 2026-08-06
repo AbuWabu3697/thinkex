@@ -80,7 +80,7 @@ export class AIThreadTccRecorder {
 		ctx: TurnContext;
 		env: Cloudflare.Env;
 		modelId: WorkspaceAiChatModelId;
-		system: string;
+		instructions: string;
 		thread: AIThreadContext;
 		tools?: unknown;
 	}) {
@@ -92,7 +92,7 @@ export class AIThreadTccRecorder {
 		}
 
 		const gatewayModel = getWorkspaceAiChatModel(input.modelId);
-		const prompt = buildTccRunPrompt(input.ctx, input.system);
+		const prompt = buildTccRunPrompt(input.ctx, input.instructions);
 		const metadata = createTccMetadata({
 			gatewayModel,
 			modelId: input.modelId,

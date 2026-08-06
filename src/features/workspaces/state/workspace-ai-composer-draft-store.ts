@@ -1,11 +1,12 @@
 import { nanoid } from "nanoid";
-import { useMemo } from "react";
+import { type SetStateAction, useMemo } from "react";
 import { create } from "zustand";
 import type { FileAttachmentData } from "#/features/workspaces/components/ai-chat/ai-chat-attachments";
 import {
 	deleteWorkspaceAiChatAttachment,
-	normalizeWorkspaceAiChatAttachmentFile,
-} from "#/features/workspaces/components/ai-chat/chat-attachment-normalization";
+	type UploadedChatAttachment,
+	uploadWorkspaceAiChatAttachment,
+} from "#/features/workspaces/components/ai-chat/chat-attachment-upload";
 import {
 	normalizeWorkspaceSelectedQuote,
 	type WorkspaceSelectedQuote,
@@ -28,7 +29,9 @@ type WorkspaceAiComposerDraftFileError = {
 
 interface WorkspaceAiComposerDraftState {
 	filesByThreadId: Record<string, WorkspaceAiComposerDraftFile[] | undefined>;
+	focusRequestByThreadId: Record<string, number | undefined>;
 	quotesByWorkspaceId: Record<string, WorkspaceSelectedQuote[] | undefined>;
+	textByThreadId: Record<string, string | undefined>;
 	addFiles: (
 		workspaceId: string,
 		threadId: string,
@@ -38,9 +41,12 @@ interface WorkspaceAiComposerDraftState {
 	addQuote: (workspaceId: string, quote: WorkspaceSelectedQuote) => void;
 	clearDraftArtifacts: (workspaceId: string, threadId: string) => void;
 	clearFiles: (threadId: string) => void;
+	clearFocusRequest: (threadId: string, request: number) => void;
 	clearQuotes: (workspaceId: string) => void;
 	removeFile: (threadId: string, fileId: string) => void;
 	removeQuote: (workspaceId: string, quoteId: string) => void;
+	setText: (threadId: string, value: SetStateAction<string>) => void;
+	stageText: (threadId: string, text: string) => void;
 }
 
 const EMPTY_DRAFT_FILES: WorkspaceAiComposerDraftFile[] = [];
@@ -77,7 +83,7 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 					continue;
 				}
 
-				void normalizeWorkspaceAiChatAttachmentFile({
+				void uploadWorkspaceAiChatAttachment({
 					file,
 					threadId,
 					workspaceId,
@@ -126,6 +132,19 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 		clearDraftArtifacts: (workspaceId, threadId) =>
 			set((state) => clearDraftArtifacts(state, workspaceId, threadId)),
 		clearFiles: (threadId) => set((state) => clearFilesForThread(state, threadId)),
+		clearFocusRequest: (threadId, request) =>
+			set((state) => {
+				if (state.focusRequestByThreadId[threadId] !== request) {
+					return state;
+				}
+
+				return {
+					focusRequestByThreadId: {
+						...state.focusRequestByThreadId,
+						[threadId]: undefined,
+					},
+				};
+			}),
 		clearQuotes: (workspaceId) =>
 			set((state) => {
 				const current = state.quotesByWorkspaceId[workspaceId] ?? EMPTY_DRAFT_QUOTES;
@@ -141,6 +160,7 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 				};
 			}),
 		filesByThreadId: {},
+		focusRequestByThreadId: {},
 		quotesByWorkspaceId: {},
 		removeFile: (threadId, fileId) => {
 			const file = get().filesByThreadId[threadId]?.find((item) => item.id === fileId);
@@ -164,6 +184,44 @@ export const useWorkspaceAiComposerDraftStore = create<WorkspaceAiComposerDraftS
 					},
 				};
 			}),
+		setText: (threadId, value) =>
+			set((state) => {
+				const current = state.textByThreadId[threadId] ?? "";
+				const next = typeof value === "function" ? value(current) : value;
+
+				if (next === current) {
+					return state;
+				}
+
+				return {
+					textByThreadId: {
+						...state.textByThreadId,
+						[threadId]: next || undefined,
+					},
+				};
+			}),
+		stageText: (threadId, text) =>
+			set((state) => {
+				const stagedText = text.trim();
+				if (!stagedText) {
+					return state;
+				}
+
+				const current = state.textByThreadId[threadId] ?? "";
+				const next = current.trim() ? `${current.trimEnd()}\n\n${stagedText}` : stagedText;
+
+				return {
+					focusRequestByThreadId: {
+						...state.focusRequestByThreadId,
+						[threadId]: (state.focusRequestByThreadId[threadId] ?? 0) + 1,
+					},
+					textByThreadId: {
+						...state.textByThreadId,
+						[threadId]: next,
+					},
+				};
+			}),
+		textByThreadId: {},
 	}),
 );
 
@@ -187,12 +245,33 @@ export function useWorkspaceAiComposerDraftQuotes(workspaceId: string) {
 	);
 }
 
+export function useWorkspaceAiComposerDraftText(threadId: string) {
+	return useWorkspaceAiComposerDraftStore(
+		useMemo(
+			() => (state: WorkspaceAiComposerDraftState) => state.textByThreadId[threadId] ?? "",
+			[threadId],
+		),
+	);
+}
+
+export function useWorkspaceAiComposerFocusRequest(threadId: string) {
+	return useWorkspaceAiComposerDraftStore(
+		useMemo(
+			() => (state: WorkspaceAiComposerDraftState) => state.focusRequestByThreadId[threadId] ?? 0,
+			[threadId],
+		),
+	);
+}
+
 function clearDraftArtifacts(
 	state: WorkspaceAiComposerDraftState,
 	workspaceId: string,
 	threadId: string,
 ) {
-	return clearQuotesForWorkspace(clearFilesForThread(state, threadId), workspaceId);
+	return clearQuotesForWorkspace(
+		clearTextForThread(clearFilesForThread(state, threadId), threadId),
+		workspaceId,
+	);
 }
 
 function clearFilesForThread(state: WorkspaceAiComposerDraftState, threadId: string) {
@@ -225,6 +304,20 @@ function clearQuotesForWorkspace(state: WorkspaceAiComposerDraftState, workspace
 	};
 }
 
+function clearTextForThread(state: WorkspaceAiComposerDraftState, threadId: string) {
+	if (!state.textByThreadId[threadId]) {
+		return state;
+	}
+
+	return {
+		...state,
+		textByThreadId: {
+			...state.textByThreadId,
+			[threadId]: undefined,
+		},
+	};
+}
+
 function createLoadingDraftFile(file: File): WorkspaceAiComposerDraftFile {
 	return {
 		filename: file.name,
@@ -239,7 +332,7 @@ function markDraftFileReady(
 	state: WorkspaceAiComposerDraftState,
 	threadId: string,
 	fileId: string,
-	attachment: { fileName: string; mediaType: string; url: string },
+	attachment: UploadedChatAttachment,
 ) {
 	const files = state.filesByThreadId[threadId];
 	if (!files) {

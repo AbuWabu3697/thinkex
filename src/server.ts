@@ -6,18 +6,24 @@ import { routeWorkspaceKernelRequest } from "#/features/workspaces/kernel/worksp
 import { routeMcpRequest } from "#/features/mcp/mcp-route";
 import { recordOperationalFailure } from "#/integrations/observability/operational-events";
 import { posthogHost, posthogHostOrigin, posthogProjectToken } from "#/integrations/posthog/config";
+import {
+	CONSENT_REQUIRED_COOKIE,
+	isConsentRequiredCountry,
+} from "#/integrations/posthog/consent-region";
 import { getTelemetryRequestDetails } from "#/integrations/posthog/server-context";
 import { buildContentSecurityPolicy } from "#/lib/http/content-security-policy";
 
-export { CodemodeRuntime } from "@cloudflare/codemode";
-export { Sandbox } from "@cloudflare/sandbox";
-export { AIThread, UserAIStore } from "#/features/workspaces/ai/user-ai-agents";
-export { ImageFileConverter } from "#/features/workspaces/conversion/image-file-converter";
-export { OfficePdfConverter } from "#/features/workspaces/conversion/office-pdf-converter";
-export { DocumentSession } from "#/features/workspaces/documents/document-session";
-export { WorkspaceFileExtractionWorkflow } from "#/features/workspaces/extraction/workspace-file-extraction-workflow";
-export { WorkspaceFileProcessor } from "#/features/workspaces/files/workspace-file-processor";
-export { WorkspaceKernel } from "#/features/workspaces/kernel/workspace-kernel";
+export {
+	AIThread,
+	CodemodeRuntime,
+	DocumentSession,
+	OfficePdfConverter,
+	Sandbox,
+	UserAIStore,
+	WorkspaceFileExtractionWorkflow,
+	WorkspaceFileProcessor,
+	WorkspaceKernel,
+} from "#/durable-objects";
 
 const isProduction = import.meta.env.PROD;
 
@@ -61,6 +67,17 @@ function withSecurityHeaders(response: Response, env: Cloudflare.Env, request: R
 	headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 	headers.set("X-Frame-Options", "DENY");
 	headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+
+	// Mirror the visitor's region to a readable cookie so the client can pick the
+	// right analytics default (opt-in required in the EEA/UK, opt-out elsewhere)
+	// before any JS runs. Not HttpOnly by design — the browser reads it.
+	const consentRequired = isConsentRequiredCountry(request.headers.get("cf-ipcountry"));
+	headers.append(
+		"Set-Cookie",
+		`${CONSENT_REQUIRED_COOKIE}=${consentRequired ? "1" : "0"}; Path=/; SameSite=Lax${
+			isProduction ? "; Secure" : ""
+		}`,
+	);
 
 	if (isProduction) {
 		headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");

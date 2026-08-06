@@ -4,6 +4,7 @@ import posthog from "posthog-js";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
+import { ConsentManager } from "#/components/ConsentManager";
 import {
 	isPostHogDevEnvironment,
 	isPostHogEnabled,
@@ -11,6 +12,9 @@ import {
 	posthogHost,
 	posthogProjectToken,
 } from "#/integrations/posthog/config";
+import { getEffectiveConsent } from "#/integrations/posthog/consent";
+import { applyConsentToPostHog } from "#/integrations/posthog/consent-posthog";
+import { useEffectiveConsent } from "#/integrations/posthog/use-consent";
 import type {
 	PostHogClientEventName,
 	PostHogEventPropertiesByName,
@@ -43,6 +47,14 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 		ui_host: posthogUiHost,
 		defaults: "2026-05-30",
 		debug: false,
+		// Start opted out until the stored choice or regional default is applied.
+		opt_out_capturing_by_default: true,
+		// Do not persist PostHog identity/session state while capturing is off.
+		opt_out_persistence_by_default: true,
+		// Keep form inputs and explicitly sensitive surfaces out of replay.
+		session_recording: {
+			maskAllInputs: true,
+		},
 		...(isPostHogSessionReplayEnabled ? {} : { disable_session_recording: true }),
 		...(tracingHeaders.length > 0 ? { tracing_headers: tracingHeaders } : {}),
 		loaded: (client) => {
@@ -54,6 +66,10 @@ if (typeof window !== "undefined" && isPostHogEnabled) {
 			if (!isPostHogSessionReplayEnabled) {
 				client.stopSessionRecording();
 			}
+
+			// Apply the effective choice (stored decision, or the regional default)
+			// as soon as the client is ready.
+			applyConsentToPostHog(getEffectiveConsent());
 		},
 	});
 }
@@ -101,6 +117,7 @@ export function resetPostHogClientIdentity() {
 
 function PostHogAuthSync() {
 	const { data: session, isPending } = useQuery(getAuthSessionQueryOptions());
+	const consent = useEffectiveConsent();
 	const lastDistinctIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -108,7 +125,7 @@ function PostHogAuthSync() {
 			return;
 		}
 
-		if (session?.user) {
+		if (consent?.analytics && session?.user) {
 			identifyPostHogUser(session);
 			lastDistinctIdRef.current = session.user.id;
 			return;
@@ -118,7 +135,18 @@ function PostHogAuthSync() {
 			resetPostHogClientIdentity();
 			lastDistinctIdRef.current = null;
 		}
-	}, [isPending, session]);
+	}, [consent, isPending, session]);
+
+	return null;
+}
+
+/** Keeps PostHog aligned with startup, same-tab, and cross-tab consent changes. */
+function PostHogConsentSync() {
+	const consent = useEffectiveConsent();
+
+	useEffect(() => {
+		applyConsentToPostHog(consent);
+	}, [consent]);
 
 	return null;
 }
@@ -130,8 +158,10 @@ export default function PostHogProvider({ children }: { children: ReactNode }) {
 
 	return (
 		<PostHogReactProvider client={posthog}>
+			<PostHogConsentSync />
 			<PostHogAuthSync />
 			{children}
+			<ConsentManager />
 		</PostHogReactProvider>
 	);
 }

@@ -8,6 +8,8 @@ import {
 export { workspaceItemTypeSchema };
 export type { WorkspaceItemType };
 
+export const WORKSPACE_ITEM_NAME_MAX_LENGTH = 160;
+
 export type JsonValue =
 	| string
 	| number
@@ -226,7 +228,7 @@ export const createWorkspaceItemInputSchema = z
 		workspaceId: z.string().min(1),
 		parentId: z.string().min(1).nullable().optional(),
 		type: workspaceItemTypeSchema,
-		name: z.string().trim().min(1).max(160).optional(),
+		name: z.string().trim().min(1).max(WORKSPACE_ITEM_NAME_MAX_LENGTH).optional(),
 		color: workspaceColorSchema.optional(),
 		initialContent: z.string().optional(),
 		clientMutationId: z.uuid().optional(),
@@ -244,7 +246,7 @@ export const createWorkspaceItemInputSchema = z
 export const renameWorkspaceItemInputSchema = z.object({
 	workspaceId: z.string().min(1),
 	itemId: z.string().min(1),
-	name: z.string().trim().min(1).max(160),
+	name: z.string().trim().min(1).max(WORKSPACE_ITEM_NAME_MAX_LENGTH),
 	clientMutationId: z.uuid().optional(),
 });
 

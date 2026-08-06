@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createDbContext } from "#/db/server";
 import { WorkspaceFileConversionError } from "#/features/workspaces/conversion/errors";
 import { requestWorkspaceFileExtraction } from "#/features/workspaces/extraction/request-workspace-file-extraction";
+import { checkWorkspaceFileUploadAccess } from "#/integrations/autumn/workspace-file-usage";
 import {
 	getWorkspaceFilePreviewObjectKey,
 	getWorkspaceFileSourceObjectKey,
@@ -83,6 +84,30 @@ async function initiateWorkspaceFileUpload(request: Request, workspaceId: string
 				validation.error.code,
 				validation.error.message,
 			);
+		}
+
+		// Only uploads headed for extraction: that's the part that costs money and the
+		// only path that decrements the meter. Gating local conversions would block
+		// something free and never counted. Before the presigned URL, so nobody
+		// uploads bytes we then reject.
+		if (validation.plan.kind === "file") {
+			const access = await checkWorkspaceFileUploadAccess({ env, userId });
+
+			if (!access.allowed) {
+				return apiError(
+					requestId,
+					402,
+					"upload_limit_reached",
+					// Names what still works, because this is the only moment the user
+					// finds out the cap isn't total — hitting it otherwise reads as the
+					// whole product locking, which is what makes people leave rather
+					// than upgrade.
+					//
+					// Gain-framed, and no raw date: the exact reset lives in settings, and a
+					// server-formatted date has no idea what locale is reading it.
+					"You've used all your file uploads this month — Markdown, CSV, and text files still import. Pro includes 500 a month.",
+				);
+			}
 		}
 
 		const session = await createWorkspaceDirectUploadSession(env, {
@@ -354,6 +379,14 @@ function workspaceUploadErrorResponse(requestId: string, error: unknown) {
 	}
 
 	if (error instanceof WorkspaceFileConversionError) {
+		if (error.failure === "output_too_large") {
+			return apiError(
+				requestId,
+				413,
+				"SELECTION_TOO_LARGE",
+				"This image is too detailed to upload after optimization.",
+			);
+		}
 		return apiError(requestId, 422, "CONVERSION_FAILED", error.userMessage);
 	}
 

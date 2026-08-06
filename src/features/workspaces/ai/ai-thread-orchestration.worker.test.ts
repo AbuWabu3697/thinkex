@@ -25,6 +25,7 @@ vi.mock("#/features/workspaces/operations/workspace-tool-definitions", () => ({
 
 import {
 	createAIThreadOrchestrationTool,
+	getAIThreadOrchestrationModelOutput,
 	getAIThreadOrchestrationTelemetryOutput,
 	normalizeAIThreadOrchestrationOutput,
 } from "#/features/workspaces/ai/ai-thread-orchestration";
@@ -43,6 +44,7 @@ describe("AI thread orchestration", () => {
 		} as never);
 
 		createAIThreadOrchestrationTool({
+			browser: {} as Cloudflare.Env["BROWSER"],
 			ctx: {} as DurableObjectState,
 			description: "test",
 			loader: {} as WorkerLoader,
@@ -118,6 +120,54 @@ describe("AI thread orchestration", () => {
 		});
 		expect(JSON.stringify(output.calls)).not.toContain("private query");
 		expect(JSON.stringify(output.calls)).not.toContain("example.com");
+	});
+
+	it("keeps document edit controls app-only", () => {
+		const output = normalizeAIThreadOrchestrationOutput({
+			status: "completed",
+			executionId: "execution-edit",
+			result: {
+				nested: {
+					__thinkexUi: { documentEditReceiptId: "receipt-secret" },
+				},
+			},
+			calls: [
+				{
+					seq: 1,
+					connector: "tools",
+					method: "workspace_edit_item",
+					state: "applied",
+					requiresApproval: false,
+					args: { path: "/Notes" },
+					result: {
+						applied: 1,
+						failed: [],
+						itemId: "document-1",
+						path: "/Notes",
+						__thinkexUi: { documentEditReceiptId: "receipt-secret" },
+					},
+				},
+			],
+		});
+
+		expect(output.calls[0]).toMatchObject({
+			action: {
+				itemId: "document-1",
+				kind: "document-edit",
+				path: "/Notes",
+				receiptId: "receipt-secret",
+			},
+		});
+		if (output.status !== "completed") {
+			throw new Error("Expected completed orchestration output.");
+		}
+		expect(JSON.stringify(output.result)).not.toContain("__thinkexUi");
+
+		const modelOutput = getAIThreadOrchestrationModelOutput(output);
+		const telemetryOutput = getAIThreadOrchestrationTelemetryOutput(output);
+		expect(JSON.stringify(modelOutput)).not.toContain("receipt-secret");
+		expect(JSON.stringify(modelOutput)).not.toContain('"action"');
+		expect(JSON.stringify(telemetryOutput)).not.toContain("receipt-secret");
 	});
 
 	it("fails closed when a completed runtime result contains a malformed child call", () => {
@@ -265,6 +315,71 @@ describe("AI thread orchestration", () => {
 		});
 	});
 
+	it("keeps interleaved work in execution order instead of merging every browser stretch", () => {
+		const output = normalizeAIThreadOrchestrationOutput({
+			status: "completed",
+			executionId: "execution-interleaved",
+			result: null,
+			calls: [
+				browserNavigation(1, "https://example.com/start"),
+				{
+					seq: 2,
+					connector: "tools",
+					method: "web_search",
+					state: "applied",
+					requiresApproval: false,
+					args: { query: "notes" },
+					result: { results: [] },
+				},
+				browserNavigation(3, "https://docs.example.org/guide"),
+			],
+		});
+
+		expect(output.calls.map((call) => call.toolName)).toEqual([
+			"browser_execute",
+			"web_search",
+			"browser_execute",
+		]);
+	});
+
+	it("treats a reset-and-retry that recovered as a success, not a failure", () => {
+		const output = normalizeAIThreadOrchestrationOutput({
+			status: "completed",
+			executionId: "execution-recovered",
+			result: null,
+			calls: [
+				{ ...browserNavigation(1, "https://example.com/"), state: "error" },
+				{
+					seq: 2,
+					connector: "cdp",
+					method: "resetSession",
+					state: "applied",
+					requiresApproval: false,
+					args: {},
+				},
+				browserNavigation(3, "https://example.com/"),
+			],
+		});
+
+		expect(output.calls).toMatchObject([{ status: "completed", state: "applied" }]);
+		expect(output.outcome).toEqual({ failureCodes: [], failedCount: 0, status: "success" });
+	});
+
+	it("reports an in-flight browser retry as running rather than failed", () => {
+		const output = normalizeAIThreadOrchestrationOutput({
+			status: "completed",
+			executionId: "execution-in-flight",
+			result: null,
+			calls: [
+				{ ...browserNavigation(1, "https://example.com/"), state: "error" },
+				{ ...browserNavigation(2, "https://example.com/"), state: "executing" },
+			],
+		});
+
+		expect(output.calls).toMatchObject([{ status: "running", state: "executing" }]);
+		expect(output.outcome.status).toBe("success");
+	});
+
 	it("removes the final result from the telemetry projection", () => {
 		const telemetry = getAIThreadOrchestrationTelemetryOutput({
 			status: "completed",
@@ -282,3 +397,15 @@ describe("AI thread orchestration", () => {
 		expect(JSON.stringify(telemetry)).not.toContain("not telemetry");
 	});
 });
+
+function browserNavigation(seq: number, url: string) {
+	return {
+		seq,
+		connector: "cdp",
+		method: "send",
+		state: "applied",
+		requiresApproval: false,
+		args: { method: "Page.navigate", params: { url } },
+		result: {},
+	};
+}

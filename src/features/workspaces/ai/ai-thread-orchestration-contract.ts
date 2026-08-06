@@ -7,6 +7,12 @@ import {
 	getAIToolOutputOutcome,
 	type AIToolOutcome,
 } from "#/features/workspaces/ai/ai-tool-outcome";
+import { summarizeAIThreadBrowserActivity } from "#/features/workspaces/ai/ai-thread-browser-activity";
+import { asRecord } from "#/features/workspaces/ai/ai-inspector-view-parsing";
+import {
+	getDocumentEditReceiptMetadata,
+	stripAIThreadToolUiMetadata,
+} from "#/features/workspaces/ai/ai-thread-tool-ui-metadata";
 
 const orchestrationCallStateSchema = z.enum([
 	"executing",
@@ -75,6 +81,15 @@ const rawOrchestrationOutputSchema = z
 	});
 
 const orchestrationCallSchema = z.object({
+	action: z
+		.object({
+			kind: z.literal("document-edit"),
+			itemId: z.string(),
+			lineChanges: z.object({ added: z.number(), removed: z.number() }).optional(),
+			path: z.string(),
+			receiptId: z.string(),
+		})
+		.optional(),
 	id: z.string(),
 	outcome: aiToolOutcomeSchema,
 	requiresApproval: z.boolean(),
@@ -122,14 +137,14 @@ export function normalizeAIThreadOrchestrationOutput(output: unknown): AIThreadO
 		return invalidOrchestrationOutput(output);
 	}
 
-	const calls = parsed.data.calls.map(normalizeCall);
+	const calls = normalizeCalls(parsed.data.calls);
 	const childOutcome = aggregateAIToolOutcomes(calls.map((call) => call.outcome));
 
 	if (parsed.data.status === "completed") {
 		return {
 			status: parsed.data.status,
 			executionId: parsed.data.executionId,
-			result: parsed.data.result,
+			result: stripAIThreadToolUiMetadata(parsed.data.result),
 			calls,
 			outcome: childOutcome,
 		};
@@ -179,9 +194,23 @@ export function getAIThreadOrchestrationTelemetryOutput(output: unknown) {
 	return {
 		status: parsed.data.status,
 		outcome: parsed.data.outcome,
-		calls: parsed.data.calls,
+		calls: withoutCallActions(parsed.data.calls),
 		...(parsed.data.status === "paused" ? { pendingCount: parsed.data.pending.length } : {}),
 	};
+}
+
+export function getAIThreadOrchestrationModelOutput(output: unknown) {
+	const parsed = aiThreadOrchestrationOutputSchema.safeParse(output);
+	if (!parsed.success) {
+		return output;
+	}
+
+	return { ...parsed.data, calls: withoutCallActions(parsed.data.calls) };
+}
+
+/** `action` drives the app's review controls; neither the model nor telemetry sees it. */
+function withoutCallActions(calls: z.output<typeof orchestrationCallSchema>[]) {
+	return calls.map(({ action: _action, ...call }) => call);
 }
 
 function invalidOrchestrationOutput(output: unknown): AIThreadOrchestrationOutput {
@@ -206,8 +235,10 @@ function getExecutionId(output: unknown) {
 
 function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 	const outcome = getOrchestrationCallOutcome(call.method, call.state, call.result);
+	const action = getDocumentEditAction(call);
 
 	return {
+		...(action ? { action } : {}),
 		id: `${call.seq}:${call.connector}:${call.method}`,
 		toolName: call.method,
 		state: call.state,
@@ -216,6 +247,123 @@ function normalizeCall(call: z.output<typeof rawOrchestrationCallSchema>) {
 		outcome,
 		summary: summarizeOrchestrationCall(outcome),
 	};
+}
+
+function getDocumentEditAction(call: z.output<typeof rawOrchestrationCallSchema>) {
+	if (call.method !== "workspace_edit_item" || call.state !== "applied") {
+		return undefined;
+	}
+
+	const args = asRecord(call.args);
+	const result = asRecord(call.result);
+	const path =
+		typeof result.path === "string"
+			? result.path
+			: typeof args.path === "string"
+				? args.path
+				: undefined;
+	const applied = typeof result.applied === "number" ? result.applied : 0;
+	const itemId = typeof result.itemId === "string" ? result.itemId : undefined;
+	const receiptId = getDocumentEditReceiptMetadata(call.result);
+
+	const lineChanges = asRecord(result.lineChanges);
+	return itemId && path && applied > 0 && receiptId
+		? {
+				itemId,
+				kind: "document-edit" as const,
+				...(typeof lineChanges.added === "number" && typeof lineChanges.removed === "number"
+					? { lineChanges: { added: lineChanges.added, removed: lineChanges.removed } }
+					: {}),
+				path,
+				receiptId,
+			}
+		: undefined;
+}
+
+/**
+ * Collapse each *contiguous* run of CDP traffic into one browser receipt.
+ *
+ * Grouping every CDP call in the execution instead would reorder the
+ * transcript: a tool call made between two browser stretches would render
+ * after browsing that actually happened later, and two unrelated visits would
+ * merge into a single row.
+ */
+function normalizeCalls(rawCalls: z.output<typeof rawOrchestrationCallSchema>[]) {
+	const calls: ReturnType<typeof normalizeCall>[] = [];
+	let browserRun: z.output<typeof rawOrchestrationCallSchema>[] = [];
+
+	const flushBrowserRun = () => {
+		if (browserRun.length === 0) {
+			return;
+		}
+
+		const browserCall = normalizeBrowserCalls(browserRun);
+		if (browserCall) {
+			calls.push(browserCall);
+		}
+		browserRun = [];
+	};
+
+	for (const call of rawCalls) {
+		if (call.connector === "cdp") {
+			browserRun.push(call);
+			continue;
+		}
+
+		flushBrowserRun();
+		calls.push(normalizeCall(call));
+	}
+	flushBrowserRun();
+
+	return calls;
+}
+
+function normalizeBrowserCalls(calls: z.output<typeof rawOrchestrationCallSchema>[]) {
+	const state = getBrowserCallState(calls);
+	// One row, one verdict: the outcome follows the same "where did the run end
+	// up" rule as the state. Aggregating every call instead would report
+	// `codemode_tool_error` for a reset-and-retry that already recovered, and
+	// would count an in-flight call — which has no result yet, and which
+	// getOrchestrationCallOutcome reads as a failure — as a failure.
+	const decidingCall = state === "executing" ? undefined : calls.at(-1);
+	const outcome: AIToolOutcome = decidingCall
+		? getOrchestrationCallOutcome("browser_execute", decidingCall.state, decidingCall.result)
+		: { failureCodes: [], failedCount: 0, status: "success" };
+	const status =
+		state === "executing" ? ("running" as const) : getOrchestrationCallStatus(state, outcome);
+	const summary = summarizeAIThreadBrowserActivity(calls, status);
+	if (!summary) {
+		return undefined;
+	}
+
+	return {
+		id: `${calls[0]?.seq ?? 0}:cdp:browser_execute`,
+		toolName: "browser_execute",
+		state,
+		status,
+		requiresApproval: false,
+		outcome,
+		summary,
+	};
+}
+
+/**
+ * The browser guidance tells the model to call `cdp.resetSession()` once and
+ * retry when a reused session has gone away, so a failed call followed by a
+ * successful one is the *supported* recovery path, not a failure. The durable
+ * log keeps the original error forever, so the group has to be judged by where
+ * the run ended up: anything still in flight reads as running, and an error
+ * counts only when nothing after it succeeded.
+ */
+function getBrowserCallState(
+	calls: z.output<typeof rawOrchestrationCallSchema>[],
+): z.output<typeof orchestrationCallStateSchema> {
+	if (calls.some((call) => call.state === "executing" || call.state === "pending")) {
+		return "executing";
+	}
+
+	const lastSettled = calls.at(-1);
+	return lastSettled?.state === "error" || lastSettled?.state === "reverted" ? "error" : "applied";
 }
 
 function getOrchestrationCallStatus(

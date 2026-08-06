@@ -18,7 +18,6 @@
 	"ignoreBinaries": ["infisical"],
 	"ignoreDependencies": [
 		"@babel/plugin-proposal-decorators",
-		"@cloudflare/vitest-pool-workers",
 		"@tailwindcss/typography",
 		"@tanstack/devtools-event-client",
 		"@tanstack/router-plugin",

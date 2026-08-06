@@ -1,8 +1,4 @@
-import type {
-	JsonValue,
-	WorkspaceItemFacts,
-	WorkspaceItemSummary,
-} from "#/features/workspaces/contracts";
+import type { JsonValue, WorkspaceItemSummary } from "#/features/workspaces/contracts";
 import { getWorkspaceFileItemObjectPrefix } from "#/features/workspaces/files/workspace-file-object-keys";
 import { WORKSPACE_FILE_PREVIEW_CONTENT_TYPE } from "#/features/workspaces/files/workspace-file-preview.constants";
 import type { WorkspaceKernelEventBus } from "#/features/workspaces/kernel/workspace-kernel-events";
@@ -19,6 +15,7 @@ import type {
 	ReadWorkspaceKernelFileProjectionResult,
 	UpsertWorkspaceKernelFileProjectionArgs,
 	WorkspaceKernelFileProjectionFormat,
+	WorkspaceKernelPublishOutcome,
 } from "#/features/workspaces/kernel/workspace-kernel-types";
 import {
 	getMetadataNumber,
@@ -246,8 +243,11 @@ export class WorkspaceKernelFileCommands {
 
 	async upsertFileProjection(
 		input: UpsertWorkspaceKernelFileProjectionArgs,
-	): Promise<WorkspaceCommandResult<WorkspaceItemFacts[]>> {
-		const row = this.store.assertActiveItem(input.itemId);
+	): Promise<WorkspaceKernelPublishOutcome> {
+		const row = this.store.getActiveItemRow(input.itemId);
+		if (!row) {
+			return "discarded";
+		}
 
 		if (row.type !== "file") {
 			throw new Error("Workspace item is not a file.");
@@ -260,8 +260,12 @@ export class WorkspaceKernelFileCommands {
 				this.r2.head(row.object_key),
 				this.r2.head(input.objectKey),
 			]);
-			if (!source || source.etag !== input.sourceHash) {
-				throw new Error("The file source changed before its extraction could be published.");
+			const currentRow = this.store.getActiveItemRow(input.itemId);
+			if (!currentRow) {
+				return "discarded";
+			}
+			if (currentRow.object_key !== row.object_key || !source || source.etag !== input.sourceHash) {
+				return "discarded";
 			}
 			if (!projectionObject) {
 				throw new Error("The file projection object was not found.");
@@ -276,13 +280,13 @@ export class WorkspaceKernelFileCommands {
 			now,
 		});
 		const itemFacts = this.store.getItemFacts([this.store.requireItem(input.itemId)]);
-		const event = this.events.commit({
+		this.events.commit({
 			type: "workspace.item.projection.updated",
 			actorUserId: input.actorUserId ?? null,
 			clientMutationId: input.clientMutationId ?? null,
 			payload: { itemFacts },
 		});
-		return { event, result: itemFacts };
+		return "applied";
 	}
 
 	private writeProjectionRow(input: {

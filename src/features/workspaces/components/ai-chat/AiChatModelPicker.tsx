@@ -1,7 +1,10 @@
+import { Link } from "@tanstack/react-router";
 import { Check, ChevronUp, Waypoints } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "#/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "#/components/ui/popover";
+import { showUpgradeDialog } from "#/features/account/upgrade-navigation";
 import {
 	getWorkspaceAiChatModelById,
 	WORKSPACE_AI_CHAT_MODELS,
@@ -10,6 +13,8 @@ import {
 	type WorkspaceAiChatModelId,
 	type WorkspaceAiChatModelLevel,
 } from "#/features/workspaces/ai/models";
+import { useBillingState } from "#/features/account/use-billing-state";
+import { useWorkspaceAiTierBalances } from "#/features/workspaces/ai/use-workspace-ai-allowance";
 import { ProviderLogo } from "#/features/workspaces/components/ai-chat/ProviderLogo";
 import { WorkspaceToolbarTextButton } from "#/features/workspaces/components/WorkspaceToolbar";
 import { cn } from "#/lib/utils";
@@ -35,6 +40,7 @@ export default function AiChatModelPicker({ modelId, onModelChange }: AiChatMode
 
 	const selectedModel = getWorkspaceAiChatModelById(modelId);
 	const detailModel = getWorkspaceAiChatModelById(previewId ?? modelId);
+	const premiumSpent = !useWorkspaceAiTierBalances().premium.hasBalance;
 
 	// The "Auto" option lives outside the provider groups — it's ThinkEx's own
 	// choice, not a provider's model.
@@ -119,9 +125,14 @@ export default function AiChatModelPicker({ modelId, onModelChange }: AiChatMode
 										)}
 									>
 										<span className="truncate">{model.name}</span>
-										{isSelected ? (
-											<Check className="ml-auto size-3.5 shrink-0 text-foreground" />
-										) : null}
+										{/* Quiet text rather than a badge: the rows are dense, and a
+										    filled pill on every premium row would out-shout the names. */}
+										<span className="ml-auto flex shrink-0 items-center gap-1.5">
+											{model.billingTier === "premium" ? (
+												<span className="text-[0.6875rem] text-muted-foreground">Premium</span>
+											) : null}
+											{isSelected ? <Check className="size-3.5 text-foreground" /> : null}
+										</span>
 									</button>
 								);
 							})}
@@ -130,13 +141,21 @@ export default function AiChatModelPicker({ modelId, onModelChange }: AiChatMode
 				</div>
 
 				{/* Right: details for the hovered (or selected) model */}
-				<ModelDetails model={detailModel} />
+				<ModelDetails model={detailModel} premiumSpent={premiumSpent} />
 			</PopoverContent>
 		</Popover>
 	);
 }
 
-function ModelDetails({ model }: { model: WorkspaceAiChatModel }) {
+function ModelDetails({
+	model,
+	premiumSpent,
+}: {
+	model: WorkspaceAiChatModel;
+	premiumSpent: boolean;
+}) {
+	const { isPro } = useBillingState();
+
 	return (
 		<div className="flex min-w-0 flex-col gap-3 p-4">
 			<div className="flex items-center gap-2.5">
@@ -146,9 +165,9 @@ function ModelDetails({ model }: { model: WorkspaceAiChatModel }) {
 				{model.provider !== "auto" ? (
 					<ProviderLogo provider={model.provider} className="size-4 shrink-0 opacity-65" />
 				) : null}
-				<div className="min-w-0">
-					<div className="font-medium text-foreground">{model.name}</div>
-				</div>
+				{/* No truncate: the tier moved down to its own row, so the name owns the
+				    full width and long names wrap rather than getting cut. */}
+				<div className="min-w-0 font-medium text-foreground">{model.name}</div>
 			</div>
 
 			<p className="text-xs leading-relaxed text-muted-foreground">{model.description}</p>
@@ -160,7 +179,35 @@ function ModelDetails({ model }: { model: WorkspaceAiChatModel }) {
 				</div>
 				<StatBar label="Intelligence" value={model.intelligence} />
 				<StatBar label="Speed" value={model.speed} />
-				<StatBar label="Cost" value={model.cost} />
+				{/* Both tiers render a badge so the row keeps one height as you hover
+				    between models. */}
+				<div className="flex items-center justify-between gap-3">
+					<span className="text-xs text-muted-foreground">Cost</span>
+					<Badge variant={model.billingTier === "premium" ? "premium" : "secondary"}>
+						{model.billingTier === "premium" ? "Premium" : "Standard"}
+					</Badge>
+				</div>
+				{/* Availability lives here, not on every list row: it's one tier-level
+				    fact, and the detail panel shows one model at a time. This is also
+				    the highest-intent upgrade moment — reaching for a premium model is
+				    choosing to upgrade, rather than being interrupted mid-message. */}
+				{model.billingTier === "premium" && premiumSpent ? (
+					// Subscribers get the fact without the pitch. Offering Pro to someone
+					// who already pays for it reads as the product not knowing who they
+					// are, and the plan panel has nothing more to sell them anyway.
+					isPro ? (
+						<span className="text-xs text-muted-foreground">None left this month</span>
+					) : (
+						<Link
+							replace
+							search={showUpgradeDialog}
+							to="."
+							className="text-xs font-medium text-foreground underline underline-offset-4"
+						>
+							None left this month &mdash; get 400 with Pro
+						</Link>
+					)
+				) : null}
 			</div>
 		</div>
 	);
